@@ -1,0 +1,99 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@500;600;700;800;900&family=Roboto:wght@300;400;500;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --teal: #51a8b1;
+  --green: #a8cf45;
+  --grey: #b9c0cb;
+  --white: #ffffff;
+  --dark-text: #333333;
+  --light-text: #4a5462;
+  --teal-dark: #3a7d84;
+  --footer-bg: #2f4154;
+  --footer-text: #d1d8df;
+
+  --background: #f8fafb;
+  --foreground: #333333;
+}
+
+html, body {
+  margin: 0;
+  min-height: 100%;
+  font-family: 'Roboto', sans-serif;
+  color: var(--dark-text);
+  background-color: var(--background);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+h1, h2, h3, h4, h5, h6, .font-heading {
+  font-family: 'Montserrat', sans-serif;
+  letter-spacing: -0.02em;
+  color: var(--teal-dark);
+}
+
+p, span, label, input, select, textarea, button {
+  font-family: 'Roboto', sans-serif;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: #f1f4f6;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--grey);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--teal);
+}
+
+/* Brand Utility Classes */
+.bg-teal-brand {
+  background-color: #51a8b1;
+}
+.bg-green-brand {
+  background-color: #a8cf45;
+}
+.text-teal-brand {
+  color: #51a8b1;
+}
+.text-teal-dark {
+  color: #3a7d84;
+}
+.text-green-brand {
+  color: #a8cf45;
+}
+.border-teal-brand {
+  border-color: #51a8b1;
+}
+.border-green-brand {
+  border-color: #a8cf45;
+}
+.btn-primary-brand {
+  background-color: #51a8b1;
+  color: #ffffff;
+  transition: all 0.2s ease;
+}
+.btn-primary-brand:hover {
+  background-color: #3a7d84;
+}
+.btn-accent-brand {
+  background-color: #a8cf45;
+  color: #333333;
+  transition: all 0.2s ease;
+}
+.btn-accent-brand:hover {
+  background-color: #94bc33;
+}
