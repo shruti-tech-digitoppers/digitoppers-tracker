@@ -18,6 +18,7 @@ import { HardwareConsignmentSection } from './fields/HardwareConsignmentSection'
 import { ContentConfigSection } from './fields/ContentConfigSection';
 import { AppFileDownloadSection } from './fields/AppFileDownloadSection';
 import { IntegrationTestingSection } from './fields/IntegrationTestingSection';
+import { MultiSchoolSection } from './fields/MultiSchoolSection';
 import { FileText, Save, Check, AlertCircle, Loader2, User } from 'lucide-react';
 
 interface DynamicFormRendererProps {
@@ -88,10 +89,17 @@ export function DynamicFormRenderer({
     }
   };
 
+  const isSchoolOnboardingForm = useMemo(() => {
+    return fieldsArray.some(f => (f.key === 'schoolName' || f.name === 'schoolName' || f.key === 'multiSchoolSection')) &&
+           fieldsArray.some(f => (f.key === 'schoolCode' || f.name === 'schoolCode' || f.key === 'principalName' || f.name === 'principalName' || f.key === 'totalStudents'));
+  }, [fieldsArray]);
+
   const isFullWidth = (field: IFormFieldSchema) => {
     const type = field.type;
     return (
       type === 'textarea' ||
+      type === 'multiSchoolSection' ||
+      type === 'multiSchoolInfo' ||
       type === 'solutionsConfig' ||
       type === 'hardwareConfig' ||
       type === 'hardwareRequirementsInput' ||
@@ -128,30 +136,52 @@ export function DynamicFormRenderer({
         </div>
       )}
 
-      {/* Grid of Dynamic Form Fields */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {fieldsArray.map((field, idx) => {
-          const fieldKey = field.name || field.key || `field_${idx}`;
-          const value = formData[fieldKey] !== undefined ? formData[fieldKey] : (field.defaultValue ?? '');
-          const fullWidth = isFullWidth(field);
+      {/* If this is the School Onboarding Information Stage, render the Multi-School Hub */}
+      {isSchoolOnboardingForm ? (
+        <MultiSchoolSection
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+        />
+      ) : (
+        /* Grid of Dynamic Form Fields */
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {fieldsArray.map((field, idx) => {
+            const fieldKey = field.name || field.key || `field_${idx}`;
+            const value = formData[fieldKey] !== undefined ? formData[fieldKey] : (field.defaultValue ?? '');
+            const fullWidth = isFullWidth(field);
 
-          return (
-            <div
-              key={fieldKey}
-              className={`space-y-1 ${fullWidth ? 'sm:col-span-2' : ''}`}
-            >
-              {field.type === 'solutionsConfig' ? (
-                <div>
-                  <label className="block text-xs font-bold text-[#3a7d84] mb-1">
-                    {field.label || 'Solutions Configuration'}
-                  </label>
-                  <SolutionsConfigTable
-                    value={value}
-                    onChange={(val) => handleChange(fieldKey, val)}
+            return (
+              <div
+                key={fieldKey}
+                className={`space-y-1 ${fullWidth ? 'sm:col-span-2' : ''}`}
+              >
+                {field.type === 'multiSchoolSection' || field.type === 'multiSchoolInfo' ? (
+                  <MultiSchoolSection
+                    value={value || formData}
+                    onChange={(val) => {
+                      setFormData((prev) => ({ ...prev, ...val, [fieldKey]: val }));
+                      setSuccessMsg(null);
+                      setError(null);
+                    }}
                     disabled={disabled || submitting}
                   />
-                </div>
-              ) : field.type === 'hardwareRequirementsInput' ? (
+                ) : field.type === 'solutionsConfig' ? (
+                  <div>
+                    <label className="block text-xs font-bold text-[#3a7d84] mb-1">
+                      {field.label || 'Solutions Configuration'}
+                    </label>
+                    <SolutionsConfigTable
+                      value={value}
+                      onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                    />
+                  </div>
+                ) : field.type === 'hardwareRequirementsInput' ? (
                 <div>
                   <label className="block text-xs font-bold text-[#3a7d84] mb-1">
                     {field.label || 'Hardware Equipment Requirements'}
@@ -299,6 +329,7 @@ export function DynamicFormRenderer({
           );
         })}
       </div>
+      )}
 
       {/* Save / Submit Footer */}
       {!disabled && (
