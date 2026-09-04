@@ -1,6 +1,5 @@
-'use client';
-
 import React, { useState, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import { timelineApi } from '../../lib/api/timeline.api';
 import { employeesApi } from '../../lib/api/employees.api';
 import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
@@ -16,6 +15,8 @@ import {
   ChevronDown,
   ChevronUp,
   Building2,
+  ExternalLink,
+  Compass,
 } from 'lucide-react';
 
 interface ProjectRoadmapCardProps {
@@ -28,10 +29,10 @@ interface ProjectRoadmapCardProps {
 }
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; dot: string; icon: string }> = {
-  ACTIVE:    { label: 'Active',    cls: 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6]', dot: 'bg-[#a8cf45]', icon: 'text-[#759724]' },
-  ON_HOLD:   { label: 'On Hold',   cls: 'bg-amber-50 text-amber-800 border-amber-200',       dot: 'bg-amber-500',  icon: 'text-amber-600'   },
-  COMPLETED: { label: 'Completed', cls: 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4]',     dot: 'bg-[#51a8b1]',  icon: 'text-[#3a7d84]'    },
-  ARCHIVED:  { label: 'Archived',  cls: 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40',  dot: 'bg-[#b9c0cb]',  icon: 'text-[#4a5462]'   },
+  ACTIVE: { label: 'Active', cls: 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6]', dot: 'bg-[#a8cf45]', icon: 'text-[#759724]' },
+  ON_HOLD: { label: 'On Hold', cls: 'bg-amber-50 text-amber-800 border-amber-200', dot: 'bg-amber-500', icon: 'text-amber-600' },
+  COMPLETED: { label: 'Completed', cls: 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4]', dot: 'bg-[#51a8b1]', icon: 'text-[#3a7d84]' },
+  ARCHIVED: { label: 'Archived', cls: 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40', dot: 'bg-[#b9c0cb]', icon: 'text-[#4a5462]' },
 };
 
 export function ProjectRoadmapCard({
@@ -65,7 +66,7 @@ export function ProjectRoadmapCard({
       setNodes(res.timeline?.nodes || []);
       setLoaded(true);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to load timeline.');
+      setError(err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to load timeline.');
     } finally {
       if (showLoader) setLoading(false);
     }
@@ -74,7 +75,7 @@ export function ProjectRoadmapCard({
   useEffect(() => {
     employeesApi.getEmployees()
       .then((res) => setEmployees(res.employees || []))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   // Lazy-load timeline on first expand
@@ -105,7 +106,7 @@ export function ProjectRoadmapCard({
         setFormSchema(formRes.formSchema || null);
         setFormData(formRes.formData || {});
       }
-    } catch {}
+    } catch { }
   };
 
   const handleStatusChange = async (newStatus: TimelineNodeStatus) => {
@@ -180,8 +181,21 @@ export function ProjectRoadmapCard({
   const handleFormSubmit = async (updated: Record<string, any>) => {
     if (!selectedNode) return;
     try {
+      setMutationError(null);
       const res = await timelineApi.updateNodeForm(project._id, selectedNode._id, updated);
-      if (res.node) setSelectedNode(res.node);
+      if (res.node) {
+        setSelectedNode((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            ...res.node,
+            name: res.node.name && res.node.name !== 'Stage / Task' && res.node.name !== 'Untitled Node' ? res.node.name : prev.name,
+            key: res.node.key || prev.key,
+            type: res.node.type || prev.type,
+            children: res.node.children && res.node.children.length > 0 ? res.node.children : prev.children,
+          };
+        });
+      }
       const formRes = await timelineApi.getNodeForm(project._id, selectedNode._id);
       if (formRes) {
         setFormSchema(formRes.formSchema || null);
@@ -189,8 +203,11 @@ export function ProjectRoadmapCard({
       }
       await fetchTimeline(false);
       if (onProjectUpdated) onProjectUpdated();
+      setMutationError(null);
     } catch (err: any) {
-      setMutationError(err.response?.data?.message || 'Failed to save form data.');
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save form data.';
+      setMutationError(msg);
+      throw err;
     }
   };
 
@@ -204,11 +221,10 @@ export function ProjectRoadmapCard({
 
   return (
     <div
-      className={`rounded-2xl border bg-white shadow-xs transition-all duration-300 overflow-hidden font-sans ${
-        isCardExpanded
+      className={`rounded-2xl border bg-white shadow-xs transition-all duration-300 overflow-hidden font-sans ${isCardExpanded
           ? 'border-[#51a8b1]/60 shadow-md ring-1 ring-[#51a8b1]/20'
           : 'border-[#b9c0cb]/40 hover:border-[#51a8b1]/50 hover:shadow-md'
-      }`}
+        }`}
     >
       {/* ── Card Header — always visible ─────────────────── */}
       <div
@@ -252,15 +268,26 @@ export function ProjectRoadmapCard({
               </span>
               <div className="w-24 bg-[#f1f4f6] rounded-full h-2 overflow-hidden border border-[#b9c0cb]/30">
                 <div
-                  className={`h-full rounded-full transition-all duration-500 ${
-                    progressPct === 100 ? 'bg-[#a8cf45]' : 'bg-[#51a8b1]'
-                  }`}
+                  className={`h-full rounded-full transition-all duration-500 ${progressPct === 100 ? 'bg-[#a8cf45]' : 'bg-[#51a8b1]'
+                    }`}
                   style={{ width: `${progressPct}%` }}
                 />
               </div>
               <span className="text-[9px] font-mono font-bold text-[#3a7d84]">{progressPct}%</span>
             </div>
           )}
+
+          {/* Open in Full Execution Tracker Button */}
+          <Link
+            href={`/tracker?projectId=${project._id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-[11px] font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
+            title="Open in full Execution Tracker workspace"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Execution Tracker</span>
+            <ExternalLink className="w-3 h-3 opacity-70" />
+          </Link>
 
           {/* Refresh (only when expanded) */}
           {isCardExpanded && (
@@ -279,11 +306,10 @@ export function ProjectRoadmapCard({
 
           {/* Chevron */}
           <div
-            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
-              isCardExpanded
+            className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${isCardExpanded
                 ? 'bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]'
                 : 'bg-[#f8fafb] text-[#4a5462] border border-[#b9c0cb]/40 group-hover:text-[#3a7d84]'
-            }`}
+              }`}
           >
             {isCardExpanded ? (
               <ChevronUp className="w-4 h-4" />
@@ -296,9 +322,8 @@ export function ProjectRoadmapCard({
 
       {/* ── Smooth Collapse / Expand Body ─────────────────── */}
       <div
-        className={`grid transition-all duration-300 ease-in-out ${
-          isCardExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-        }`}
+        className={`grid transition-all duration-300 ease-in-out ${isCardExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+          }`}
       >
         <div className="overflow-hidden">
           <div className="border-t border-[#b9c0cb]/30 p-4 bg-[#f8fafb]/60">
@@ -313,8 +338,15 @@ export function ProjectRoadmapCard({
                 <span>{error}</span>
               </div>
             ) : nodes.length === 0 ? (
-              <div className="text-center py-10 text-xs text-[#4a5462]">
-                No timeline stages found for this project.
+              <div className="text-center py-8 space-y-2 text-[#4a5462]">
+                <p className="text-xs font-medium">No timeline stages found for this project.</p>
+                <Link
+                  href={`/tracker?projectId=${project._id}`}
+                  className="inline-flex items-center gap-1 text-xs font-bold text-[#51a8b1] hover:underline"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  Open in Execution Tracker to initialize
+                </Link>
               </div>
             ) : (
               <div className="relative">

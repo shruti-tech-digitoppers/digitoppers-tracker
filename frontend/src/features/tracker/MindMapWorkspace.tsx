@@ -44,11 +44,12 @@ export function MindMapWorkspace() {
   const [mutating, setMutating] = useState<boolean>(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
 
+  // Fetch projects and employees on mount
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const storedUser = localStorage.getItem('user');
       if (storedUser) {
-        try { setCurrentUser(JSON.parse(storedUser)); } catch {}
+        try { setCurrentUser(JSON.parse(storedUser)); } catch { }
       }
     }
 
@@ -56,15 +57,19 @@ export function MindMapWorkspace() {
       .then((res) => {
         const list = res.projects || [];
         setProjects(list);
-        if (!selectedProjectId && list.length > 0) {
-          setSelectedProjectId(list[0]._id);
+        if (list.length > 0) {
+          if (urlProjectId && list.some((p) => p._id === urlProjectId)) {
+            setSelectedProjectId(urlProjectId);
+          } else if (!selectedProjectId) {
+            setSelectedProjectId(list[0]._id);
+          }
         }
       })
-      .catch(() => {});
+      .catch(() => { });
 
     employeesApi.getEmployees()
       .then((res) => setEmployees(res.employees || []))
-      .catch(() => {});
+      .catch(() => { });
   }, []);
 
   const fetchTimeline = useCallback(async (projId: string, showGlobalLoading = true) => {
@@ -92,29 +97,50 @@ export function MindMapWorkspace() {
         if (updated) setSelectedNode(updated);
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Unable to load project timeline.');
+      setError(err.response?.data?.message || err.message || 'Unable to load project timeline.');
       setNodes([]);
     } finally {
       if (showGlobalLoading) setLoading(false);
     }
   }, []);
 
-  // When project changes, clear selection and reload
+  // When selectedProjectId changes, clear selection, reload timeline & update URL
   useEffect(() => {
     if (selectedProjectId) {
       setSelectedNode(null);
       setFormSchema(null);
       setFormData({});
       fetchTimeline(selectedProjectId, true);
+      // Sync URL without full reload
+      if (typeof window !== 'undefined') {
+        const currentUrlParam = new URLSearchParams(window.location.search).get('projectId');
+        if (currentUrlParam !== selectedProjectId) {
+          router.replace(`/tracker?projectId=${selectedProjectId}`, { scroll: false });
+        }
+      }
     }
-  }, [selectedProjectId, fetchTimeline]);
+  }, [selectedProjectId, fetchTimeline, router]);
 
-  // Sync URL param → selectedProjectId when URL changes
+  // Sync URL param → selectedProjectId when URL changes externally
   useEffect(() => {
     if (urlProjectId && urlProjectId !== selectedProjectId) {
       setSelectedProjectId(urlProjectId);
     }
   }, [urlProjectId]);
+
+  const handleResetTimeline = async () => {
+    if (!selectedProjectId) return;
+    try {
+      setLoading(true);
+      setError(null);
+      await timelineApi.resetTimeline(selectedProjectId);
+      await fetchTimeline(selectedProjectId, true);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Failed to initialize timeline stages.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleNodeSelect = async (node: ITimelineNode) => {
     setSelectedNode(node);
@@ -140,7 +166,7 @@ export function MindMapWorkspace() {
         setFormSchema(formRes.formSchema || null);
         setFormData(formRes.formData || {});
       }
-    } catch {}
+    } catch { }
   };
 
   const handleStatusChange = async (newStatus: TimelineNodeStatus) => {
@@ -214,16 +240,32 @@ export function MindMapWorkspace() {
   const handleFormSubmit = async (updatedFormData: Record<string, any>) => {
     if (!selectedProjectId || !selectedNode) return;
     try {
+      setMutationError(null);
       const res = await timelineApi.updateNodeForm(selectedProjectId, selectedNode._id, updatedFormData);
-      if (res.node) setSelectedNode(res.node);
+      if (res.node) {
+        setSelectedNode((prev) => {
+          if (!prev) return null;
+          return {
+            ...prev,
+            ...res.node,
+            name: res.node.name && res.node.name !== 'Stage / Task' && res.node.name !== 'Untitled Node' ? res.node.name : prev.name,
+            key: res.node.key || prev.key,
+            type: res.node.type || prev.type,
+            children: res.node.children && res.node.children.length > 0 ? res.node.children : prev.children,
+          };
+        });
+      }
       const formRes = await timelineApi.getNodeForm(selectedProjectId, selectedNode._id);
       if (formRes) {
         setFormSchema(formRes.formSchema || null);
         setFormData(formRes.formData || {});
       }
       await fetchTimeline(selectedProjectId, false);
+      setMutationError(null);
     } catch (err: any) {
-      setMutationError(err.response?.data?.message || 'Failed to save node form data.');
+      const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save form data.';
+      setMutationError(msg);
+      throw err;
     }
   };
 
@@ -295,33 +337,63 @@ export function MindMapWorkspace() {
 
       {/* ── Error banner ────────────────────────────────── */}
       {error && (
-        <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-xs flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-          <span>{error}</span>
+        <div className="bg-rose-50 border border-rose-200 text-rose-700 px-4 py-3 rounded-xl text-xs flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+            <span className="font-semibold">{error}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => selectedProjectId && fetchTimeline(selectedProjectId, true)}
+            className="px-3 py-1 bg-rose-600 text-white rounded-lg font-bold text-[11px] hover:bg-rose-700 transition cursor-pointer shrink-0"
+          >
+            Retry
+          </button>
         </div>
       )}
 
       {/* ── Main canvas ─────────────────────────────────── */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-40 rounded-2xl bg-white border border-slate-200 text-slate-500 space-y-3">
-          <div className="w-8 h-8 border-[3px] border-indigo-600/20 border-t-indigo-600 rounded-full animate-spin" />
-          <p className="text-xs font-semibold">Loading roadmap...</p>
+        <div className="flex flex-col items-center justify-center py-40 rounded-2xl bg-white border border-slate-200 text-slate-500 space-y-3 shadow-xs">
+          <div className="w-8 h-8 border-[3px] border-[#51a8b1]/20 border-t-[#51a8b1] rounded-full animate-spin" />
+          <p className="text-xs font-semibold text-[#4a5462]">Loading execution roadmap...</p>
         </div>
       ) : !selectedProjectId ? (
-        <div className="text-center py-40 border border-dashed border-slate-300 rounded-2xl text-slate-500 space-y-2 bg-white">
-          <Layers className="w-8 h-8 text-slate-400 mx-auto" />
-          <p className="text-sm font-semibold text-slate-700">No project selected.</p>
-          <p className="text-xs">Select a project from the dropdown above.</p>
+        <div className="text-center py-40 border border-dashed border-[#b9c0cb]/60 rounded-2xl text-[#4a5462] space-y-2 bg-white shadow-xs">
+          <Layers className="w-8 h-8 text-[#b9c0cb] mx-auto" />
+          <p className="text-sm font-semibold text-[#333333]">No project selected.</p>
+          <p className="text-xs">Select a project from the dropdown above to view its execution roadmap.</p>
         </div>
       ) : nodes.length === 0 ? (
-        <div className="text-center py-40 border border-dashed border-slate-300 rounded-2xl text-slate-500 space-y-2 bg-white">
-          <AlertCircle className="w-8 h-8 text-slate-400 mx-auto" />
-          <p className="text-sm font-semibold text-slate-700">No timeline nodes found.</p>
-          <p className="text-xs">Ensure stages are initialized in the backend.</p>
+        <div className="text-center py-32 border border-dashed border-[#b9c0cb]/60 rounded-2xl text-[#4a5462] space-y-3 bg-white shadow-xs p-6">
+          <AlertCircle className="w-10 h-10 text-[#51a8b1] mx-auto" />
+          <div className="max-w-md mx-auto space-y-1">
+            <p className="text-sm font-bold text-[#333333] font-heading">No timeline nodes initialized yet</p>
+            <p className="text-xs text-[#4a5462]">
+              Stages for this project have not been created yet or need re-initialization from the standard 8-stage rollout template.
+            </p>
+          </div>
+          <div className="flex items-center justify-center gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => fetchTimeline(selectedProjectId, true)}
+              className="px-3.5 py-1.5 rounded-xl border border-[#b9c0cb]/60 text-xs font-semibold text-[#4a5462] hover:bg-[#f8fafb] transition cursor-pointer"
+            >
+              Refresh
+            </button>
+            <button
+              type="button"
+              onClick={handleResetTimeline}
+              className="px-4 py-1.5 rounded-xl bg-[#51a8b1] text-white text-xs font-bold hover:bg-[#3a7d84] transition cursor-pointer shadow-xs"
+            >
+              Initialize 8-Stage Timeline
+            </button>
+          </div>
         </div>
       ) : (
         <>
           <HorizontalRoadmapCanvas
+            project={selectedProject}
             nodes={nodes}
             selectedNode={selectedNode}
             onSelectNode={handleNodeSelect}

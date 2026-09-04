@@ -21,7 +21,7 @@ const projectSchema = new mongoose.Schema({
 
   // Tracker workflow fields
   description: { type: String, trim: true },
-  client: { type: String, trim: true, default: 'DigiTopper Institutional Client' },
+  client: { type: String, trim: true },
   status: { type: String, enum: Object.values(PROJECT_STATUSES), default: PROJECT_STATUSES.ACTIVE, index: true },
   projectManager: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false, index: true },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false },
@@ -42,9 +42,7 @@ projectSchema.pre('validate', function (next) {
     this.projectName = this.title;
   }
 
-  if (!this.client && this.projectName) {
-    this.client = this.projectName;
-  }
+
 
   next();
 });

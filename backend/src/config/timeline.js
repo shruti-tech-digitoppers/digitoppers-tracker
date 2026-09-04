@@ -14,16 +14,14 @@ module.exports = {
           metadata: { noAssignment: true },
           formSchema: {
             fields: [
-              { key: 'organizationName', label: 'Organization / School Name', type: 'text', required: true },
-              { key: 'contactPerson', label: 'Contact Person Name', type: 'text' },
-              { key: 'contactDesignation', label: 'Designation', type: 'text' },
-              { key: 'phone', label: 'Phone Number', type: 'text' },
+              { key: 'projectName', label: 'Project Name / Title', type: 'text', required: true },
               { key: 'email', label: 'Email Address', type: 'text' },
-              { key: 'location', label: 'Location / City', type: 'text' },
-              { key: 'leadSource', label: 'Lead Source', type: 'select', options: ['Cold Call', 'Referral', 'Tender / RFP', 'Government Portal', 'Exhibition / Event', 'Direct Walk-in', 'Other'] },
-              { key: 'expectedProjectValue', label: 'Expected Project Value (₹)', type: 'number' },
-              { key: 'leadDescription', label: 'Discussion / Requirement Summary', type: 'textarea' },
-              { key: 'confirmed', label: 'Negotiation Confirmed?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
+              { key: 'country', label: 'Country', type: 'text' },
+              { key: 'phone', label: 'Phone Number', type: 'text' },
+              { key: 'address', label: 'Address / Location', type: 'text' },
+              { key: 'projectReviewed', label: 'Project Reviewed?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
+              { key: 'projectCreated', label: 'Project Created?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
+              { key: 'confirmed', label: 'Negotiation Confirmed?', type: 'select', options: ['YES', 'NO', 'PENDING'] },
               { key: 'confirmationDate', label: 'Confirmation Date', type: 'date' },
               { key: 'remarks', label: 'Remarks', type: 'textarea' }
             ]
@@ -43,7 +41,6 @@ module.exports = {
           metadata: { noAssignment: true },
           formSchema: {
             fields: [
-              { key: 'projectName', label: 'Project Name / Title', type: 'text', placeholder: 'Enter Project Name' },
               { key: 'poDocumentUrl', label: 'PO Document (PDF)', type: 'file', required: true, hint: 'Upload official Purchase Order document (PDF / Images)' },
               { key: 'poNumber', label: 'PO Number', type: 'text' },
               { key: 'poDate', label: 'PO Date', type: 'date' },
@@ -120,9 +117,9 @@ module.exports = {
           order: 2,
           formSchema: {
             fields: [
-              { 
-                key: 'solutions', 
-                label: 'Solutions & Quantity Breakdown', 
+              {
+                key: 'solutions',
+                label: 'Solutions & Quantity Breakdown',
                 type: 'solutionsConfig',
                 hint: 'Check each solution required and enter its quantity, target classes, and implementation room'
               },
@@ -140,11 +137,11 @@ module.exports = {
           metadata: { noAssignment: true },
           formSchema: {
             fields: [
-              { 
-                key: 'hardwareRequirements', 
-                label: 'Hardware Products & Specifications', 
-                type: 'hardwareRequirementsInput', 
-                hint: 'Select required hardware products, set required quantity and specification / model / brand' 
+              {
+                key: 'hardwareRequirements',
+                label: 'Hardware Products & Specifications',
+                type: 'hardwareRequirementsInput',
+                hint: 'Select required hardware products, set required quantity and specification / model / brand'
               },
               { key: 'assignedHardwareManager', label: 'Assigned Hardware In-charge', type: 'employeeSelect', hint: 'Assign employee responsible for hardware stock check in execution' },
               { key: 'remarks', label: 'Remarks / Notes', type: 'textarea' }
@@ -171,11 +168,11 @@ module.exports = {
               supportsConditional: true,
               formSchema: {
                 fields: [
-                  { 
-                    key: 'stockCheck', 
-                    label: 'Hardware Stock Verification', 
-                    type: 'hardwareStockCheck', 
-                    hint: 'Enter available in-stock quantity. Remaining quantity automatically moves to purchase.' 
+                  {
+                    key: 'stockCheck',
+                    label: 'Hardware Stock Verification',
+                    type: 'hardwareStockCheck',
+                    hint: 'Enter available in-stock quantity. Remaining quantity automatically moves to purchase.'
                   },
                   { key: 'purchaseAssignedTo', label: 'Assigned Purchase / Procurement In-charge', type: 'employeeSelect', hint: 'Select employee responsible for procurement if purchase is needed' },
                   { key: 'remarks', label: 'Stock Verification Remarks', type: 'textarea' }
@@ -189,11 +186,11 @@ module.exports = {
               conditionalOnly: 'NOT_IN_STOCK',
               formSchema: {
                 fields: [
-                  { 
-                    key: 'productProcurements', 
-                    label: 'Per-Product Vendor PO & PI Procurement', 
-                    type: 'hardwarePurchaseSection', 
-                    hint: 'Upload Vendor PO and PI documents individually for each product being purchased' 
+                  {
+                    key: 'productProcurements',
+                    label: 'Per-Product Vendor PO & PI Procurement',
+                    type: 'hardwarePurchaseSection',
+                    hint: 'Upload Vendor PO and PI documents individually for each product being purchased'
                   },
                   { key: 'overallProcurementRemarks', label: 'Overall Procurement Remarks', type: 'textarea' }
                 ]
@@ -206,11 +203,11 @@ module.exports = {
               conditionalOnly: 'NOT_IN_STOCK',
               formSchema: {
                 fields: [
-                  { 
-                    key: 'productConsignments', 
-                    label: 'Per-Product Consignment & Address Tracking', 
-                    type: 'hardwareConsignmentSection', 
-                    hint: 'Track individual consignment docket IDs, courier partners, and delivery addresses per hardware product' 
+                  {
+                    key: 'productConsignments',
+                    label: 'Per-Product Consignment & Address Tracking',
+                    type: 'hardwareConsignmentSection',
+                    hint: 'Track individual consignment docket IDs, courier partners, and delivery addresses per hardware product'
                   },
                   { key: 'overallLogisticsRemarks', label: 'Overall Logistics Remarks', type: 'textarea' }
                 ]
@@ -307,9 +304,9 @@ module.exports = {
               order: 1,
               formSchema: {
                 fields: [
-                  { 
-                    key: 'contentSets', 
-                    label: 'Board, Language, Class & Category Sets', 
+                  {
+                    key: 'contentSets',
+                    label: 'Board, Language, Class & Category Sets',
                     type: 'contentConfigSection'
                   },
                   { key: 'remarks', label: 'Configuration Remarks', type: 'textarea' }
@@ -376,11 +373,11 @@ module.exports = {
           order: 1,
           formSchema: {
             fields: [
-              { 
-                key: 'appDownload', 
-                label: 'Application / APK File (Download for Testing)', 
-                type: 'appFileDownloadSection', 
-                hint: 'Download the application build / APK uploaded by the Tech team' 
+              {
+                key: 'appDownload',
+                label: 'Application / APK File (Download for Testing)',
+                type: 'appFileDownloadSection',
+                hint: 'Download the application build / APK uploaded by the Tech team'
               },
               { key: 'testEnvironment', label: 'Test Environment / Device Type', type: 'select', options: ['Android Tablet', 'Interactive Flat Panel / Smartboard', 'Android Mobile', 'Windows PC / Desktop', 'Web Browser / Emulator', 'Multiple Devices'], defaultValue: 'Android Tablet' },
               { key: 'plannedTestingDate', label: 'Planned Testing Date', type: 'date' },

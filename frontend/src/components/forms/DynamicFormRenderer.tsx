@@ -1,8 +1,9 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { FormSchemaType, IFormFieldSchema } from '../../types/timeline';
+import { FormSchemaType, IFormFieldSchema, TimelineNodeStatus } from '../../types/timeline';
 import { IUser } from '../../types/auth';
+import { IProject } from '../../types/project';
 import { FormFieldInput } from './fields/FormFieldInput';
 import { FormFieldSelect } from './fields/FormFieldSelect';
 import { FormFieldRadio } from './fields/FormFieldRadio';
@@ -19,7 +20,8 @@ import { ContentConfigSection } from './fields/ContentConfigSection';
 import { AppFileDownloadSection } from './fields/AppFileDownloadSection';
 import { IntegrationTestingSection } from './fields/IntegrationTestingSection';
 import { MultiSchoolSection } from './fields/MultiSchoolSection';
-import { FileText, Save, Check, AlertCircle, Loader2, User } from 'lucide-react';
+import { ProjectReviewSection } from './fields/ProjectReviewSection';
+import { FileText, Save, Check, AlertCircle, Loader2, User, Building2 } from 'lucide-react';
 
 interface DynamicFormRendererProps {
   schema: FormSchemaType;
@@ -28,6 +30,9 @@ interface DynamicFormRendererProps {
   disabled?: boolean;
   employees?: IUser[];
   allFormData?: Record<string, any>;
+  project?: IProject | null;
+  currentUser?: IUser | null;
+  onStatusChange?: (status: TimelineNodeStatus) => Promise<void>;
 }
 
 export function DynamicFormRenderer({
@@ -37,27 +42,49 @@ export function DynamicFormRenderer({
   disabled = false,
   employees = [],
   allFormData = {},
+  project = null,
+  currentUser = null,
+  onStatusChange,
 }: DynamicFormRendererProps) {
   const [formData, setFormData] = useState<Record<string, any>>(initialData || {});
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>('');
 
   useEffect(() => {
-    setFormData(initialData || {});
+    const updated = { ...(initialData || {}) };
+    if (project && (!updated.projectName || !updated.projectTitle)) {
+      if (project.title || (project as any).projectName) {
+        updated.projectName = project.title || (project as any).projectName;
+      }
+    }
+    setFormData(updated);
+    setLastSavedSnapshot(JSON.stringify(updated));
     setError(null);
     setSuccessMsg(null);
-  }, [initialData, schema]);
+  }, [initialData, schema, project]);
 
   const fieldsArray: IFormFieldSchema[] = useMemo(() => {
     if (!schema) return [];
-    if (Array.isArray(schema)) return schema;
-    if (typeof schema === 'object') {
-      if (Array.isArray((schema as any).fields)) return (schema as any).fields;
-      return Object.values(schema);
+    let list: IFormFieldSchema[] = [];
+    if (Array.isArray(schema)) list = schema;
+    else if (typeof schema === 'object') {
+      if (Array.isArray((schema as any).fields)) list = (schema as any).fields;
+      else list = Object.values(schema);
     }
-    return [];
+    return list;
   }, [schema]);
+
+  const isSchoolOnboardingForm = useMemo(() => {
+    return fieldsArray.some(f => (f.key === 'schoolName' || f.name === 'schoolName' || f.key === 'multiSchoolSection')) &&
+      fieldsArray.some(f => (f.key === 'schoolCode' || f.name === 'schoolCode' || f.key === 'principalName' || f.name === 'principalName' || f.key === 'totalStudents'));
+  }, [fieldsArray]);
+
+  const isProjectReviewForm = useMemo(() => {
+    return fieldsArray.some(f => (f.key === 'organizationName' || f.name === 'organizationName' || f.key === 'projectName' || f.key === 'projectReviewSection')) &&
+      fieldsArray.some(f => (f.key === 'confirmed' || f.name === 'confirmed' || f.key === 'projectReviewed' || f.key === 'projectCreated' || f.key === 'leadSource' || f.key === 'expectedProjectValue' || f.key === 'pmReviewStatus'));
+  }, [fieldsArray]);
 
   if (fieldsArray.length === 0) {
     return (
@@ -76,27 +103,35 @@ export function DynamicFormRenderer({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (submitting) return;
+
+    const currentSnapshot = JSON.stringify(formData);
+    // If the data hasn't changed since last save and a success message is already showing or was just saved
+    if (currentSnapshot === lastSavedSnapshot && successMsg) {
+      setSuccessMsg('Stage information is already saved & up to date.');
+      return;
+    }
+
     try {
       setSubmitting(true);
       setError(null);
       setSuccessMsg(null);
       await onSubmit(formData);
+      setLastSavedSnapshot(currentSnapshot);
       setSuccessMsg('Stage data saved successfully.');
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to save stage form data.');
+      setError(err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save stage form data.');
     } finally {
       setSubmitting(false);
     }
   };
 
-  const isSchoolOnboardingForm = useMemo(() => {
-    return fieldsArray.some(f => (f.key === 'schoolName' || f.name === 'schoolName' || f.key === 'multiSchoolSection')) &&
-           fieldsArray.some(f => (f.key === 'schoolCode' || f.name === 'schoolCode' || f.key === 'principalName' || f.name === 'principalName' || f.key === 'totalStudents'));
-  }, [fieldsArray]);
-
   const isFullWidth = (field: IFormFieldSchema) => {
     const type = field.type;
+    const key = field.key || field.name;
     return (
+      key === 'projectName' ||
+      key === 'projectTitle' ||
       type === 'textarea' ||
       type === 'multiSchoolSection' ||
       type === 'multiSchoolInfo' ||
@@ -136,8 +171,52 @@ export function DynamicFormRenderer({
         </div>
       )}
 
-      {/* If this is the School Onboarding Information Stage, render the Multi-School Hub */}
-      {isSchoolOnboardingForm ? (
+      {/* If this is the Project Reviewer Stage (Stage 01), render the ProjectReviewSection */}
+      {isProjectReviewForm ? (
+        <ProjectReviewSection
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+          project={project}
+          currentUser={currentUser}
+          onSubmitAndComplete={async (data) => {
+            try {
+              setSubmitting(true);
+              setError(null);
+              setSuccessMsg(null);
+              await onSubmit(data);
+              if (onStatusChange) {
+                await onStatusChange('COMPLETED');
+              }
+              setSuccessMsg('Stage 01 (01 — PROJECT REVIEWER) approved & completed successfully!');
+            } catch (err: any) {
+              setError(err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to complete stage.');
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+          onSubmitAndReject={async (data) => {
+            try {
+              setSubmitting(true);
+              setError(null);
+              setSuccessMsg(null);
+              await onSubmit(data);
+              if (onStatusChange) {
+                await onStatusChange('ON_HOLD');
+              }
+              setSuccessMsg('Stage 01 marked as Rejected / On Hold.');
+            } catch (err: any) {
+              setError(err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to update stage.');
+            } finally {
+              setSubmitting(false);
+            }
+          }}
+        />
+      ) : isSchoolOnboardingForm ? (
         <MultiSchoolSection
           value={formData}
           onChange={(val) => {
@@ -154,6 +233,36 @@ export function DynamicFormRenderer({
             const fieldKey = field.name || field.key || `field_${idx}`;
             const value = formData[fieldKey] !== undefined ? formData[fieldKey] : (field.defaultValue ?? '');
             const fullWidth = isFullWidth(field);
+
+            // If this field is projectName / projectTitle, render as a clean Headline Card instead of an input box!
+            if (fieldKey === 'projectName' || fieldKey === 'projectTitle') {
+              const displayProjectTitle = project?.title || (project as any)?.projectName || value || 'Project';
+              const displayProjectCode = project?.projectCode || (project as any)?.projectId || '';
+              return (
+                <div key={fieldKey} className="sm:col-span-2">
+                  <div className="p-3.5 bg-gradient-to-r from-[#3a7d84]/10 via-[#51a8b1]/10 to-[#f8fafb] border border-[#51a8b1]/30 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#3a7d84] to-[#51a8b1] flex items-center justify-center text-white shadow-2xs shrink-0">
+                        <Building2 className="w-4.5 h-4.5" />
+                      </div>
+                      <div className="min-w-0">
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-[#3a7d84] block">
+                          Project Headline
+                        </span>
+                        <h4 className="text-sm font-bold text-[#1f2937] font-heading leading-tight truncate" title={displayProjectTitle}>
+                          {displayProjectTitle}
+                        </h4>
+                      </div>
+                    </div>
+                    {displayProjectCode && (
+                      <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-white border border-[#51a8b1]/30 text-[#3a7d84] font-bold shadow-2xs shrink-0">
+                        {displayProjectCode}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            }
 
             return (
               <div
@@ -182,157 +291,122 @@ export function DynamicFormRenderer({
                     />
                   </div>
                 ) : field.type === 'hardwareRequirementsInput' ? (
-                <div>
-                  <label className="block text-xs font-bold text-[#3a7d84] mb-1">
-                    {field.label || 'Hardware Equipment Requirements'}
-                  </label>
-                  <HardwareRequirementsInput
+                  <div>
+                    <label className="block text-xs font-bold text-[#3a7d84] mb-1">
+                      {field.label || 'Hardware Equipment Requirements'}
+                    </label>
+                    <HardwareRequirementsInput
+                      value={value}
+                      onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                    />
+                  </div>
+                ) : field.type === 'hardwareStockCheck' ? (
+                  <div>
+                    <label className="block text-xs font-bold text-[#3a7d84] mb-1">
+                      {field.label || 'Hardware Stock Verification'}
+                    </label>
+                    <HardwareStockCheck
+                      value={value}
+                      onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                      allFormData={allFormData}
+                      employees={employees}
+                    />
+                  </div>
+                ) : field.type === 'hardwarePurchaseSection' || field.type === 'hardwarePurchaseView' ? (
+                  <div>
+                    <HardwarePurchaseSection
+                      value={value}
+                      onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                      allFormData={allFormData}
+                    />
+                  </div>
+                ) : field.type === 'hardwareConsignmentSection' ? (
+                  <div>
+                    <HardwareConsignmentSection
+                      value={value}
+                      onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                      allFormData={allFormData}
+                    />
+                  </div>
+                ) : field.type === 'contentConfigSection' ? (
+                  <div>
+                    <ContentConfigSection
+                      value={value}
+                      onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                    />
+                  </div>
+                ) : field.type === 'appFileDownloadSection' || field.type === 'appDownloadSection' || field.type === 'appDownloadView' ? (
+                  <div>
+                    <AppFileDownloadSection
+                      value={value}
+                      onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                      allFormData={allFormData}
+                    />
+                  </div>
+                ) : field.type === 'integrationTestingSection' || field.type === 'testingResultsSection' ? (
+                  <div>
+                    <IntegrationTestingSection
+                      value={value}
+                      onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                      employees={employees}
+                    />
+                  </div>
+                ) : field.type === 'select' ? (
+                  <FormFieldSelect
+                    field={field}
+                    name={fieldKey}
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
                   />
-                </div>
-              ) : field.type === 'hardwareStockCheck' ? (
-                <div>
-                  <label className="block text-xs font-bold text-[#3a7d84] mb-1">
-                    {field.label || 'Hardware Stock Verification'}
-                  </label>
-                  <HardwareStockCheck
-                    value={value}
-                    onChange={(val) => handleChange(fieldKey, val)}
-                    disabled={disabled || submitting}
-                    allFormData={allFormData}
-                    employees={employees}
-                  />
-                </div>
-              ) : field.type === 'hardwarePurchaseSection' || field.type === 'hardwarePurchaseView' ? (
-                <div>
-                  <HardwarePurchaseSection
-                    value={value}
-                    onChange={(val) => handleChange(fieldKey, val)}
-                    disabled={disabled || submitting}
-                    allFormData={allFormData}
-                  />
-                </div>
-              ) : field.type === 'hardwareConsignmentSection' ? (
-                <div>
-                  <HardwareConsignmentSection
-                    value={value}
-                    onChange={(val) => handleChange(fieldKey, val)}
-                    disabled={disabled || submitting}
-                    allFormData={allFormData}
-                  />
-                </div>
-              ) : field.type === 'contentConfigSection' ? (
-                <div>
-                  <ContentConfigSection
+                ) : field.type === 'radio' ? (
+                  <FormFieldRadio
+                    field={field}
+                    name={fieldKey}
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
                   />
-                </div>
-              ) : field.type === 'appFileDownloadSection' || field.type === 'appDownloadSection' || field.type === 'appDownloadView' ? (
-                <div>
-                  <AppFileDownloadSection
+                ) : field.type === 'textarea' ? (
+                  <FormFieldTextarea
+                    field={field}
+                    name={fieldKey}
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
-                    allFormData={allFormData}
                   />
-                </div>
-              ) : field.type === 'integrationTestingSection' || field.type === 'testingResultsSection' ? (
-                <div>
-                  <IntegrationTestingSection
+                ) : field.type === 'file' ? (
+                  <FormFieldUpload
+                    field={field}
+                    name={fieldKey}
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
-                    employees={employees}
                   />
-                </div>
-              ) : field.type === 'employeeSelect' ? (
-                <div>
-                  <label className="block text-xs font-bold text-[#3a7d84] mb-1 flex items-center gap-1">
-                    <User className="w-3.5 h-3.5 text-[#51a8b1]" />
-                    {field.label || 'Assigned Member'}
-                  </label>
-                  <select
-                    disabled={disabled || submitting}
-                    value={value || ''}
-                    onChange={(e) => handleChange(fieldKey, e.target.value)}
-                    className="w-full border border-[#b9c0cb]/60 rounded-xl px-3 py-2 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white cursor-pointer"
-                  >
-                    <option value="">👤 Select Team Member</option>
-                    {employees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({(emp as any).globalRole || 'Employee'})
-                      </option>
-                    ))}
-                  </select>
-                  {field.hint && <p className="text-[10px] text-[#4a5462] mt-0.5">{field.hint}</p>}
-                </div>
-              ) : field.type === 'hardwareConfig' ? (
-                <div>
-                  <label className="block text-xs font-bold text-[#3a7d84] mb-1">
-                    {field.label || 'Hardware Configuration'}
-                  </label>
-                  <HardwareConfigSection
+                ) : (
+                  <FormFieldInput
+                    field={field}
+                    name={fieldKey}
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
-                    employees={employees}
                   />
-                </div>
-              ) : field.type === 'file' ? (
-                <FormFieldUpload
-                  field={field}
-                  name={fieldKey}
-                  value={value}
-                  onChange={(val) => handleChange(fieldKey, val)}
-                  disabled={disabled || submitting}
-                  onSuccessMsg={(msg) => setSuccessMsg(msg)}
-                  onErrorMsg={(msg) => setError(msg)}
-                />
-              ) : field.type === 'textarea' ? (
-                <FormFieldTextarea
-                  field={field}
-                  name={fieldKey}
-                  value={value}
-                  onChange={(val) => handleChange(fieldKey, val)}
-                  disabled={disabled || submitting}
-                />
-              ) : field.type === 'radio' ? (
-                <FormFieldRadio
-                  field={field}
-                  name={fieldKey}
-                  value={value}
-                  onChange={(val) => handleChange(fieldKey, val)}
-                  disabled={disabled || submitting}
-                />
-              ) : field.type === 'select' || field.type === 'multiselect' ? (
-                <FormFieldSelect
-                  field={field}
-                  name={fieldKey}
-                  value={value}
-                  onChange={(val) => handleChange(fieldKey, val)}
-                  disabled={disabled || submitting}
-                />
-              ) : (
-                <FormFieldInput
-                  field={field}
-                  name={fieldKey}
-                  value={value}
-                  onChange={(val) => handleChange(fieldKey, val)}
-                  disabled={disabled || submitting}
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* Save / Submit Footer */}
-      {!disabled && (
+      {!disabled && !isProjectReviewForm && (
         <div className="pt-3 border-t border-[#b9c0cb]/30 flex justify-end">
           <button
             type="submit"

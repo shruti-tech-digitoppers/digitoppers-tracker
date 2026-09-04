@@ -3,20 +3,22 @@
 import React from 'react';
 import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
 import { IUser } from '../../types/auth';
+import { IProject } from '../../types/project';
 import { DynamicFormRenderer } from '../../components/forms/DynamicFormRenderer';
-import { 
-  X, 
-  CheckCircle2, 
-  Clock, 
-  AlertCircle, 
-  PlayCircle, 
-  User, 
-  Lock, 
+import {
+  X,
+  CheckCircle2,
+  Clock,
+  AlertCircle,
+  PlayCircle,
+  User,
+  Lock,
   FileText,
   ShieldCheck,
   ShieldAlert,
   Sparkles,
-  Layers
+  Layers,
+  Building2
 } from 'lucide-react';
 
 interface NodeInspectorDrawerProps {
@@ -24,6 +26,7 @@ interface NodeInspectorDrawerProps {
   employees?: IUser[];
   availableEmployees?: IUser[];
   currentUser?: IUser | null;
+  project?: IProject | null;
   isOpen?: boolean;
   formSchema: FormSchemaType | null;
   formData: Record<string, any>;
@@ -48,6 +51,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   employees = [],
   availableEmployees = [],
   currentUser = null,
+  project = null,
   isOpen = true,
   formSchema,
   formData,
@@ -73,61 +77,61 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   const currentError = mutationError || error;
   const allowStatusEdit = canModifyStatus !== undefined ? canModifyStatus : (canEditStatus !== undefined ? canEditStatus : true);
   const allowAssignEdit = canModifyAssignment !== undefined ? canModifyAssignment : (canAssign !== undefined ? canAssign : true);
-  const handleAssign = onAssignmentChange || onAssigneeChange || (async (employeeId: string, targetNodeId?: string) => {});
+  const handleAssign = onAssignmentChange || onAssigneeChange || (async (employeeId: string, targetNodeId?: string) => { });
 
   const statusOptions: { value: TimelineNodeStatus; label: string; icon: any; activeClass: string; inactiveClass: string }[] = [
-    { 
-      value: 'PENDING', 
-      label: 'Pending', 
-      icon: Clock, 
-      activeClass: 'bg-[#4a5462] text-white border-[#4a5462] shadow-xs font-bold', 
-      inactiveClass: 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/50 hover:bg-[#f1f3f6]' 
+    {
+      value: 'PENDING',
+      label: 'Pending',
+      icon: Clock,
+      activeClass: 'bg-[#4a5462] text-white border-[#4a5462] shadow-xs font-bold',
+      inactiveClass: 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/50 hover:bg-[#f1f3f6]'
     },
-    { 
-      value: 'IN_PROGRESS', 
-      label: 'In Progress', 
-      icon: PlayCircle, 
-      activeClass: 'bg-[#51a8b1] text-white border-[#51a8b1] shadow-sm shadow-[#51a8b1]/30 font-bold', 
-      inactiveClass: 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4] hover:bg-[#d9eef0]' 
+    {
+      value: 'IN_PROGRESS',
+      label: 'In Progress',
+      icon: PlayCircle,
+      activeClass: 'bg-[#51a8b1] text-white border-[#51a8b1] shadow-sm shadow-[#51a8b1]/30 font-bold',
+      inactiveClass: 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4] hover:bg-[#d9eef0]'
     },
-    { 
-      value: 'COMPLETED', 
-      label: 'Completed', 
-      icon: CheckCircle2, 
-      activeClass: 'bg-[#a8cf45] text-[#333333] border-[#a8cf45] shadow-sm shadow-[#a8cf45]/30 font-bold', 
-      inactiveClass: 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6] hover:bg-[#eff8d0]' 
+    {
+      value: 'COMPLETED',
+      label: 'Completed',
+      icon: CheckCircle2,
+      activeClass: 'bg-[#a8cf45] text-[#333333] border-[#a8cf45] shadow-sm shadow-[#a8cf45]/30 font-bold',
+      inactiveClass: 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6] hover:bg-[#eff8d0]'
     },
-    { 
-      value: 'ON_HOLD', 
-      label: 'On Hold', 
-      icon: Clock, 
-      activeClass: 'bg-amber-600 text-white border-amber-600 shadow-sm font-bold', 
-      inactiveClass: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100' 
+    {
+      value: 'ON_HOLD',
+      label: 'On Hold',
+      icon: Clock,
+      activeClass: 'bg-amber-600 text-white border-amber-600 shadow-sm font-bold',
+      inactiveClass: 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
     },
-    { 
-      value: 'CANCELLED', 
-      label: 'Blocked', 
-      icon: AlertCircle, 
-      activeClass: 'bg-rose-600 text-white border-rose-600 shadow-sm font-bold', 
-      inactiveClass: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100' 
+    {
+      value: 'CANCELLED',
+      label: 'Blocked',
+      icon: AlertCircle,
+      activeClass: 'bg-rose-600 text-white border-rose-600 shadow-sm font-bold',
+      inactiveClass: 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
     },
   ];
 
   const currentAssigneeId = typeof node.assignedEmployee === 'object' && node.assignedEmployee !== null
     ? (node.assignedEmployee as any)._id
     : typeof node.assignedTo === 'object' && node.assignedTo !== null
-    ? (node.assignedTo as any)._id
-    : typeof node.assignedEmployee === 'string'
-    ? node.assignedEmployee
-    : typeof node.assignedTo === 'string'
-    ? node.assignedTo
-    : '';
+      ? (node.assignedTo as any)._id
+      : typeof node.assignedEmployee === 'string'
+        ? node.assignedEmployee
+        : typeof node.assignedTo === 'string'
+          ? node.assignedTo
+          : '';
 
   const currentAssigneeObj = typeof node.assignedEmployee === 'object' && node.assignedEmployee !== null
     ? (node.assignedEmployee as any)
     : typeof node.assignedTo === 'object' && node.assignedTo !== null
-    ? (node.assignedTo as any)
-    : empList.find(e => e._id === currentAssigneeId) || null;
+      ? (node.assignedTo as any)
+      : empList.find(e => e._id === currentAssigneeId) || null;
 
   // Extract stage 03 and stage 04 context for seamless cross-stage data flow
   const findNodeRecursive = (list: ITimelineNode[], targetKey: string): ITimelineNode | null => {
@@ -156,14 +160,14 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-6 md:p-8 font-sans">
       {/* Backdrop */}
-      <div 
+      <div
         onClick={onClose}
-        className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200" 
+        className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       />
 
       {/* Center Floating Modal Container */}
       <div className="relative w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] bg-white border border-[#b9c0cb]/40 shadow-2xl rounded-3xl flex flex-col z-10 text-[#333333] animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
-        
+
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-[#f1f3f6] bg-gradient-to-r from-[#f8fafb] to-white flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -171,15 +175,23 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               <Layers className="w-5 h-5" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="px-2 py-0.5 rounded-md bg-[#2f4154] text-white font-mono text-[10.5px] font-bold">
                   {node.key}
                 </span>
                 <span className="text-xs font-semibold text-[#51a8b1] uppercase tracking-wider font-heading">
                   {node.type || 'TASK'}
                 </span>
+                {project && (
+                  <span className="text-xs font-bold text-[#3a7d84] flex items-center gap-1 bg-[#51a8b1]/10 px-2.5 py-0.5 rounded-md border border-[#51a8b1]/20 max-w-[400px] truncate" title={project.title || (project as any).projectName}>
+                    <Building2 className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
+                    <span className="truncate">
+                      {project.projectCode ? `${project.projectCode} — ` : ''}{project.title || (project as any).projectName}
+                    </span>
+                  </span>
+                )}
               </div>
-              <h3 className="font-heading font-bold text-base sm:text-lg text-[#333333] leading-snug">
+              <h3 className="font-heading font-bold text-base sm:text-lg text-[#333333] leading-snug mt-0.5">
                 {node.name}
               </h3>
             </div>
@@ -224,9 +236,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             const showAssignment = !node.metadata?.noAssignment || node.key === 'PO_AND_PI';
 
             return (
-              <div className={`p-4 bg-[#f8fafb] border border-[#b9c0cb]/40 rounded-2xl ${
-                showAssignment ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : ''
-              }`}>
+              <div className={`p-4 bg-[#f8fafb] border border-[#b9c0cb]/40 rounded-2xl ${showAssignment ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : ''
+                }`}>
                 {/* Status Segmented Controller */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
@@ -249,9 +260,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                           key={opt.value}
                           disabled={isCurrentlyMutating || !allowStatusEdit}
                           onClick={() => onStatusChange(opt.value)}
-                          className={`flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg text-[11px] transition-all cursor-pointer select-none border ${
-                            isSelected ? opt.activeClass : opt.inactiveClass
-                          } ${!allowStatusEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+                          className={`flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg text-[11px] transition-all cursor-pointer select-none border ${isSelected ? opt.activeClass : opt.inactiveClass
+                            } ${!allowStatusEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
                         >
                           <Icon className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">{opt.label}</span>
@@ -344,8 +354,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                       typeof child.assignedEmployee === 'object' && child.assignedEmployee !== null
                         ? child.assignedEmployee as any
                         : typeof child.assignedTo === 'object' && child.assignedTo !== null
-                        ? child.assignedTo as any
-                        : null;
+                          ? child.assignedTo as any
+                          : null;
 
                     const childAssigneeId =
                       childAssigneeObj?._id ||
@@ -356,8 +366,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                     const childStatus = child.status || 'PENDING';
 
                     return (
-                      <div 
-                        key={child._id || `subtask-${index}`} 
+                      <div
+                        key={child._id || `subtask-${index}`}
                         className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white border border-[#b9c0cb]/50 hover:border-[#51a8b1]/60 rounded-2xl shadow-2xs transition-all"
                       >
                         <div className="flex items-start gap-2.5 min-w-0">
@@ -369,13 +379,12 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                               <span className="text-xs font-bold text-[#333333] truncate">
                                 {child.name}
                               </span>
-                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${
-                                childStatus === 'COMPLETED'
+                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${childStatus === 'COMPLETED'
                                   ? 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6]'
                                   : childStatus === 'IN_PROGRESS'
-                                  ? 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4]'
-                                  : 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40'
-                              }`}>
+                                    ? 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4]'
+                                    : 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40'
+                                }`}>
                                 {childStatus}
                               </span>
                             </div>
@@ -441,6 +450,9 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               disabled={isCurrentlyMutating}
               employees={empList}
               allFormData={combinedAllFormData}
+              project={project}
+              currentUser={currentUser}
+              onStatusChange={onStatusChange}
             />
           </div>
         </div>

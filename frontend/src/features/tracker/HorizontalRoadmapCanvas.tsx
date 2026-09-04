@@ -103,30 +103,62 @@ export function HorizontalRoadmapCanvas({
   const overallProgress = totalStages > 0 ? Math.round((completedStages / totalStages) * 100) : 0;
 
   // Separate stages: Pre-Execution, Execution, Post-Execution
-  const executionStage = nodes.find((n) => n.key.toUpperCase() === 'EXECUTION');
-
-  const preExecutionStages = nodes.filter((n) => {
-    const key = n.key.toUpperCase();
-    return (
-      key !== 'EXECUTION' &&
-      !key.includes('TEST') &&
-      !key.includes('INSTALLATION') &&
-      !key.includes('TRAINING') &&
-      !key.includes('CLOSURE') &&
-      !key.includes('TECH_AND_CONTENT')
-    );
+  const executionStage = nodes.find((n) => {
+    const k = (n.key || '').toUpperCase();
+    const nm = (n.name || '').toUpperCase();
+    return k === 'EXECUTION' || k.includes('EXECUTION') || nm.includes('EXECUTION');
   });
 
-  const postExecutionStages = nodes.filter((n) => {
-    const key = n.key.toUpperCase();
-    return (
-      key.includes('TECH_AND_CONTENT') ||
-      key.includes('TEST') ||
-      key.includes('INSTALLATION') ||
-      key.includes('TRAINING') ||
-      key.includes('CLOSURE')
-    );
-  });
+  const preExecutionStages = useMemo(() => {
+    return nodes.filter((n) => {
+      const k = (n.key || '').toUpperCase();
+      const nm = (n.name || '').toUpperCase();
+      if (executionStage && n._id === executionStage._id) return false;
+      if (k === 'EXECUTION' || k.includes('EXECUTION') || nm.includes('EXECUTION')) return false;
+
+      // If it has post-execution keywords, exclude
+      const isPost =
+        k.includes('TECH_AND_CONTENT') ||
+        k.includes('TEST') ||
+        k.includes('INSTALLATION') ||
+        k.includes('TRAINING') ||
+        k.includes('CLOSURE') ||
+        nm.includes('TESTING') ||
+        nm.includes('INSTALLATION') ||
+        nm.includes('TRAINING') ||
+        nm.includes('CLOSURE');
+
+      if (isPost) return false;
+
+      // Otherwise if executionStage exists, check order or default to pre
+      if (executionStage && (n.metadata as any)?.order && (executionStage.metadata as any)?.order) {
+        return (n.metadata as any).order < (executionStage.metadata as any).order;
+      }
+      return true;
+    });
+  }, [nodes, executionStage]);
+
+  const postExecutionStages = useMemo(() => {
+    return nodes.filter((n) => {
+      if (executionStage && n._id === executionStage._id) return false;
+      const k = (n.key || '').toUpperCase();
+      const nm = (n.name || '').toUpperCase();
+      if (k === 'EXECUTION' || k.includes('EXECUTION') || nm.includes('EXECUTION')) return false;
+
+      const isPost =
+        k.includes('TECH_AND_CONTENT') ||
+        k.includes('TEST') ||
+        k.includes('INSTALLATION') ||
+        k.includes('TRAINING') ||
+        k.includes('CLOSURE') ||
+        nm.includes('TESTING') ||
+        nm.includes('INSTALLATION') ||
+        nm.includes('TRAINING') ||
+        nm.includes('CLOSURE');
+
+      return isPost;
+    });
+  }, [nodes, executionStage]);
 
   const matchesFilter = (n: ITimelineNode) => {
     if (filterStatus === 'ALL') return true;
@@ -153,7 +185,7 @@ export function HorizontalRoadmapCanvas({
       />
 
       {/* ── Main Mindmap Canvas Area ───────────────────────── */}
-      <div 
+      <div
         ref={containerRef}
         className="flex-1 overflow-x-auto overflow-y-auto p-6 relative bg-[radial-gradient(#b9c0cb_1px,transparent_1px)] [background-size:20px_20px]"
       >
@@ -163,7 +195,7 @@ export function HorizontalRoadmapCanvas({
             <p className="text-xs font-semibold">No roadmap stages configured for this project template.</p>
           </div>
         ) : (
-          <div 
+          <div
             className="flex items-start gap-2.5 min-w-max pb-20 transition-transform duration-200 origin-top-left"
             style={{ transform: `scale(${zoom})` }}
           >

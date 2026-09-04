@@ -30,16 +30,40 @@ export interface IUpdateFormPayload {
 }
 
 function normalizeNode(n: any): ITimelineNode {
+  if (n && typeof n === 'object' && n.node && typeof n.node === 'object') {
+    n = { ...n.node, formData: n.formData || n.node.formData };
+  }
+
+  if (!n || typeof n !== 'object') {
+    return {
+      _id: '',
+      timeline: '',
+      key: '',
+      name: 'Stage / Task',
+      type: 'STAGE',
+      status: 'PENDING',
+      assignedEmployee: null,
+      dependencies: [],
+      formSchema: null,
+      formData: {},
+      metadata: {},
+      parent: null,
+      children: [],
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+  }
+
   return {
     _id: n._id || n.id || '',
     timeline: n.timeline || '',
     key: n.key || '',
-    name: n.name || n.title || 'Untitled Node',
+    name: n.name || n.title || n.label || 'Stage / Task',
     type: n.type || 'STAGE',
     status: (n.status || 'PENDING') as TimelineNodeStatus,
     assignedEmployee: n.assignedTo || n.assignedEmployee || null,
-    dependencies: n.dependencies || [],
-    formSchema: n.formSchema,
+    dependencies: Array.isArray(n.dependencies) ? n.dependencies : [],
+    formSchema: n.formSchema || null,
     formData: n.formData || {},
     metadata: n.metadata || {},
     parent: n.parentNode || n.parent || null,
@@ -54,8 +78,12 @@ function mapTimelineToNodes(raw: any, projectId: string): ITimeline {
     return { _id: '', project: projectId, nodes: [], createdAt: '', updatedAt: '' };
   }
   const timelineData = raw.data || raw.timeline || raw;
-  const rawStructure = timelineData.structure || timelineData.nodes || timelineData.stages || (Array.isArray(timelineData) ? timelineData : []);
-  const nodes: ITimelineNode[] = rawStructure.map(normalizeNode);
+  const rawStructure = 
+    timelineData.structure || 
+    timelineData.nodes || 
+    timelineData.stages || 
+    (Array.isArray(timelineData) ? timelineData : []);
+  const nodes: ITimelineNode[] = Array.isArray(rawStructure) ? rawStructure.map(normalizeNode) : [];
   const timelineObj = timelineData.timeline || timelineData;
 
   return {
@@ -75,12 +103,17 @@ export const timelineApi = {
         success: true,
         timeline: mapTimelineToNodes(response.data, projectId),
       };
-    } catch {
-      return {
-        success: true,
-        timeline: { _id: '', project: projectId, nodes: [], createdAt: '', updatedAt: '' },
-      };
+    } catch (err: any) {
+      // Re-throw so caller can display error message or fallback gracefully
+      const message = err.response?.data?.message || err.message || 'Failed to fetch timeline.';
+      console.warn(`[timelineApi] Error loading timeline for project ${projectId}:`, message);
+      throw err;
     }
+  },
+
+  resetTimeline: async (projectId: string): Promise<any> => {
+    const response = await apiClient.delete<any>(`/projects/${projectId}/timeline/reset`);
+    return response.data;
   },
 
   getNodeDetail: async (projectId: string, nodeId: string): Promise<INodeDetailResponse> => {
@@ -113,13 +146,13 @@ export const timelineApi = {
 
   updateNodeStatus: async (projectId: string, nodeId: string, status: TimelineNodeStatus, comment?: string): Promise<INodeDetailResponse> => {
     const response = await apiClient.patch<any>(`/projects/${projectId}/timeline/nodes/${nodeId}/status`, { status, comment });
-    const raw = response.data?.data || response.data?.node || response.data;
+    const raw = response.data?.data?.node || response.data?.node || response.data?.data || response.data;
     return { success: true, node: normalizeNode(raw) };
   },
 
   assignNode: async (projectId: string, nodeId: string, employeeId: string | null): Promise<INodeDetailResponse> => {
     const response = await apiClient.patch<any>(`/projects/${projectId}/timeline/nodes/${nodeId}/assignment`, { employeeId });
-    const raw = response.data?.data || response.data?.node || response.data;
+    const raw = response.data?.data?.node || response.data?.node || response.data?.data || response.data;
     return { success: true, node: normalizeNode(raw) };
   },
 
@@ -149,7 +182,7 @@ export const timelineApi = {
 
   updateNodeForm: async (projectId: string, nodeId: string, formData: Record<string, any>): Promise<INodeDetailResponse> => {
     const response = await apiClient.put<any>(`/projects/${projectId}/timeline/nodes/${nodeId}/form`, { formData });
-    const raw = response.data?.data || response.data?.node || response.data;
+    const raw = response.data?.data?.node || response.data?.node || response.data?.data || response.data;
     return { success: true, node: normalizeNode(raw) };
   },
 };

@@ -32,13 +32,13 @@ export function ExecutionParallelContainer({
   onAssign,
 }: ExecutionParallelContainerProps) {
   const hardwareStream = executionStage?.children?.find(
-    (c) => c.key.includes('HARDWARE') || c.name.toLowerCase().includes('hardware')
+    (c) => (c.key || '').toUpperCase().includes('HARDWARE') || (c.name || '').toLowerCase().includes('hardware')
   );
   const techStream = executionStage?.children?.find(
-    (c) => c.key.includes('TECH') || c.name.toLowerCase().includes('tech')
+    (c) => (c.key || '').toUpperCase().includes('TECH') || (c.name || '').toLowerCase().includes('tech')
   );
   const contentStream = executionStage?.children?.find(
-    (c) => c.key.includes('CONTENT') || c.name.toLowerCase().includes('content')
+    (c) => (c.key || '').toUpperCase().includes('CONTENT') || (c.name || '').toLowerCase().includes('content')
   );
 
   const otherExecutionChildren = (executionStage?.children || []).filter(

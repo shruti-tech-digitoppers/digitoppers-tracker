@@ -196,11 +196,11 @@ class TimelineService {
     }
 
     const DISABLED_KEYS = new Set([
-      'ADDRESS_CONFIRMATION', 
-      'DELIVERY_AND_TRACKING', 
-      'TECHNICAL_SETUP', 
-      'IMPLEMENTATION_AND_CONFIG', 
-      'TECH_INTERNAL_TESTING', 
+      'ADDRESS_CONFIRMATION',
+      'DELIVERY_AND_TRACKING',
+      'TECHNICAL_SETUP',
+      'IMPLEMENTATION_AND_CONFIG',
+      'TECH_INTERNAL_TESTING',
       'TECH_READY',
       'CONTENT_PREPARATION',
       'CONTENT_CONFIG',
@@ -270,11 +270,11 @@ class TimelineService {
       .sort({ order: 1 });
 
     const DISABLED_KEYS = new Set([
-      'ADDRESS_CONFIRMATION', 
-      'DELIVERY_AND_TRACKING', 
-      'TECHNICAL_SETUP', 
-      'IMPLEMENTATION_AND_CONFIG', 
-      'TECH_INTERNAL_TESTING', 
+      'ADDRESS_CONFIRMATION',
+      'DELIVERY_AND_TRACKING',
+      'TECHNICAL_SETUP',
+      'IMPLEMENTATION_AND_CONFIG',
+      'TECH_INTERNAL_TESTING',
       'TECH_READY',
       'CONTENT_PREPARATION',
       'CONTENT_CONFIG',
@@ -424,12 +424,27 @@ class TimelineService {
       }
 
       const key = node.key.toUpperCase();
-      if (key === 'PROJECT_CREATED' || key === 'LEAD_CREATION') {
+      if (key === 'PROJECT_CREATED' || key === 'LEAD_CREATION' || key === 'PROJECT_REVIEWER') {
         reqDoc.projectReviewer = {
           ...(reqDoc.projectReviewer || {}),
           projectCreated: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
         };
         reqDoc.markModified('projectReviewer');
+
+        // Automatically complete or put on hold based on PM review YES / NO
+        if (formData.confirmed === 'YES' || formData.pmReviewStatus === 'APPROVED' || formData.autoComplete === true) {
+          node.status = NODE_STATUSES.COMPLETED;
+          await node.save();
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        } else if (formData.confirmed === 'NO' || formData.pmReviewStatus === 'REJECTED') {
+          node.status = NODE_STATUSES.ON_HOLD;
+          await node.save();
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        }
       } else if (key === 'PO_UPLOAD') {
         reqDoc.poAndPi = {
           ...(reqDoc.poAndPi || {}),
@@ -655,7 +670,7 @@ class TimelineService {
         try {
           const project = await Project.findById(projectId);
           const results = formData.testingResults || formData;
-          
+
           const streams = [
             { key: 'appTesting', label: 'App Testing Results', data: results.appTesting },
             { key: 'dashboardTesting', label: 'Dashboard Testing Results', data: results.dashboardTesting },
@@ -725,7 +740,7 @@ class TimelineService {
       metadata: { nodeId, keys: Object.keys(formData) }
     });
 
-    return node;
+    return await this.getNodeById(projectId, nodeId);
   }
 
   async recalculateStageStatus(parentNodeId) {
