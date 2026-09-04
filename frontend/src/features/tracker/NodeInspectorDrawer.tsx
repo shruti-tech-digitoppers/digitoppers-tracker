@@ -123,6 +123,12 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     ? node.assignedTo
     : '';
 
+  const currentAssigneeObj = typeof node.assignedEmployee === 'object' && node.assignedEmployee !== null
+    ? (node.assignedEmployee as any)
+    : typeof node.assignedTo === 'object' && node.assignedTo !== null
+    ? (node.assignedTo as any)
+    : empList.find(e => e._id === currentAssigneeId) || null;
+
   // Extract stage 03 and stage 04 context for seamless cross-stage data flow
   const findNodeRecursive = (list: ITimelineNode[], targetKey: string): ITimelineNode | null => {
     for (const item of list) {
@@ -264,23 +270,37 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                         {node.type === 'STAGE' || (node as any).isBranch ? 'Stage / Stream Lead' : 'Task Assignee / Owner'}
                       </label>
                       <span className="text-[10px] text-[#4a5462]">
-                        {node.key === 'PO_AND_PI' ? 'Applies to PO & PI' : 'Assigned Member'}
+                        {allowAssignEdit ? (node.key === 'PO_AND_PI' ? 'Applies to PO & PI' : 'Assigned Member') : 'Assignment Status'}
                       </span>
                     </div>
 
-                    <select
-                      disabled={isCurrentlyMutating || !allowAssignEdit}
-                      value={currentAssigneeId}
-                      onChange={(e) => handleAssign(e.target.value)}
-                      className="w-full border border-[#b9c0cb]/60 rounded-xl px-3 py-2 text-xs bg-white text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer"
-                    >
-                      <option value="">👤 Unassigned (Select Member)</option>
-                      {empList.map((emp) => (
-                        <option key={emp._id} value={emp._id}>
-                          {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({emp.email})
-                        </option>
-                      ))}
-                    </select>
+                    {allowAssignEdit ? (
+                      <select
+                        disabled={isCurrentlyMutating}
+                        value={currentAssigneeId}
+                        onChange={(e) => handleAssign(e.target.value)}
+                        className="w-full border border-[#b9c0cb]/60 rounded-xl px-3 py-2 text-xs bg-white text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer font-medium"
+                      >
+                        <option value="">👤 Unassigned (Select Member)</option>
+                        {empList.map((emp) => (
+                          <option key={emp._id} value={emp._id}>
+                            {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({emp.email})
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className="w-full border border-[#b9c0cb]/40 rounded-xl px-3 py-2 text-xs bg-[#f8fafb] text-[#333333] flex items-center justify-between font-medium">
+                        <span className="flex items-center gap-2">
+                          <User className={`w-3.5 h-3.5 ${currentAssigneeObj ? 'text-[#3a7d84]' : 'text-[#94a3b8]'}`} />
+                          {currentAssigneeObj ? (
+                            <span>Assigned to: <strong className="text-[#3a7d84] font-bold">{currentAssigneeObj.name}</strong> {currentAssigneeObj.employeeCode ? `[${currentAssigneeObj.employeeCode}]` : ''}</span>
+                          ) : (
+                            <span className="text-[#94a3b8]">Unassigned</span>
+                          )}
+                        </span>
+                        <span className="text-[10px] text-[#94a3b8] italic">Read-only</span>
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -366,23 +386,36 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                         </div>
 
                         <div className="w-full sm:w-64 shrink-0">
-                          <div className="flex items-center gap-1.5">
-                            <User className={`w-3.5 h-3.5 shrink-0 ${childAssigneeId ? 'text-[#3a7d84]' : 'text-[#b9c0cb]'}`} />
-                            <select
-                              disabled={isCurrentlyMutating || !allowAssignEdit}
-                              value={childAssigneeId}
-                              onChange={(e) => handleAssign(e.target.value, child._id)}
-                              className="w-full border border-[#b9c0cb]/60 rounded-xl px-2.5 py-1.5 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer font-medium"
-                              title="Assign employee for this task"
-                            >
-                              <option value="">👤 Unassigned</option>
-                              {empList.map((emp) => (
-                                <option key={emp._id} value={emp._id}>
-                                  {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
+                          {allowAssignEdit ? (
+                            <div className="flex items-center gap-1.5">
+                              <User className={`w-3.5 h-3.5 shrink-0 ${childAssigneeId ? 'text-[#3a7d84]' : 'text-[#b9c0cb]'}`} />
+                              <select
+                                disabled={isCurrentlyMutating}
+                                value={childAssigneeId}
+                                onChange={(e) => handleAssign(e.target.value, child._id)}
+                                className="w-full border border-[#b9c0cb]/60 rounded-xl px-2.5 py-1.5 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer font-medium"
+                                title="Assign employee for this task"
+                              >
+                                <option value="">👤 Unassigned</option>
+                                {empList.map((emp) => (
+                                  <option key={emp._id} value={emp._id}>
+                                    {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/40 px-2.5 py-1.5 rounded-xl text-[#333333] font-medium justify-between">
+                              <span className="flex items-center gap-1.5 truncate">
+                                <User className={`w-3.5 h-3.5 shrink-0 ${assignedEmp || childAssigneeObj ? 'text-[#3a7d84]' : 'text-[#94a3b8]'}`} />
+                                {assignedEmp || childAssigneeObj ? (
+                                  <span className="truncate">Assigned to: <strong className="text-[#3a7d84]">{(assignedEmp || childAssigneeObj).name}</strong></span>
+                                ) : (
+                                  <span className="text-[#94a3b8]">Unassigned</span>
+                                )}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );

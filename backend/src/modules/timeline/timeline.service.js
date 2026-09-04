@@ -424,12 +424,12 @@ class TimelineService {
       }
 
       const key = node.key.toUpperCase();
-      if (key === 'LEAD_CREATION') {
-        reqDoc.leadAndNegotiation = {
-          ...(reqDoc.leadAndNegotiation || {}),
-          leadCreation: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
+      if (key === 'PROJECT_CREATED' || key === 'LEAD_CREATION') {
+        reqDoc.projectReviewer = {
+          ...(reqDoc.projectReviewer || {}),
+          projectCreated: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
         };
-        reqDoc.markModified('leadAndNegotiation');
+        reqDoc.markModified('projectReviewer');
       } else if (key === 'PO_UPLOAD') {
         reqDoc.poAndPi = {
           ...(reqDoc.poAndPi || {}),

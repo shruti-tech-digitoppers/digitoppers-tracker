@@ -132,12 +132,8 @@ class ProjectService {
   }
 
   async getAllProjects(employee, query = {}) {
-    const filter = { archived: false };
-    if (employee.globalRole !== 'ADMIN') {
-      const memberships = await ProjectMember.find({ employee: employee._id, isActive: true }).select('project');
-      const projectIds = memberships.map(m => m.project);
-      filter._id = { $in: projectIds };
-    }
+    // By default, all authenticated users have Viewer access to all active projects
+    const filter = { archived: { $ne: true } };
     if (query.status) filter.status = query.status;
     return await Project.find(filter).populate('projectManager', 'name email employeeCode').sort({ createdAt: -1 });
   }

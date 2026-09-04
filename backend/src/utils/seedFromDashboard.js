@@ -189,17 +189,23 @@ async function seedFromDashboard() {
     console.log('🚀 SEEDING FROM DASHBOARD DATABASE & MODELS');
     console.log('======================================================\n');
 
-    // 1. Clean existing collections
-    console.log('🧹 Purging old records...');
-    await Employee.deleteMany({});
-    await mongoose.connection.collection('projects').deleteMany({});
-    await ProjectMember.deleteMany({});
-    await Timeline.deleteMany({});
-    await TimelineNode.deleteMany({});
-    await Requirement.deleteMany({});
-    await Activity.deleteMany({});
-    await Notification.deleteMany({});
-    console.log('✅ Cleaned all collections.');
+    // 1. Clean existing collections safely
+    console.log('🧹 Preparing collections...');
+    if (process.env.ALLOW_WIPE_ALL === 'true') {
+      console.log('⚠️ ALLOW_WIPE_ALL is enabled. Purging collections...');
+      await Employee.deleteMany({});
+      await mongoose.connection.collection('projects').deleteMany({});
+      await ProjectMember.deleteMany({});
+      await Timeline.deleteMany({});
+      await TimelineNode.deleteMany({});
+      await Requirement.deleteMany({});
+      await Activity.deleteMany({});
+      await Notification.deleteMany({});
+      console.log('✅ Cleaned all collections.');
+    } else {
+      console.log('🛡️ SAFEGUARD ACTIVE: Preserving live database records. Deleting only seeded test projects (PRJ-DASH-*)');
+      await mongoose.connection.collection('projects').deleteMany({ projectCode: /^PRJ-DASH-/ });
+    }
 
     // 2. Create standard Employees / Team Members
     console.log('\n👥 Creating Users & Staff Members...');
@@ -334,9 +340,9 @@ async function seedFromDashboard() {
         status: 'IN_PROGRESS',
         updatedBy: assignedPM._id,
 
-        // 01 — LEAD & NEGOTIATION
-        leadAndNegotiation: {
-          leadCreation: {
+        // 01 — PROJECT REVIEWER
+        projectReviewer: {
+          projectCreated: {
             organizationName: item.organizationName,
             contactPerson: primarySchool.contactPerson,
             contactDesignation: primarySchool.contactDesignation,

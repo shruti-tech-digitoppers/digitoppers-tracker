@@ -30,15 +30,15 @@ const verifyProjectPermission = (requiredDesignations = []) => {
       }
 
       const membership = await checkProjectAccess(employee._id, projectId);
-      if (!membership) {
-        return next(new AppError('You are not an active member of this project.', 403, 'NOT_PROJECT_MEMBER'));
-      }
+      
+      // Default to VIEWER for all authenticated employees across all projects
+      const designation = membership ? membership.designation : DESIGNATIONS.VIEWER;
 
-      if (requiredDesignations.length > 0 && !requiredDesignations.includes(membership.designation)) {
+      if (requiredDesignations.length > 0 && !requiredDesignations.includes(designation)) {
         return next(new AppError(`Action requires one of the following designations: ${requiredDesignations.join(', ')}`, 403, 'INSUFFICIENT_DESIGNATION'));
       }
 
-      req.projectMembership = membership;
+      req.projectMembership = membership || { designation: DESIGNATIONS.VIEWER, isDefaultViewer: true };
       next();
     } catch (error) {
       next(error);

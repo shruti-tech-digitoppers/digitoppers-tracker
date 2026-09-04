@@ -2,14 +2,14 @@ module.exports = {
   version: 'v1',
   stages: [
     {
-      key: 'LEAD_AND_NEGOTIATION',
-      name: '01 — LEAD & NEGOTIATION',
+      key: 'PROJECT_REVIEWER',
+      name: '01 — PROJECT REVIEWER',
       order: 1,
       metadata: { noAssignment: true },
       substages: [
         {
-          key: 'LEAD_CREATION',
-          name: 'Lead Creation',
+          key: 'PROJECT_CREATED',
+          name: 'Project Created',
           order: 1,
           metadata: { noAssignment: true },
           formSchema: {

@@ -8,6 +8,7 @@
     "dev": "nodemon server.js",
     "seed": "node src/utils/seed.js",
     "seed:dashboard": "node src/utils/seedFromDashboard.js",
+    "check:connection": "node src/utils/checkConnection.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "dependencies": {

@@ -25,16 +25,16 @@ const requirementSchema = new mongoose.Schema(
     // Current Position
     currentStageKey: {
       type: String,
-      default: 'LEAD_AND_NEGOTIATION'
+      default: 'PROJECT_REVIEWER'
     },
     currentSubstageKey: {
       type: String,
-      default: 'LEAD_CREATION'
+      default: 'PROJECT_CREATED'
     },
 
-    // ─── 01 — LEAD & NEGOTIATION ─────────────────────────────────────────
-    leadAndNegotiation: {
-      leadCreation: {
+    // ─── 01 — PROJECT REVIEWER ───────────────────────────────────────────
+    projectReviewer: {
+      projectCreated: {
         organizationName: String,
         contactPerson: String,
         contactDesignation: String,
