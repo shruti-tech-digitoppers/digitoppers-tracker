@@ -9,6 +9,7 @@ const config: Config = {
     "./src/lib/**/*.{js,ts,jsx,tsx,mdx}"
   ],
   theme: {
+    extend: {
       colors: {
         teal: {
           DEFAULT: '#51a8b1',
@@ -16,10 +17,10 @@ const config: Config = {
           100: '#d9eef0',
           200: '#b6e0e4',
           300: '#84ccd3',
-          400: '#51a8b1', // Brand Primary
+          400: '#51a8b1',
           500: '#40949d',
           600: '#347981',
-          700: '#3a7d84', // Headings / Strong Brand
+          700: '#3a7d84',
           800: '#265459',
           900: '#1b3b3f',
         },
@@ -29,7 +30,7 @@ const config: Config = {
           100: '#eff8d0',
           200: '#dfefa6',
           300: '#cbe475',
-          400: '#a8cf45', // Brand Accent / Success
+          400: '#a8cf45',
           500: '#94bc33',
           600: '#759724',
           700: '#58731f',
@@ -41,12 +42,12 @@ const config: Config = {
           50: '#f8f9fa',
           100: '#f1f3f6',
           200: '#e2e6eb',
-          300: '#b9c0cb', // Neutral Support
+          300: '#b9c0cb',
           400: '#949ea9',
           500: '#6f7b88',
-          600: '#4a5462', // Light / Secondary Text
-          700: '#333333', // Dark / Primary Text
-          800: '#2f4154', // Footer / Dark Panel BG
+          600: '#4a5462',
+          700: '#333333',
+          800: '#2f4154',
           900: '#1e293b',
         },
         brand: {
