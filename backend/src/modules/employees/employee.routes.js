@@ -5,16 +5,16 @@ const { protect } = require('../../core/auth');
 const { restrictToGlobal } = require('../../core/authorization');
 const { GLOBAL_ROLES } = require('../../core/constants');
 
-router.use(protect, restrictToGlobal(GLOBAL_ROLES.ADMIN));
+router.use(protect);
 
 router.route('/')
   .get(employeeController.getAll)
-  .post(employeeController.create);
+  .post(restrictToGlobal(GLOBAL_ROLES.ADMIN), employeeController.create);
 
 router.route('/:id')
   .get(employeeController.getById)
-  .patch(employeeController.update);
+  .patch(restrictToGlobal(GLOBAL_ROLES.ADMIN), employeeController.update);
 
-router.patch('/:id/status', employeeController.updateStatus);
+router.patch('/:id/status', restrictToGlobal(GLOBAL_ROLES.ADMIN), employeeController.updateStatus);
 
 module.exports = router;
