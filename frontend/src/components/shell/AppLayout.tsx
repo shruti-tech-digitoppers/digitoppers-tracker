@@ -7,6 +7,7 @@ import { authApi } from '../../lib/api/auth.api';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { NotificationDetailModal } from './NotificationDetailModal';
+import { SearchProvider } from '../../context/SearchContext';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -149,72 +150,72 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Root Page or Guest Public View (NO Sidebar, Clean Full Width Timeline Roadmap)
   if (isRootPage || (!isAuthenticated && isPublicViewPage)) {
     return (
-      <div className="min-h-screen flex flex-col bg-[#f8fafb] text-[#333333] font-sans">
-        {/* Top Header */}
-        <AppHeader
+      <SearchProvider>
+        <div className="min-h-screen flex flex-col bg-[#f8fafb] text-[#333333] font-sans">
+          {/* Top Header */}
+          <AppHeader
+            currentUser={currentUser}
+            notifications={notifications}
+            isNotifOpen={isNotifOpen}
+            onToggleNotif={handleToggleNotif}
+            onMarkAsRead={handleMarkAsRead}
+            onMarkAllAsRead={handleMarkAllAsRead}
+            onSelectNotification={handleSelectNotification}
+          />
+
+          {/* Full-width Timeline Roadmap Content */}
+          <main className="flex-1 w-full min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+            {children}
+          </main>
+
+          {/* Notification Modal */}
+          <NotificationDetailModal
+            notification={selectedNotification}
+            isOpen={Boolean(selectedNotification)}
+            onClose={() => setSelectedNotification(null)}
+          />
+        </div>
+      </SearchProvider>
+    );
+  }
+
+  // Authenticated Portal View (With Sidebar and Top Header)
+  return (
+    <SearchProvider>
+      <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
+        {/* ── Left Sidebar Navigation Panel ───────────────────── */}
+        <AppSidebar
+          collapsed={collapsed}
+          onToggleCollapse={handleToggleCollapse}
           currentUser={currentUser}
-          notifications={notifications}
-          isNotifOpen={isNotifOpen}
-          onToggleNotif={handleToggleNotif}
-          onMarkAsRead={handleMarkAsRead}
-          onMarkAllAsRead={handleMarkAllAsRead}
-          onSelectNotification={handleSelectNotification}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          onLogout={handleLogout}
         />
 
-        {/* Full-width Timeline Roadmap Content */}
-        <main className="flex-1 w-full min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-          {children}
-        </main>
+        {/* ── Main App Container with Top Header ──────────────── */}
+        <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+          <AppHeader
+            currentUser={currentUser}
+            notifications={notifications}
+            isNotifOpen={isNotifOpen}
+            onToggleNotif={handleToggleNotif}
+            onMarkAsRead={handleMarkAsRead}
+            onMarkAllAsRead={handleMarkAllAsRead}
+            onSelectNotification={handleSelectNotification}
+          />
 
-        {/* Notification Modal */}
+          {/* Page Content */}
+          <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+            {children}
+          </main>
+        </div>
+
+        {/* ── Notification Full Detail & Direct Routing Modal ── */}
         <NotificationDetailModal
           notification={selectedNotification}
           isOpen={Boolean(selectedNotification)}
           onClose={() => setSelectedNotification(null)}
         />
       </div>
-    );
-  }
-
-  // Authenticated Portal View (With Sidebar and Top Header)
-  return (
-    <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
-      {/* ── Left Sidebar Navigation Panel ───────────────────── */}
-      <AppSidebar
-        collapsed={collapsed}
-        onToggleCollapse={handleToggleCollapse}
-        currentUser={currentUser}
-        onLogout={handleLogout}
-      />
-
-      {/* ── Main App Container with Top Header ──────────────── */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-        <AppHeader
-          currentUser={currentUser}
-          notifications={notifications}
-          isNotifOpen={isNotifOpen}
-          onToggleNotif={handleToggleNotif}
-          onMarkAsRead={handleMarkAsRead}
-          onMarkAllAsRead={handleMarkAllAsRead}
-          onSelectNotification={handleSelectNotification}
-          searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
-        />
-
-        {/* Page Content */}
-        <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-          {children}
-        </main>
-      </div>
-
-      {/* ── Notification Full Detail & Direct Routing Modal ── */}
-      <NotificationDetailModal
-        notification={selectedNotification}
-        isOpen={Boolean(selectedNotification)}
-        onClose={() => setSelectedNotification(null)}
-      />
-    </div>
+    </SearchProvider>
   );
 }

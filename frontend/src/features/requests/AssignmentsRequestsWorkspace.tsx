@@ -41,8 +41,10 @@ import { authApi } from '../../lib/api/auth.api';
 import { CreateProjectRequestModal } from './components/CreateProjectRequestModal';
 import { ProjectRequestReviewModal } from './components/ProjectRequestReviewModal';
 import { IUser } from '../../types/auth';
+import { useSearch } from '../../context/SearchContext';
 
 export function AssignmentsRequestsWorkspace() {
+  const { searchQuery, clearSearch } = useSearch();
   const [currentUser, setCurrentUser] = useState<IUser | null>(null);
   const [requests, setRequests] = useState<IProjectRequest[]>([]);
   const [projects, setProjects] = useState<IProject[]>([]);
@@ -179,9 +181,10 @@ export function AssignmentsRequestsWorkspace() {
         if (reqId !== currentUserId) return false;
       }
 
-      // Search Query
-      if (requestSearch.trim()) {
-        const q = requestSearch.toLowerCase();
+      // Search Query (either from local input or top header search)
+      const effectiveSearch = (requestSearch || searchQuery || '').trim();
+      if (effectiveSearch) {
+        const q = effectiveSearch.toLowerCase();
         const code = (r.requestId || '').toLowerCase();
         const title = (r.title || '').toLowerCase();
         const org = (r.organization || '').toLowerCase();
@@ -204,7 +207,7 @@ export function AssignmentsRequestsWorkspace() {
 
       return true;
     });
-  }, [requests, requestFilter, requestSearch, currentUserId]);
+  }, [requests, requestFilter, requestSearch, searchQuery, currentUserId]);
 
   // ── Column 2: Filtered Assignments List (Right Column) ────────────
   const filteredAssignments = useMemo(() => {
@@ -224,9 +227,10 @@ export function AssignmentsRequestsWorkspace() {
         if (p.status !== 'COMPLETED') return false;
       }
 
-      // Search Query
-      if (assignmentSearch.trim()) {
-        const q = assignmentSearch.toLowerCase();
+      // Search Query (either from local input or top header search)
+      const effectiveSearch = (assignmentSearch || searchQuery || '').trim();
+      if (effectiveSearch) {
+        const q = effectiveSearch.toLowerCase();
         const code = (p.projectId || '').toLowerCase();
         const title = (p.projectName || p.title || '').toLowerCase();
         const org = (p.organization || '').toLowerCase();
@@ -238,7 +242,7 @@ export function AssignmentsRequestsWorkspace() {
 
       return true;
     });
-  }, [projects, assignmentFilter, assignmentSearch, currentUserId]);
+  }, [projects, assignmentFilter, assignmentSearch, searchQuery, currentUserId]);
 
   const handleOpenReviewModal = (req: IProjectRequest) => {
     setSelectedReviewRequest(req);

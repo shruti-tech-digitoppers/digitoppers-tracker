@@ -16,7 +16,8 @@ import {
   Briefcase, 
   ListTodo,
   Activity,
-  Sparkles
+  Sparkles,
+  PanelRightClose
 } from 'lucide-react';
 
 type MainCategory = 'ASSIGNMENT' | 'REQUESTS' | 'UPDATES';
@@ -29,6 +30,8 @@ interface RecentTimelineNotificationsBoxProps {
   onMarkAsRead: (id: string) => void;
   onMarkAllAsRead: () => void;
   onSelectNotification: (item: INotificationItem) => void;
+  onToggleShrink?: () => void;
+  isShrunk?: boolean;
 }
 
 export function RecentTimelineNotificationsBox({
@@ -38,6 +41,8 @@ export function RecentTimelineNotificationsBox({
   onMarkAsRead,
   onMarkAllAsRead,
   onSelectNotification,
+  onToggleShrink,
+  isShrunk = false,
 }: RecentTimelineNotificationsBoxProps) {
   const router = useRouter();
   const [category, setCategory] = useState<MainCategory>('ASSIGNMENT');
@@ -301,18 +306,31 @@ export function RecentTimelineNotificationsBox({
             </div>
           </div>
 
-          {/* Mark All Read Action */}
-          {unreadCount > 0 && (
-            <button
-              type="button"
-              onClick={onMarkAllAsRead}
-              className="text-[11px] font-extrabold text-[#0d9488] hover:text-[#0f766e] flex items-center gap-1 shrink-0 px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 shadow-2xs transition cursor-pointer"
-              title="Mark all notifications as read"
-            >
-              <CheckCheck className="w-3.5 h-3.5" />
-              <span>Mark all read</span>
-            </button>
-          )}
+          {/* Header Action Buttons (Mark all read & Shrink toggle) */}
+          <div className="flex items-center gap-1.5 shrink-0">
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={onMarkAllAsRead}
+                className="text-[11px] font-extrabold text-[#0d9488] hover:text-[#0f766e] flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 shadow-2xs transition cursor-pointer"
+                title="Mark all notifications as read"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Mark all read</span>
+              </button>
+            )}
+
+            {onToggleShrink && (
+              <button
+                type="button"
+                onClick={onToggleShrink}
+                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition cursor-pointer flex items-center justify-center shadow-2xs"
+                title="Hide notifications to expand timeline (Full Width)"
+              >
+                <PanelRightClose className="w-4 h-4 text-slate-700" />
+              </button>
+            )}
+          </div>
         </div>
 
         {/* ── Main Filter Tabs (Assignments / Requests / Updates) ── */}

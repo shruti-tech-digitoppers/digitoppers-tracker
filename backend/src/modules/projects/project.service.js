@@ -394,9 +394,9 @@ class ProjectService {
       filter.status = query.status;
     }
 
-    // Role-based scoping: If employee is not ADMIN (or query.assignedOnly === 'true'),
-    // restrict projects to those where employee is PM, member, or has assigned task nodes
-    if ((employee && employee.globalRole !== 'ADMIN') || query.assignedOnly === 'true') {
+    // By default, all employees have VIEWER access and can view all active projects & timelines.
+    // Only restrict to assigned projects if query.assignedOnly === 'true'
+    if (query.assignedOnly === 'true') {
       const empId = employee ? employee._id : null;
       if (empId) {
         // 1. Find projects from ProjectMember table

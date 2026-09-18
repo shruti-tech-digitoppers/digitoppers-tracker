@@ -27,6 +27,7 @@ interface ProjectRoadmapCardProps {
   expanded?: boolean;
   onToggle: () => void;
   onProjectUpdated?: () => void;
+  compactTimeline?: boolean;
 }
 
 const DEFAULT_STAGE_LABELS = [
@@ -66,6 +67,7 @@ export function ProjectRoadmapCard({
   expanded,
   onToggle,
   onProjectUpdated,
+  compactTimeline = false,
 }: ProjectRoadmapCardProps) {
   const isCardExpanded = isExpanded !== undefined ? isExpanded : Boolean(expanded);
 
@@ -298,83 +300,110 @@ export function ProjectRoadmapCard({
           </div>
         </div>
 
-        {/* Center: Horizontal Interactive Stage Progress Stepper (+20% Size, Well-Spaced, Clean Display) */}
-        <div className="w-full lg:flex-1 max-w-full lg:max-w-[580px] xl:max-w-[690px] mx-0 lg:mx-6 px-1 sm:px-3 py-1.5 flex flex-col justify-center">
-          {/* Horizontal Stepper Track */}
-          <div className="flex items-center justify-between w-full relative">
-            {/* Background connecting track line (aligned with larger circle centers) */}
-            <div className="absolute top-3.5 sm:top-4 left-4 right-4 -translate-y-1/2 h-2 bg-slate-100 border border-slate-200/90 rounded-full z-0 overflow-hidden shadow-inner">
+        {/* Center: Stage Progress (Compact Progress Bar in Split View, Full 8-Stage Stepper in Full Width) */}
+        {compactTimeline ? (
+          <div className="w-full lg:flex-1 max-w-full lg:max-w-[340px] xl:max-w-[400px] mx-0 lg:mx-4 px-1 py-1 flex flex-col justify-center space-y-2">
+            {/* Project Manager & Progress Counter */}
+            <div className="flex items-center justify-between text-xs font-bold gap-2">
+              <div className="flex items-center gap-1.5 text-[#3a7d84] min-w-0">
+                <User className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
+                <span className="text-[11px] text-[#556987] font-medium shrink-0">PM:</span>
+                <span className="truncate max-w-[130px] sm:max-w-[160px] font-bold text-[#1e293b]">{pmName}</span>
+              </div>
+              <div className="flex items-center gap-1.5 text-[11px] shrink-0">
+                <span className="text-[#556987] font-semibold">{completedStages}/{totalStages} Stages</span>
+                <span className="font-mono font-black bg-[#f0f8f9] text-[#3a7d84] px-2 py-0.5 rounded-md border border-[#b6e0e4] text-[10.5px]">
+                  {progressPct}%
+                </span>
+              </div>
+            </div>
+
+            {/* Compact Progress Bar */}
+            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/90 shadow-inner">
               <div
                 className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] transition-all duration-700 rounded-full"
                 style={{ width: `${Math.max(progressPct, 4)}%` }}
               />
             </div>
-
-            {/* 8 Stage Milestone Circles & Phase Names */}
-            {Array.from({ length: 8 }).map((_, idx) => {
-              const stageNode = stageNodes[idx];
-              const isCompleted = stageNode ? stageNode.status === 'COMPLETED' : idx < completedStages;
-              const isCurrent = stageNode ? stageNode.status === 'IN_PROGRESS' : (!isCompleted && idx === completedStages);
-              const shortLabel = SHORT_STAGE_LABELS[idx] || `S0${idx + 1}`;
-
-              return (
+          </div>
+        ) : (
+          <div className="w-full lg:flex-1 max-w-full lg:max-w-[580px] xl:max-w-[690px] mx-0 lg:mx-6 px-1 sm:px-3 py-1.5 flex flex-col justify-center">
+            {/* Horizontal Stepper Track */}
+            <div className="flex items-center justify-between w-full relative">
+              {/* Background connecting track line (aligned with circle centers) */}
+              <div className="absolute top-3.5 sm:top-4 left-4 right-4 -translate-y-1/2 h-2 bg-slate-100 border border-slate-200/90 rounded-full z-0 overflow-hidden shadow-inner">
                 <div
-                  key={idx}
-                  className="relative z-10 flex flex-col items-center max-w-[58px] sm:max-w-[70px]"
-                >
-                  {/* Step Bubble (+20% size increase) */}
+                  className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] transition-all duration-700 rounded-full"
+                  style={{ width: `${Math.max(progressPct, 4)}%` }}
+                />
+              </div>
+
+              {/* 8 Stage Milestone Circles & Phase Names */}
+              {Array.from({ length: 8 }).map((_, idx) => {
+                const stageNode = stageNodes[idx];
+                const isCompleted = stageNode ? stageNode.status === 'COMPLETED' : idx < completedStages;
+                const isCurrent = stageNode ? stageNode.status === 'IN_PROGRESS' : (!isCompleted && idx === completedStages);
+                const shortLabel = SHORT_STAGE_LABELS[idx] || `S0${idx + 1}`;
+
+                return (
                   <div
-                    className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-extrabold transition-all duration-200 shadow-2xs ${
-                      isCompleted
-                        ? 'bg-[#a8cf45] text-white border-2 border-white ring-2 ring-[#a8cf45]/60 shadow-sm'
-                        : isCurrent
-                          ? 'bg-[#51a8b1] text-white border-2 border-white ring-4 ring-[#51a8b1]/30 shadow-md animate-pulse'
-                          : 'bg-white border-2 border-slate-300 text-slate-500'
-                    }`}
+                    key={idx}
+                    className="relative z-10 flex flex-col items-center max-w-[58px] sm:max-w-[70px]"
                   >
-                    {isCompleted ? (
-                      <Check className="w-4 h-4 stroke-[3.5] text-white" />
-                    ) : (
-                      <span>{idx + 1}</span>
-                    )}
+                    {/* Step Bubble (+20% size increase) */}
+                    <div
+                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-extrabold transition-all duration-200 shadow-2xs ${
+                        isCompleted
+                          ? 'bg-[#a8cf45] text-white border-2 border-white ring-2 ring-[#a8cf45]/60 shadow-sm'
+                          : isCurrent
+                            ? 'bg-[#51a8b1] text-white border-2 border-white ring-4 ring-[#51a8b1]/30 shadow-md animate-pulse'
+                            : 'bg-white border-2 border-slate-300 text-slate-500'
+                      }`}
+                    >
+                      {isCompleted ? (
+                        <Check className="w-4 h-4 stroke-[3.5] text-white" />
+                      ) : (
+                        <span>{idx + 1}</span>
+                      )}
+                    </div>
+
+                    {/* Phase Name under bubble */}
+                    <span
+                      className={`text-[9.5px] sm:text-[10.5px] tracking-tight mt-1.5 text-center truncate w-full leading-tight select-none ${
+                        isCompleted
+                          ? 'text-[#465b1c] font-black'
+                          : isCurrent
+                            ? 'text-[#3a7d84] font-black'
+                            : 'text-[#556987] font-semibold'
+                      }`}
+                    >
+                      {shortLabel}
+                    </span>
                   </div>
-
-                  {/* Phase Name under bubble */}
-                  <span
-                    className={`text-[9.5px] sm:text-[10.5px] tracking-tight mt-1.5 text-center truncate w-full leading-tight select-none ${
-                      isCompleted
-                        ? 'text-[#465b1c] font-black'
-                        : isCurrent
-                          ? 'text-[#3a7d84] font-black'
-                          : 'text-[#556987] font-semibold'
-                    }`}
-                  >
-                    {shortLabel}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Project Manager & Stage Count Subtext (Clean & Direct) */}
-          <div className="flex items-center justify-between w-full mt-2.5 px-1 text-[11px] sm:text-xs">
-            <div className="flex items-center gap-1.5 text-[#556987] font-medium truncate max-w-[320px] sm:max-w-[380px]">
-              <User className="w-3.5 h-3.5 text-[#51a8b1] flex-shrink-0" />
-              <span>Project Manager:</span>
-              <strong className="text-[#3a7d84] font-bold truncate">
-                {pmName}
-              </strong>
+                );
+              })}
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              <span className="text-[#556987] font-semibold text-[11px]">
-                <strong className="text-[#3a7d84]">{completedStages}</strong> of {totalStages} Stages
-              </span>
-              <span className="font-mono font-black text-[10.5px] text-[#1e293b] bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200 shadow-2xs">
-                {progressPct}%
-              </span>
+
+            {/* Project Manager & Stage Count Subtext (Clean & Direct) */}
+            <div className="flex items-center justify-between w-full mt-2.5 px-1 text-[11px] sm:text-xs">
+              <div className="flex items-center gap-1.5 text-[#556987] font-medium truncate max-w-[320px] sm:max-w-[380px]">
+                <User className="w-3.5 h-3.5 text-[#51a8b1] flex-shrink-0" />
+                <span>Project Manager:</span>
+                <strong className="text-[#3a7d84] font-bold truncate">
+                  {pmName}
+                </strong>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <span className="text-[#556987] font-semibold text-[11px]">
+                  <strong className="text-[#3a7d84]">{completedStages}</strong> of {totalStages} Stages
+                </span>
+                <span className="font-mono font-black text-[10.5px] text-[#1e293b] bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                  {progressPct}%
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* Right: Status Badge + Open Tracker button + Refresh + Chevron */}
         <div className="flex items-center gap-3 sm:gap-3.5 flex-shrink-0 self-end lg:self-center">

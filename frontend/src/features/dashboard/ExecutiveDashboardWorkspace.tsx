@@ -13,13 +13,15 @@ import { CreateProjectRequestModal } from '../requests/components/CreateProjectR
 import { NotificationDetailModal } from '../../components/shell/NotificationDetailModal';
 import { requestsApi } from '../../lib/api/requests.api';
 import { ICreateProjectRequestPayload } from '../../types/request';
-import { RefreshCw, Send } from 'lucide-react';
+import { RefreshCw, Send, Search, X, PanelRightOpen, Bell } from 'lucide-react';
+import { useSearch } from '../../context/SearchContext';
 
 interface ExecutiveDashboardWorkspaceProps {
   hideSidePanel?: boolean;
 }
 
 export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: ExecutiveDashboardWorkspaceProps = {}) {
+  const { searchQuery, clearSearch } = useSearch();
   const [currentUser, setCurrentUser] = useState<IUser | null>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -40,6 +42,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
+  const [isSidePanelShrunk, setIsSidePanelShrunk] = useState<boolean>(false);
 
   const isAdmin = currentUser?.globalRole === 'ADMIN' || (currentUser as any)?.role === 'ADMIN';
   const canRequestProject = isAdmin || Boolean(currentUser?.canRequestNewProject || currentUser?.permissions?.canRequestNewProject);
@@ -158,10 +161,29 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
     }));
   };
 
-  const filteredProjects = useMemo(() =>
-    statusFilter === 'ALL' ? projects : projects.filter((p) => p.status === statusFilter),
-    [projects, statusFilter]
-  );
+  const filteredProjects = useMemo(() => {
+    return projects.filter((p) => {
+      // 1. Status Filter
+      const matchStatus = statusFilter === 'ALL' ? true : p.status === statusFilter;
+      if (!matchStatus) return false;
+
+      // 2. Search Keyword Filter
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase().trim();
+      const code = (p.projectId || '').toLowerCase();
+      const name = (p.projectName || p.title || '').toLowerCase();
+      const org = (p.organization || '').toLowerCase();
+      const pmName = (
+        typeof p.projectManager === 'object' && p.projectManager !== null
+          ? (p.projectManager as any).name || ''
+          : typeof p.projectManager === 'string'
+          ? p.projectManager
+          : ''
+      ).toLowerCase();
+
+      return code.includes(q) || name.includes(q) || org.includes(q) || pmName.includes(q);
+    });
+  }, [projects, statusFilter, searchQuery]);
 
   const allExpanded = filteredProjects.length > 0 && filteredProjects.every((p) => expandedMap[p._id]);
   const allCollapsed = filteredProjects.length > 0 && filteredProjects.every((p) => !expandedMap[p._id]);
@@ -207,6 +229,24 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Re-expand Notifications Button (Visible when side panel is shrunk) */}
+          {currentUser && !hideSidePanel && isSidePanelShrunk && (
+            <button
+              type="button"
+              onClick={() => setIsSidePanelShrunk(false)}
+              className="bg-teal-50 text-[#0f766e] border border-teal-200 hover:bg-teal-100 px-3.5 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-2 shadow-2xs cursor-pointer animate-in fade-in"
+              title="Open Notifications & Assignments Panel"
+            >
+              <Bell className="w-4 h-4 text-[#0d9488]" />
+              <span>Notifications</span>
+              {notifications.filter((n) => !n.isRead).length > 0 && (
+                <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
+                  {notifications.filter((n) => !n.isRead).length}
+                </span>
+              )}
+            </button>
+          )}
+
           {canRequestProject && (
             <button
               type="button"
@@ -235,13 +275,13 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
         onSelectFilter={setStatusFilter}
       />
 
-      {/* ── Main Workspace Layout: 60/40 Split when Logged In with Side Panel, 100% Full Width when hideSidePanel or Guest ── */}
+      {/* ── Main Workspace Layout: 60/40 Split when Logged In with Side Panel, 100% Full Width when Shrunk or Guest ── */}
       {(() => {
-        const showSidePanel = Boolean(currentUser && !hideSidePanel);
+        const showSidePanel = Boolean(currentUser && !hideSidePanel && !isSidePanelShrunk);
         return (
           <div className="flex flex-col lg:flex-row items-start gap-6">
-            {/* ── Left Column: Timeline Roadmaps & Projects (Takes 100% full width if side panel is hidden) ── */}
-            <div className={`w-full ${showSidePanel ? 'lg:w-[60%]' : 'lg:w-full'} space-y-4 min-w-0`}>
+            {/* ── Left Column: Timeline Roadmaps & Projects (Takes 100% full width if side panel is shrunk) ── */}
+            <div className={`w-full ${showSidePanel ? 'lg:w-[60%]' : 'lg:w-full'} space-y-4 min-w-0 transition-all duration-300`}>
               {/* Projects List with Collapsible Roadmaps */}
               <DashboardRoadmapList
                 projects={filteredProjects}
@@ -253,12 +293,13 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                 onRetry={fetchDashboardData}
                 onProjectUpdated={fetchDashboardData}
                 currentUser={currentUser}
+                compactTimeline={showSidePanel}
               />
             </div>
 
             {/* ── 40% Width Right Column: Recent Timeline Notifications & Requests Box ── */}
             {showSidePanel && (
-              <div className="w-full lg:w-[40%] lg:sticky lg:top-4 min-w-0">
+              <div className="w-full lg:w-[40%] lg:sticky lg:top-4 min-w-0 animate-in fade-in zoom-in-95 duration-200">
                 <RecentTimelineNotificationsBox
                   notifications={notifications}
                   loading={notificationsLoading}
@@ -266,6 +307,8 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                   onMarkAsRead={handleMarkNotificationRead}
                   onMarkAllAsRead={handleMarkAllNotificationsRead}
                   onSelectNotification={(item) => setSelectedNotification(item)}
+                  onToggleShrink={() => setIsSidePanelShrunk(true)}
+                  isShrunk={isSidePanelShrunk}
                 />
               </div>
             )}

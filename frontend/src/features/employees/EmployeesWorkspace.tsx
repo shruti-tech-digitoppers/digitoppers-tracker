@@ -21,12 +21,15 @@ import {
   Sparkles,
   Layers,
   Shield,
-  Send
+  Send,
+  X
 } from 'lucide-react';
 import { IUser } from '../../types/auth';
 import Link from 'next/link';
+import { useSearch } from '../../context/SearchContext';
 
 export function EmployeesWorkspace() {
+  const { searchQuery, setSearchQuery, clearSearch } = useSearch();
   const [currentUser, setCurrentUser] = useState<IUser | null>(() => {
     if (typeof window !== 'undefined') {
       try {
@@ -60,7 +63,6 @@ export function EmployeesWorkspace() {
   const [isProjectModalOpen, setIsProjectModalOpen] = useState(false);
 
   // Filter & Search States
-  const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'INACTIVE'>('ALL');
   const [roleFilter, setRoleFilter] = useState<'ALL' | 'ADMIN' | 'EMPLOYEE'>('ALL');
 
@@ -231,8 +233,18 @@ export function EmployeesWorkspace() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by name, email, or code..."
-            className="w-full pl-9 pr-3 py-2 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:border-transparent transition"
+            className="w-full pl-9 pr-8 py-2 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:border-transparent transition font-medium"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Filters */}

@@ -20,13 +20,15 @@ import {
   Layers,
   Filter,
   Send,
-  AlertCircle
+  AlertCircle,
+  X
 } from 'lucide-react';
+import { useSearch } from '../../context/SearchContext';
 
 export function ProjectsListWorkspace() {
   const { projects, employees, loading, error, refresh, deleteProject } = useProjects();
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
+  const { searchQuery, setSearchQuery, clearSearch } = useSearch();
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'ARCHIVED'>('ALL');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -227,8 +229,18 @@ export function ProjectsListWorkspace() {
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search by project ID, name, organization, or PM..."
-            className="w-full pl-9 pr-4 py-2 bg-[#f8fafb] border border-[#b9c0cb]/50 rounded-xl text-xs text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white"
+            className="w-full pl-9 pr-8 py-2 bg-[#f8fafb] border border-[#b9c0cb]/50 rounded-xl text-xs text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white transition-all font-medium"
           />
+          {searchQuery && (
+            <button
+              type="button"
+              onClick={clearSearch}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-0.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
 
         {/* Status Filter Pills */}

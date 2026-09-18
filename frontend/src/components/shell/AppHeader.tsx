@@ -3,10 +3,11 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Search, LogIn, LayoutDashboard } from 'lucide-react';
+import { Search, LogIn, LayoutDashboard, X } from 'lucide-react';
 import { IUser } from '../../types/auth';
 import { INotificationItem } from '../../lib/api/notifications.api';
 import { NotificationDropdown } from './NotificationDropdown';
+import { useSearch } from '../../context/SearchContext';
 
 interface AppHeaderProps {
   currentUser: IUser | null;
@@ -16,8 +17,8 @@ interface AppHeaderProps {
   onMarkAsRead: (id: string) => void;
   onMarkAllAsRead: () => void;
   onSelectNotification?: (item: INotificationItem) => void;
-  searchQuery: string;
-  onSearchChange: (val: string) => void;
+  searchQuery?: string;
+  onSearchChange?: (val: string) => void;
 }
 
 export function AppHeader({
@@ -28,10 +29,16 @@ export function AppHeader({
   onMarkAsRead,
   onMarkAllAsRead,
   onSelectNotification,
-  searchQuery,
-  onSearchChange,
+  searchQuery: propSearchQuery,
+  onSearchChange: propOnSearchChange,
 }: AppHeaderProps) {
   const pathname = usePathname();
+  const searchCtx = useSearch();
+
+  // Use search context if available, otherwise fallback to props
+  const query = propSearchQuery !== undefined ? propSearchQuery : searchCtx.searchQuery;
+  const setQuery = propOnSearchChange || searchCtx.setSearchQuery;
+  const clearQuery = searchCtx.clearSearch || (() => setQuery(''));
 
   const formattedDate = new Intl.DateTimeFormat('en-US', {
     weekday: 'long',
@@ -44,7 +51,15 @@ export function AppHeader({
     if (pathname.startsWith('/dashboard') || pathname === '/') return 'Executive Dashboard';
     if (pathname.startsWith('/projects')) return 'Projects';
     if (pathname.startsWith('/tracker')) return 'Execution Tracker';
+    if (pathname.startsWith('/employees')) return 'Employees';
+    if (pathname.startsWith('/requests')) return 'Project Requests';
     return 'Project Tracker';
+  };
+
+  const getSearchPlaceholder = () => {
+    if (pathname.startsWith('/employees')) return 'Search employees, role, code...';
+    if (pathname.startsWith('/requests')) return 'Search requests, ID, client...';
+    return 'Search projects, ID, PM...';
   };
 
   return (
@@ -70,20 +85,30 @@ export function AppHeader({
 
       {/* Right: Search, Date, Notifications, Profile / Login */}
       <div className="flex items-center gap-3 sm:gap-4">
-        {/* Search Input */}
-        <div className="relative hidden sm:flex items-center">
-          <Search className="w-3.5 h-3.5 text-[#b9c0cb] absolute left-3 pointer-events-none" />
+        {/* Interactive Global Search Input */}
+        <div className="relative flex items-center">
+          <Search className="w-3.5 h-3.5 text-[#51a8b1] absolute left-3 pointer-events-none" />
           <input
             type="text"
-            placeholder="Search projects..."
-            value={searchQuery}
-            onChange={(e) => onSearchChange(e.target.value)}
-            className="pl-8 pr-3 py-1.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/50 rounded-xl w-44 lg:w-60 text-[#333333] placeholder-[#4a5462]/70 focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:border-[#51a8b1] focus:bg-white transition-all"
+            placeholder={getSearchPlaceholder()}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-8 pr-8 py-1.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl w-36 sm:w-52 md:w-64 lg:w-72 text-[#1e293b] placeholder-[#556987]/70 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] focus:bg-white transition-all shadow-2xs font-medium"
           />
+          {query && (
+            <button
+              type="button"
+              onClick={clearQuery}
+              className="absolute right-2.5 p-0.5 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition cursor-pointer"
+              title="Clear search"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          )}
         </div>
 
         {/* Date Display */}
-        <span className="hidden md:inline text-xs text-[#4a5462] font-medium">
+        <span className="hidden lg:inline text-xs text-[#4a5462] font-medium whitespace-nowrap">
           {formattedDate}
         </span>
 
@@ -103,7 +128,7 @@ export function AppHeader({
         {!currentUser && (
           <Link
             href="/login"
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#51a8b1] text-white text-xs font-bold hover:bg-[#3a7d84] shadow-xs transition active:scale-95 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#51a8b1] text-white text-xs font-bold hover:bg-[#3a7d84] shadow-xs transition active:scale-95 cursor-pointer shrink-0"
           >
             <LogIn className="w-3.5 h-3.5" />
             <span>Log In</span>
