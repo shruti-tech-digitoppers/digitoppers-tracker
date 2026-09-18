@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import AppLayout from "@/components/shell/AppLayout";
 
 export const metadata: Metadata = {
-  title: "Digitopper Project Tracker",
+  title: "DigiToppers Project Tracker",
   description: "Enterprise Project Control Center"
 };
 

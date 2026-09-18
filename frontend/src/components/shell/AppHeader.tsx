@@ -3,7 +3,7 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Search, LogIn, LayoutDashboard, X } from 'lucide-react';
+import { Search, LogIn, LogOut, LayoutDashboard, X } from 'lucide-react';
 import { IUser } from '../../types/auth';
 import { INotificationItem } from '../../lib/api/notifications.api';
 import { NotificationDropdown } from './NotificationDropdown';
@@ -73,7 +73,7 @@ export function AppHeader({
         )}
         <div>
           <h1 className="font-heading text-lg font-bold text-[#3a7d84] tracking-tight">
-            {!currentUser ? 'DigiTopper Project Tracker' : getPageTitle()}
+            {!currentUser ? 'DigiToppers Project Tracker' : getPageTitle()}
           </h1>
           {!currentUser && (
             <p className="text-[10.5px] text-[#556987] font-medium hidden sm:block">
@@ -122,6 +122,37 @@ export function AppHeader({
             onMarkAllAsRead={onMarkAllAsRead}
             onSelectNotification={onSelectNotification}
           />
+        )}
+
+        {/* User Profile & Logout (When logged in) */}
+        {currentUser && (
+          <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
+            <div className="flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#3a7d84] to-[#51a8b1] text-white flex items-center justify-center font-bold text-xs shadow-xs">
+                {currentUser.name?.charAt(0) || 'U'}
+              </div>
+              <div className="hidden sm:block text-left min-w-0 max-w-[120px]">
+                <p className="text-xs font-bold text-[#111827] truncate leading-tight">{currentUser.name}</p>
+                <p className="text-[10px] text-[#556987] font-semibold truncate leading-tight capitalize">{(currentUser as any).globalRole || 'Employee'}</p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (typeof window !== 'undefined') {
+                  localStorage.removeItem('token');
+                  localStorage.removeItem('accessToken');
+                  localStorage.removeItem('digitopper_token');
+                  localStorage.removeItem('user');
+                  window.location.href = '/';
+                }
+              }}
+              className="p-1.5 rounded-xl hover:bg-rose-50 text-slate-400 hover:text-rose-600 transition cursor-pointer"
+              title="Log Out"
+            >
+              <LogOut className="w-4 h-4" />
+            </button>
+          </div>
         )}
 
         {/* Login Button for unauthenticated view */}
