@@ -51,18 +51,18 @@ export const AppSidebar = React.memo(function AppSidebar({
       className={`
         bg-white border-r border-[#b9c0cb]/40 flex flex-col justify-between z-30 transition-all duration-300 select-none
         sticky top-0 h-screen flex-shrink-0 shadow-xs
-        ${collapsed ? 'w-20' : 'w-64'}
+        ${collapsed ? 'w-[72px]' : 'w-[230px]'}
       `}
     >
       {/* Top: Brand & Collapse Toggle */}
       <div>
-        <div className="h-20 px-4 flex items-center justify-between border-b border-[#f1f3f6]">
+        <div className="h-16 px-3.5 flex items-center justify-between border-b border-[#f1f3f6]">
           {!collapsed ? (
             <Link href="/dashboard" className="flex items-center gap-1.5 group min-w-0">
               <img
                 src="/digitoppers-logo.png"
                 alt="Digitoppers"
-                className="h-14 w-auto object-contain max-w-[190px]"
+                className="h-11 w-auto object-contain max-w-[155px]"
               />
             </Link>
           ) : (
@@ -70,7 +70,7 @@ export const AppSidebar = React.memo(function AppSidebar({
               <img
                 src="/digitoppers-logo.png"
                 alt="Digitoppers"
-                className="h-9 w-auto object-contain"
+                className="h-8 w-auto object-contain"
               />
             </Link>
           )}
@@ -86,7 +86,7 @@ export const AppSidebar = React.memo(function AppSidebar({
         </div>
 
         {/* Navigation Links */}
-        <nav className="p-3 space-y-1.5 mt-2">
+        <nav className="p-2.5 space-y-1 mt-1.5">
           {navItems.map((item) => {
             const Icon = item.icon;
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -96,7 +96,7 @@ export const AppSidebar = React.memo(function AppSidebar({
                 key={item.href}
                 href={item.href}
                 className={`
-                  flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-200
+                  flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200
                   ${collapsed ? 'justify-center px-2' : ''}
                   ${
                     isActive
