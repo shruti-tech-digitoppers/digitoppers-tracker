@@ -1,14 +1,15 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const timelineController = require('./timeline.controller');
-const { protect } = require('../../core/auth');
+const { protect, optionalProtect } = require('../../core/auth');
 const { verifyProjectPermission } = require('../../core/authorization');
 const { DESIGNATIONS } = require('../../core/constants');
 
-router.use(protect);
+// View timeline hierarchy (publicly viewable on dashboard)
+router.get('/', optionalProtect, timelineController.getTimeline);
 
-// View timeline hierarchy
-router.get('/', verifyProjectPermission([DESIGNATIONS.PROJECT_MANAGER, DESIGNATIONS.CONTRIBUTOR, DESIGNATIONS.VIEWER]), timelineController.getTimeline);
+// All other timeline node inspections and updates require authentication & permissions
+router.use(protect);
 
 // Get / update individual node
 router.route('/nodes/:nodeId')

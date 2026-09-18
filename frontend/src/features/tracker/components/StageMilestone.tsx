@@ -15,10 +15,11 @@ interface StageMilestoneProps {
   toggleNodeExpand: (id: string, e?: React.MouseEvent) => void;
   isGateLocked: (node: ITimelineNode) => boolean;
   matchesFilter: (node: ITimelineNode) => boolean;
-  onSelectNode: (node: ITimelineNode) => void;
+  onSelectNode?: (node: ITimelineNode) => void;
   showConnector?: boolean;
   employees?: IUser[];
   onAssign?: (nodeId: string, empId: string) => void;
+  isClickable?: boolean;
 }
 
 export function StageMilestone({
@@ -33,6 +34,7 @@ export function StageMilestone({
   showConnector = true,
   employees = [],
   onAssign,
+  isClickable = true,
 }: StageMilestoneProps) {
   const isSelected = selectedNodeId === stage._id;
   const isExpanded = isNodeExpanded(stage._id);
@@ -64,6 +66,7 @@ export function StageMilestone({
           isGateLocked={isGateLocked(stage)}
           employees={employees}
           onAssign={onAssign}
+          isClickable={isClickable}
         />
 
         {/* Downward Subtasks */}
@@ -99,6 +102,7 @@ export function StageMilestone({
                     isGateLocked={isGateLocked(task)}
                     employees={employees}
                     onAssign={onAssign}
+                    isClickable={isClickable}
                   />
                 </div>
               ))}

@@ -1,6 +1,6 @@
 import axios, { AxiosError, InternalAxiosRequestConfig } from 'axios';
 
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -31,7 +31,12 @@ apiClient.interceptors.response.use(
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
         localStorage.removeItem('user');
-        if (window.location.pathname !== '/login') {
+        if (
+          window.location.pathname !== '/login' &&
+          window.location.pathname !== '/dashboard' &&
+          !window.location.pathname.startsWith('/tracker') &&
+          window.location.pathname !== '/'
+        ) {
           window.location.href = '/login';
         }
       }

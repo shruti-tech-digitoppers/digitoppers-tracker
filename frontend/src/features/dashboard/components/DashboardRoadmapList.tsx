@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { IProject } from '../../../types/project';
+import { IUser } from '../../../types/auth';
 import { ProjectRoadmapCard } from '../ProjectRoadmapCard';
 import { Boxes } from 'lucide-react';
 import { StatusFilter } from './DashboardStatsGrid';
@@ -15,6 +16,7 @@ interface DashboardRoadmapListProps {
   onToggleProject: (id: string) => void;
   onRetry: () => void;
   onProjectUpdated: () => void;
+  currentUser?: IUser | null;
 }
 
 export function DashboardRoadmapList({
@@ -26,6 +28,7 @@ export function DashboardRoadmapList({
   onToggleProject,
   onRetry,
   onProjectUpdated,
+  currentUser = null,
 }: DashboardRoadmapListProps) {
   if (loading) {
     return (
@@ -72,6 +75,7 @@ export function DashboardRoadmapList({
         <ProjectRoadmapCard
           key={project._id}
           project={project}
+          currentUser={currentUser}
           isExpanded={Boolean(expandedMap[project._id])}
           onToggle={() => onToggleProject(project._id)}
           onProjectUpdated={onProjectUpdated}

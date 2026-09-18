@@ -13,8 +13,13 @@ router.route('/')
 
 router.route('/:id')
   .get(employeeController.getById)
-  .patch(restrictToGlobal(GLOBAL_ROLES.ADMIN), employeeController.update);
+  .patch(restrictToGlobal(GLOBAL_ROLES.ADMIN), employeeController.update)
+  .delete(restrictToGlobal(GLOBAL_ROLES.ADMIN), employeeController.delete);
 
 router.patch('/:id/status', restrictToGlobal(GLOBAL_ROLES.ADMIN), employeeController.updateStatus);
 
+router.get('/:id/projects', employeeController.getEmployeeProjects);
+router.put('/:id/projects/:projectId', restrictToGlobal(GLOBAL_ROLES.ADMIN), employeeController.updateEmployeeProjectRole);
+
 module.exports = router;
+

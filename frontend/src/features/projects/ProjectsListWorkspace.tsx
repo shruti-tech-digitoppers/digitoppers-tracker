@@ -4,7 +4,10 @@ import React, { useState, useMemo } from 'react';
 import { useProjects } from '../../hooks/useProjects';
 import { ProjectCard } from './components/ProjectCard';
 import { ProjectsTable } from './components/ProjectsTable';
-import { CreateProjectModal } from './components/CreateProjectModal';
+import { CreateProjectRequestModal } from '../requests/components/CreateProjectRequestModal';
+import { authApi } from '../../lib/api/auth.api';
+import { requestsApi } from '../../lib/api/requests.api';
+import { IProject } from '../../types/project';
 import { 
   FolderKanban, 
   Plus, 
@@ -15,15 +18,41 @@ import {
   Clock, 
   Sparkles,
   Layers,
-  Filter
+  Filter,
+  Send,
+  AlertCircle
 } from 'lucide-react';
 
 export function ProjectsListWorkspace() {
-  const { projects, employees, loading, error, createProject, deleteProject } = useProjects();
+  const { projects, employees, loading, error, refresh, deleteProject } = useProjects();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'ARCHIVED'>('ALL');
   const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [currentUser, setCurrentUser] = useState<any>(null);
+
+  React.useEffect(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const stored = localStorage.getItem('user');
+        if (stored) {
+          setCurrentUser(JSON.parse(stored));
+          return;
+        }
+      } catch {}
+
+      authApi.getMe().then((res) => {
+        if (res.user) {
+          setCurrentUser(res.user);
+          try { localStorage.setItem('user', JSON.stringify(res.user)); } catch {}
+        }
+      }).catch(() => {});
+    }
+  }, []);
+
+  const isAdmin = currentUser?.globalRole === 'ADMIN' || currentUser?.role === 'ADMIN';
+  const currentUserId = currentUser?._id || currentUser?.id;
+  const canRequestProject = isAdmin || Boolean(currentUser?.canRequestNewProject || currentUser?.permissions?.canRequestNewProject);
 
   const handleDelete = async (id: string) => {
     if (window.confirm('Are you sure you want to delete this project?')) {
@@ -35,13 +64,13 @@ export function ProjectsListWorkspace() {
     }
   };
 
-  // Filter projects based on search query and status filter
+  // Filter projects based on search query and status filter (only confirmed projects)
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
       const matchStatus = statusFilter === 'ALL' 
         ? true 
         : statusFilter === 'ARCHIVED' 
-        ? (p.archived || p.status === 'ARCHIVED')
+        ? (!p.isActive || p.status === 'ARCHIVED')
         : p.status === statusFilter;
 
       if (!matchStatus) return false;
@@ -49,12 +78,12 @@ export function ProjectsListWorkspace() {
       if (!searchQuery.trim()) return true;
 
       const q = searchQuery.toLowerCase();
-      const code = (p.projectCode || '').toLowerCase();
-      const title = (p.title || '').toLowerCase();
-      const client = (p.client || '').toLowerCase();
+      const code = (p.projectId || '').toLowerCase();
+      const name = (p.projectName || p.title || '').toLowerCase();
+      const org = (p.organization || '').toLowerCase();
       const pmName = (typeof p.projectManager === 'object' && p.projectManager !== null ? (p.projectManager as any).name : '').toLowerCase();
 
-      return code.includes(q) || title.includes(q) || client.includes(q) || pmName.includes(q);
+      return code.includes(q) || name.includes(q) || org.includes(q) || pmName.includes(q);
     });
   }, [projects, searchQuery, statusFilter]);
 
@@ -63,7 +92,7 @@ export function ProjectsListWorkspace() {
     active: projects.filter((p) => p.status === 'ACTIVE' || (p.status as any) === 'IN_PROGRESS').length,
     onHold: projects.filter((p) => p.status === 'ON_HOLD').length,
     completed: projects.filter((p) => p.status === 'COMPLETED').length,
-    archived: projects.filter((p) => p.archived || p.status === 'ARCHIVED').length,
+    archived: projects.filter((p) => !p.isActive || p.status === 'ARCHIVED').length,
   }), [projects]);
 
   return (
@@ -113,14 +142,16 @@ export function ProjectsListWorkspace() {
             </button>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setIsModalOpen(true)}
-            className="inline-flex items-center gap-1.5 bg-[#51a8b1] text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#3a7d84] active:scale-95 transition-all shadow-xs cursor-pointer"
-          >
-            <Plus className="w-4 h-4" />
-            <span>New Project</span>
-          </button>
+          {canRequestProject && (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="inline-flex items-center gap-1.5 bg-[#51a8b1] text-white px-4 py-2 rounded-xl text-xs font-bold hover:bg-[#3a7d84] active:scale-95 transition-all shadow-xs cursor-pointer"
+            >
+              <Send className="w-4 h-4" />
+              <span>New Project Request</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -195,7 +226,7 @@ export function ProjectsListWorkspace() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by project code, title, client, or PM..."
+            placeholder="Search by project ID, name, organization, or PM..."
             className="w-full pl-9 pr-4 py-2 bg-[#f8fafb] border border-[#b9c0cb]/50 rounded-xl text-xs text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white"
           />
         </div>
@@ -204,7 +235,11 @@ export function ProjectsListWorkspace() {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 no-scrollbar">
           {(['ALL', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'ARCHIVED'] as const).map((st) => {
             const isSelected = statusFilter === st;
-            const label = st === 'ALL' ? 'All' : st === 'ARCHIVED' ? 'Inactive / Archived' : st.replace('_', ' ');
+            const label = st === 'ALL' 
+              ? 'All' 
+              : st === 'ARCHIVED' 
+              ? 'Inactive / Archived' 
+              : st.replace('_', ' ');
 
             return (
               <button
@@ -251,6 +286,8 @@ export function ProjectsListWorkspace() {
         /* Tabular Table View with 5 Key Columns */
         <ProjectsTable
           projects={filteredProjects}
+          isAdmin={isAdmin}
+          currentUserId={currentUserId}
           onDelete={handleDelete}
         />
       ) : (
@@ -266,12 +303,15 @@ export function ProjectsListWorkspace() {
         </div>
       )}
 
-      {/* Modal for Project Creation */}
-      <CreateProjectModal
+      {/* Modal for Project Request */}
+      <CreateProjectRequestModal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         employees={employees}
-        onSubmit={createProject}
+        onSubmit={async (payload) => {
+          await requestsApi.createRequest(payload);
+          refresh();
+        }}
       />
     </div>
   );

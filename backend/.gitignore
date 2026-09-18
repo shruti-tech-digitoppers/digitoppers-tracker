@@ -1,5 +1,27 @@
+# Dependencies
 node_modules/
+
+# Environment Variables
 .env
-coverage/
+.env.local
+.env.*.local
+
+# Logs & Debug
+logs/
 *.log
+npm-debug.log*
+
+# Coverage & Tests
+coverage/
+.nyc_output/
+
+# OS & Editor
 .DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Uploads / scratch
+uploads/
+**/uploads/**
+scratch/

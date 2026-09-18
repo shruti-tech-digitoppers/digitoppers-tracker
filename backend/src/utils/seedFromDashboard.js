@@ -5,6 +5,7 @@ const ProjectService = require('../modules/projects/project.service');
 const ProjectMember = require('../modules/projects/project-member.model');
 const Timeline = require('../modules/timeline/timeline.model');
 const TimelineNode = require('../modules/timeline/timeline-node.model');
+const ProjectRequest = require('../modules/requests/project-request.model');
 const Requirement = require('../modules/requirements/requirements.model');
 const Activity = require('../modules/activity/activity.model');
 const Notification = require('../modules/notifications/notifications.model');
@@ -112,7 +113,7 @@ const DASHBOARD_SOURCE_DATA = [
         name: 'Zilla Parishad Model Primary School Baramati',
         address: 'Baramati Rural, Pune, Maharashtra 413102',
         contactPerson: 'Mrs. Suvarna Kadam',
-        contactDesignation: 'Senior Teacher & STEM Coordinator',
+        contactDesignation: 'Senior Teacher',
         phone: '+91 98231 54321',
         email: 'zp.baramati@mahazp.edu.in',
         studentCount: 520,
@@ -139,7 +140,7 @@ const DASHBOARD_SOURCE_DATA = [
         name: 'Karnataka Public School (KPS) Malleshwaram',
         address: '18th Cross, Malleshwaram, Bengaluru, Karnataka 560055',
         contactPerson: 'Mr. Venkatesh Murthy',
-        contactDesignation: 'EdTech Coordinator',
+        contactDesignation: 'Teacher / Staff Incharge',
         phone: '+91 94480 67890',
         email: 'kps.malleshwaram@kar.edu.in',
         studentCount: 890,
@@ -204,12 +205,26 @@ async function seedFromDashboard() {
       console.log('✅ Cleaned all collections.');
     } else {
       console.log('🛡️ SAFEGUARD ACTIVE: Preserving live database records. Deleting only seeded test projects (PRJ-DASH-*)');
-      await mongoose.connection.collection('projects').deleteMany({ projectCode: /^PRJ-DASH-/ });
+      await mongoose.connection.collection('projects').deleteMany({ projectId: /^PRJ-DASH-/ });
     }
 
-    // 2. Create standard Employees / Team Members
-    console.log('\n👥 Creating Users & Staff Members...');
-    const admin = await Employee.create({
+    // 2. Create standard Employees / Team Members (Idempotent Upsert)
+    console.log('\n👥 Upserting Users & Staff Members...');
+    const upsertEmployee = async (data) => {
+      let emp = await Employee.findOne({ email: data.email });
+      if (!emp) {
+        emp = await Employee.create(data);
+      } else {
+        emp.name = data.name;
+        emp.globalRole = data.globalRole;
+        emp.employeeCode = data.employeeCode;
+        if (data.passwordHash) emp.passwordHash = data.passwordHash;
+        await emp.save();
+      }
+      return emp;
+    };
+
+    const admin = await upsertEmployee({
       name: 'System Admin',
       email: 'admin@digitopper.com',
       passwordHash: 'Admin@123',
@@ -217,7 +232,7 @@ async function seedFromDashboard() {
       employeeCode: 'EMP001'
     });
 
-    const pmRahul = await Employee.create({
+    const pmRahul = await upsertEmployee({
       name: 'Rahul Sharma',
       email: 'rahul.pm@digitopper.com',
       passwordHash: 'Password@123',
@@ -225,7 +240,7 @@ async function seedFromDashboard() {
       employeeCode: 'EMP002'
     });
 
-    const pmSneha = await Employee.create({
+    const pmSneha = await upsertEmployee({
       name: 'Sneha Kulkarni',
       email: 'sneha.pm@digitopper.com',
       passwordHash: 'Password@123',
@@ -233,31 +248,31 @@ async function seedFromDashboard() {
       employeeCode: 'EMP003'
     });
 
-    const contribAmit = await Employee.create({
-      name: 'Amit Verma (Tech Lead)',
+    const contribAmit = await upsertEmployee({
+      name: 'Amit Verma',
       email: 'amit.contrib@digitopper.com',
       passwordHash: 'Password@123',
       globalRole: GLOBAL_ROLES.EMPLOYEE,
       employeeCode: 'EMP004'
     });
 
-    const contribDivya = await Employee.create({
-      name: 'Divya Nair (Content Lead)',
+    const contribDivya = await upsertEmployee({
+      name: 'Divya Nair',
       email: 'divya.contrib@digitopper.com',
       passwordHash: 'Password@123',
       globalRole: GLOBAL_ROLES.EMPLOYEE,
       employeeCode: 'EMP005'
     });
 
-    const viewerPriya = await Employee.create({
-      name: 'Priya Iyer (Coordinator)',
+    const viewerPriya = await upsertEmployee({
+      name: 'Priya Iyer',
       email: 'priya.viewer@digitopper.com',
       passwordHash: 'Password@123',
       globalRole: GLOBAL_ROLES.EMPLOYEE,
       employeeCode: 'EMP006'
     });
 
-    console.log('✅ Created 6 employees with Admin, PM, Contributor & Viewer roles.');
+    console.log('✅ Prepared 6 employees with Admin, PM, Contributor & Viewer roles.');
 
     const pmList = [pmRahul, pmSneha];
 
@@ -272,10 +287,13 @@ async function seedFromDashboard() {
 
       // Create Project in Project Tracker (Initializes Timeline, Stages & Nodes)
       const project = await ProjectService.createProject({
-        projectCode: item.dashboardProjectId,
-        title: item.projectName,
+        projectId: item.dashboardProjectId,
+        projectName: item.projectName,
         description: `Imported from Dashboard Backend. Organization: ${item.organizationName}. ${item.schools.length} affiliated school deployment site(s).`,
-        client: item.organizationName,
+        organization: item.organizationName,
+        email: item.email,
+        phone: item.phone,
+        address: item.address,
         projectManager: assignedPM._id,
         status: item.status
       }, admin._id);
@@ -523,8 +541,114 @@ async function seedFromDashboard() {
         );
       }
 
-      console.log(`   ✔ Synced ${item.schools.length} Schools & ${Object.keys(hardwareItemsObj).length} Hardware Categories into Timeline Nodes`);
+      // Record Activity Audit Trail for this project
+      await Activity.create([
+        {
+          project: project._id,
+          actor: admin._id,
+          action: 'PROJECT_CREATED',
+          resourceType: 'Project',
+          resourceId: project._id,
+          metadata: {
+            projectId: item.dashboardProjectId,
+            title: item.projectName,
+            organization: item.organizationName
+          }
+        },
+        {
+          project: project._id,
+          actor: admin._id,
+          action: 'MEMBER_ASSIGNED',
+          resourceType: 'ProjectMember',
+          resourceId: project._id,
+          metadata: {
+            assignedPM: assignedPM.name,
+            role: 'PROJECT_MANAGER'
+          }
+        },
+        {
+          project: project._id,
+          actor: assignedPM._id,
+          action: 'REQUIREMENT_UPDATED',
+          resourceType: 'Requirement',
+          resourceId: project._id,
+          metadata: {
+            schoolsSynced: item.schools.length,
+            solutions: item.solutions
+          }
+        }
+      ]);
+
+      // Create corresponding ProjectRequest record for this Dashboard-linked project
+      const reqId = `REQ-2026-${String(i + 1).padStart(3, '0')}`;
+      await ProjectRequest.findOneAndUpdate(
+        { $or: [{ dashboardProjectId: item.dashboardProjectId }, { requestId: reqId }] },
+        {
+          requestId: reqId,
+          title: item.projectName,
+          projectName: item.projectName,
+          client: item.organizationName,
+          email: item.email || '',
+          phone: item.phone || '',
+          address: item.address || '',
+          expectedProjectValue: item.expectedProjectValue || 0,
+          requestedBy: contribAmit._id,
+          requestedTo: admin._id,
+          projectManager: assignedPM._id,
+          status: 'APPROVED',
+          dashboardProjectId: item.dashboardProjectId,
+          confirmedProjectId: project._id,
+          isManualDashboardCreated: true,
+          reviewNotes: 'Manually verified on Dashboard backend and confirmed for Tracker rollout execution.',
+          reviewedBy: admin._id,
+          reviewedAt: new Date()
+        },
+        { upsert: true, new: true }
+      );
+
+      console.log(`   ✔ Synced ${item.schools.length} Schools, ProjectRequest & Timeline Nodes`);
     }
+
+    // Seed sample Pending Project Requests for testing the new "Confirm Request" workflow
+    await ProjectRequest.findOneAndUpdate(
+      { requestId: 'REQ-2026-091' },
+      {
+        requestId: 'REQ-2026-091',
+        title: 'Gujarat Secondary Schools — Computer Lab Modernization',
+        projectName: 'Gujarat Secondary Schools — Computer Lab Modernization',
+        client: 'Gujarat Secondary and Higher Secondary Education Board',
+        email: 'gseb.labs@gujarat.gov.in',
+        phone: '+91 79 2325 3822',
+        address: 'Sector 10B, Near Old Sachivalaya, Gandhinagar, Gujarat 382010',
+        expectedProjectValue: 5200000,
+        requestedBy: contribAmit._id,
+        requestedTo: admin._id,
+        projectManager: pmRahul._id,
+        status: 'PENDING',
+        description: 'Procurement and rollout of 40 Smart Classrooms with OPS Panels across Ahmedabad & Vadodara districts.'
+      },
+      { upsert: true, new: true }
+    );
+
+    await ProjectRequest.findOneAndUpdate(
+      { requestId: 'REQ-2026-092' },
+      {
+        requestId: 'REQ-2026-092',
+        title: 'Rajasthan Model Schools — Digital Curriculum Rollout',
+        projectName: 'Rajasthan Model Schools — Digital Curriculum Rollout',
+        client: 'Rajasthan Council of School Education',
+        email: 'rcse.projects@rajasthan.gov.in',
+        phone: '+91 141 270 2133',
+        address: 'Dr. Radha Krishnan Shiksha Sankul, JLN Marg, Jaipur, Rajasthan 302017',
+        expectedProjectValue: 3900000,
+        requestedBy: contribDivya._id,
+        requestedTo: admin._id,
+        projectManager: pmSneha._id,
+        status: 'PENDING',
+        description: 'Phase 2 Digital Curriculum preloading and teacher training across 15 Vivekananda Model Schools.'
+      },
+      { upsert: true, new: true }
+    );
 
     console.log('\n======================================================');
     console.log('🎉 DASHBOARD SEED COMPLETED SUCCESSFULLY!');

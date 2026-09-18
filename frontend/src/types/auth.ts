@@ -9,6 +9,10 @@ export interface IUser {
   globalRole?: GlobalRole;
   employeeCode?: string;
   isActive: boolean;
+  canRequestNewProject?: boolean;
+  permissions?: {
+    canRequestNewProject?: boolean;
+  };
   createdAt?: string;
   updatedAt?: string;
 }
@@ -28,3 +32,62 @@ export interface IMeResponse {
   success: boolean;
   user: IUser;
 }
+
+
+export interface IEmployeeProjectSummary {
+  _id: string;
+  projectId?: string;
+  projectName?: string;
+  title?: string;
+  status: string;
+  organization?: string;
+}
+
+export interface IEmployeeProjectRole {
+  project: IEmployeeProjectSummary;
+  designation: ProjectDesignation;
+  isDefault: boolean;
+}
+
+export interface IEmployeeProjectsResponse {
+  success: boolean;
+  data: {
+    employee: {
+      _id: string;
+      name: string;
+      email: string;
+      employeeCode: string;
+      globalRole: GlobalRole;
+    };
+    projectRoles: IEmployeeProjectRole[];
+  };
+}
+
+export interface ICreateEmployeePayload {
+  name: string;
+  email: string;
+  password: string;
+  employeeCode: string;
+  globalRole: GlobalRole;
+  isActive?: boolean;
+  canRequestNewProject?: boolean;
+  permissions?: {
+    canRequestNewProject?: boolean;
+  };
+  projectRoles?: Array<{ projectId: string; designation: ProjectDesignation }>;
+}
+
+
+export interface IUpdateEmployeePayload {
+  name?: string;
+  email?: string;
+  password?: string;
+  employeeCode?: string;
+  globalRole?: GlobalRole;
+  isActive?: boolean;
+  canRequestNewProject?: boolean;
+  permissions?: {
+    canRequestNewProject?: boolean;
+  };
+}
+

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { projectsApi, ICreateProjectPayload, IUpdateProjectPayload } from '../lib/api/projects.api';
+import { projectsApi, IUpdateProjectPayload } from '../lib/api/projects.api';
 import { employeesApi } from '../lib/api/employees.api';
 import { IProject } from '../types/project';
 import { IUser } from '../types/auth';
@@ -31,12 +31,6 @@ export function useProjects() {
     fetchProjects();
   }, [fetchProjects]);
 
-  const createProject = async (payload: ICreateProjectPayload) => {
-    const res = await projectsApi.createProject(payload);
-    setProjects((prev) => [res.project, ...prev]);
-    return res.project;
-  };
-
   const updateProject = async (id: string, payload: IUpdateProjectPayload) => {
     const res = await projectsApi.updateProject(id, payload);
     setProjects((prev) => prev.map((p) => (p._id === id ? res.project : p)));
@@ -54,8 +48,7 @@ export function useProjects() {
     loading,
     error,
     refresh: fetchProjects,
-    createProject,
     updateProject,
     deleteProject,
   };
-}
+}

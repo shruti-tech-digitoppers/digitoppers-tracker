@@ -19,7 +19,18 @@ export interface IActivityListResponse {
 
 export const activityApi = {
   getProjectActivity: async (projectId: string): Promise<IActivityListResponse> => {
-    const response = await apiClient.get<IActivityListResponse>(`/projects/${projectId}/activity`);
-    return response.data;
+    const response = await apiClient.get<any>(`/projects/${projectId}/activity`);
+    return {
+      success: true,
+      activities: response.data?.data || response.data?.activities || [],
+    };
+  },
+
+  getAllActivities: async (): Promise<IActivityListResponse> => {
+    const response = await apiClient.get<any>('/activities');
+    return {
+      success: true,
+      activities: response.data?.data || response.data?.activities || [],
+    };
   },
 };

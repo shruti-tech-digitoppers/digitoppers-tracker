@@ -10,7 +10,9 @@ const generateToken = (employee) => {
       email: employee.email, 
       globalRole: employee.globalRole,
       name: employee.name,
-      employeeCode: employee.employeeCode
+      employeeCode: employee.employeeCode,
+      canRequestNewProject: Boolean(employee.canRequestNewProject || employee.permissions?.canRequestNewProject),
+      permissions: employee.permissions || { canRequestNewProject: Boolean(employee.canRequestNewProject) }
     },
     jwtSecret,
     { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
@@ -56,6 +58,41 @@ const protect = async (req, res, next) => {
   }
 };
 
+const optionalProtect = async (req, res, next) => {
+  try {
+    let token;
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+    } else if (req.cookies && req.cookies.token) {
+      token = req.cookies.token;
+    }
+
+    if (!token) {
+      req.employee = null;
+      return next();
+    }
+
+    let decoded;
+    try {
+      decoded = jwt.verify(token, jwtSecret);
+    } catch {
+      req.employee = null;
+      return next();
+    }
+
+    const employee = await Employee.findById(decoded.id);
+    if (employee && employee.isActive) {
+      req.employee = employee;
+    } else {
+      req.employee = null;
+    }
+    next();
+  } catch {
+    req.employee = null;
+    next();
+  }
+};
+
 const restrictTo = (...roles) => {
   return (req, res, next) => {
     if (!req.employee || !roles.includes(req.employee.globalRole)) {
@@ -65,4 +102,4 @@ const restrictTo = (...roles) => {
   };
 };
 
-module.exports = { generateToken, protect, restrictTo };
+module.exports = { generateToken, protect, optionalProtect, restrictTo };

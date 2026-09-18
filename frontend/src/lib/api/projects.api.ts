@@ -11,43 +11,47 @@ export interface IProjectDetailResponse {
   project: IProject;
 }
 
-export interface ICreateProjectPayload {
-  projectCode: string;
-  title: string;
-  description?: string;
-  client?: string;
-  projectManager?: string;
-  status?: ProjectStatus;
-}
-
 export interface IUpdateProjectPayload {
+  projectId?: string;
+  projectName?: string;
   title?: string;
   description?: string;
+  organization?: string;
   client?: string;
   status?: ProjectStatus;
   projectManager?: string;
+  assignedTo?: string;
   archived?: boolean;
 }
 
 function normalizeProject(p: any): IProject {
+  const code = p.projectId || p.id || 'PRJ';
+  const name = p.projectName || p.title || 'Untitled Project';
+
   return {
     _id: p._id || p.id || p.projectId || '',
-    projectCode: p.projectCode || p.id || p.projectId || 'PRJ',
-    title: p.title || p.projectName || 'Untitled Project',
+    projectId: code,
+    projectName: name,
+    title: name,
     description: p.description || p.purpose || '',
-    client: p.client || (p.clientSchools && p.clientSchools[0]?.schoolName) || p.address || 'N/A',
+    organization: p.organization || p.client || (p.clientSchools && p.clientSchools[0]?.schoolName) || p.address || 'Direct Organization',
     status: p.status || (p.isActive ? 'ACTIVE' : 'ARCHIVED'),
     projectManager: p.projectManager,
+    requestedBy: p.requestedBy,
+    assignedReviewer: p.assignedReviewer,
+    reviewStatus: p.reviewStatus || 'PENDING',
+    reviewNotes: p.reviewNotes,
+    reviewedAt: p.reviewedAt,
     createdBy: p.createdBy || p.projectManager || '',
-    archived: p.isActive === false,
+    archived: p.isActive === false || p.archived === true,
     createdAt: p.createdAt || new Date().toISOString(),
     updatedAt: p.updatedAt || new Date().toISOString(),
   };
 }
 
 export const projectsApi = {
-  getProjects: async (): Promise<IProjectsListResponse> => {
-    const response = await apiClient.get<any>('/projects');
+  getProjects: async (params?: { status?: string }): Promise<IProjectsListResponse> => {
+    const response = await apiClient.get<any>('/projects', { params });
     const rawList = response.data?.data || response.data?.projects || (Array.isArray(response.data) ? response.data : []);
     const projects = rawList.map(normalizeProject);
     return {
@@ -65,23 +69,19 @@ export const projectsApi = {
     };
   },
 
-  createProject: async (payload: ICreateProjectPayload): Promise<IProjectDetailResponse> => {
-    // Check if user is admin/pm and post to admin/projects if available or projects
-    const body = {
-      projectName: payload.title,
-      projectId: payload.projectCode,
-      ...payload,
-    };
-    const response = await apiClient.post<any>('/admin/projects', body).catch(() => apiClient.post<any>('/projects', body));
-    const raw = response.data?.data || response.data?.project || response.data;
-    return {
-      success: true,
-      project: normalizeProject(raw),
-    };
-  },
 
   updateProject: async (id: string, payload: IUpdateProjectPayload): Promise<IProjectDetailResponse> => {
-    const response = await apiClient.patch<any>(`/projects/${id}`, payload).catch(() => apiClient.put<any>(`/projects/${id}`, payload));
+    const code = payload.projectId;
+    const name = payload.projectName || payload.title;
+    const body: any = { ...payload };
+    if (code) {
+      body.projectId = code.trim();
+    }
+    if (name) {
+      body.projectName = name.trim();
+      body.title = name.trim();
+    }
+    const response = await apiClient.patch<any>(`/projects/${id}`, body).catch(() => apiClient.put<any>(`/projects/${id}`, body));
     const raw = response.data?.data || response.data?.project || response.data;
     return {
       success: true,
@@ -90,7 +90,7 @@ export const projectsApi = {
   },
 
   deleteProject: async (id: string): Promise<{ success: boolean }> => {
-    const response = await apiClient.patch<any>(`/projects/${id}`, { isActive: false }).catch(() => apiClient.delete<any>(`/projects/${id}`));
+    const response = await apiClient.patch<any>(`/projects/${id}/archive`, { archived: true }).catch(() => apiClient.delete<any>(`/projects/${id}`));
     return { success: true };
   },
 };

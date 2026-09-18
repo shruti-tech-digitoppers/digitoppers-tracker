@@ -3,8 +3,13 @@ const notificationService = require('./notifications.service');
 const getNotifications = async (req, res, next) => {
   try {
     const employeeId = req.employee?._id || req.user?._id || req.user?.id;
+    const { days, category, subCategory } = req.query;
     
-    const notifications = await notificationService.getEmployeeNotifications(employeeId);
+    const notifications = await notificationService.getEmployeeNotifications(employeeId, {
+      days,
+      category,
+      subCategory
+    });
 
     res.status(200).json({
       success: true,

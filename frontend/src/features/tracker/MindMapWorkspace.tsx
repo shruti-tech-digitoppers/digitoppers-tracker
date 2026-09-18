@@ -5,12 +5,15 @@ import { useSearchParams, useRouter } from 'next/navigation';
 import { timelineApi } from '../../lib/api/timeline.api';
 import { projectsApi } from '../../lib/api/projects.api';
 import { employeesApi } from '../../lib/api/employees.api';
-import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
 import { IProject } from '../../types/project';
 import { IUser } from '../../types/auth';
+import { ICreateProjectRequestPayload } from '../../types/request';
+import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
+import { requestsApi } from '../../lib/api/requests.api';
 import { canUpdateNodeStatus, canAssignNode } from '../../lib/permissions';
 import { HorizontalRoadmapCanvas } from './HorizontalRoadmapCanvas';
 import { NodeInspectorDrawer } from './NodeInspectorDrawer';
+import { CreateProjectRequestModal } from '../requests/components/CreateProjectRequestModal';
 import {
   Compass,
   RefreshCw,
@@ -19,15 +22,17 @@ import {
   AlertCircle,
   ChevronLeft,
   Building2,
+  Send,
 } from 'lucide-react';
 
 export function MindMapWorkspace() {
   const searchParams = useSearchParams();
   const router = useRouter();
-  const urlProjectId = searchParams.get('projectId');
+  const rawUrlParam = searchParams.get('projectId');
+  const urlProjectId = (rawUrlParam && rawUrlParam !== '[object Object]' && rawUrlParam !== 'null' && rawUrlParam !== 'undefined') ? rawUrlParam : null;
 
   const [projects, setProjects] = useState<IProject[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState<string>(urlProjectId || '');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
   const [nodes, setNodes] = useState<ITimelineNode[]>([]);
   const [employees, setEmployees] = useState<IUser[]>([]);
   const [currentUser, setCurrentUser] = useState<IUser | null>(null);
@@ -43,6 +48,15 @@ export function MindMapWorkspace() {
   const [formData, setFormData] = useState<Record<string, any>>({});
   const [mutating, setMutating] = useState<boolean>(false);
   const [mutationError, setMutationError] = useState<string | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const isAdmin = currentUser?.globalRole === 'ADMIN' || (currentUser as any)?.role === 'ADMIN';
+  const canRequestProject = isAdmin || Boolean(currentUser?.canRequestNewProject || currentUser?.permissions?.canRequestNewProject);
+
+  const handleCreateProjectRequest = async (payload: ICreateProjectRequestPayload) => {
+    const res = await requestsApi.createRequest(payload);
+    return res.request;
+  };
 
   // Fetch projects and employees on mount
   useEffect(() => {
@@ -58,11 +72,14 @@ export function MindMapWorkspace() {
         const list = res.projects || [];
         setProjects(list);
         if (list.length > 0) {
-          if (urlProjectId && list.some((p) => p._id === urlProjectId)) {
-            setSelectedProjectId(urlProjectId);
-          } else if (!selectedProjectId) {
-            setSelectedProjectId(list[0]._id);
+          if (urlProjectId) {
+            const matched = list.find((p) => p._id === urlProjectId || p.projectId === urlProjectId);
+            if (matched) {
+              setSelectedProjectId(matched._id);
+              return;
+            }
           }
+          setSelectedProjectId(list[0]._id);
         }
       })
       .catch(() => { });
@@ -73,7 +90,7 @@ export function MindMapWorkspace() {
   }, []);
 
   const fetchTimeline = useCallback(async (projId: string, showGlobalLoading = true) => {
-    if (!projId) return;
+    if (!projId || projId === '[object Object]') return;
     try {
       if (showGlobalLoading) setLoading(true);
       setError(null);
@@ -106,7 +123,7 @@ export function MindMapWorkspace() {
 
   // When selectedProjectId changes, clear selection, reload timeline & update URL
   useEffect(() => {
-    if (selectedProjectId) {
+    if (selectedProjectId && selectedProjectId !== '[object Object]') {
       setSelectedNode(null);
       setFormSchema(null);
       setFormData({});
@@ -123,10 +140,15 @@ export function MindMapWorkspace() {
 
   // Sync URL param → selectedProjectId when URL changes externally
   useEffect(() => {
-    if (urlProjectId && urlProjectId !== selectedProjectId) {
-      setSelectedProjectId(urlProjectId);
+    if (urlProjectId && urlProjectId !== '[object Object]' && urlProjectId !== selectedProjectId) {
+      const matched = projects.find((p) => p._id === urlProjectId || p.projectId === urlProjectId);
+      if (matched) {
+        setSelectedProjectId(matched._id);
+      } else if (projects.length > 0 && !selectedProjectId) {
+        setSelectedProjectId(projects[0]._id);
+      }
     }
-  }, [urlProjectId]);
+  }, [urlProjectId, projects, selectedProjectId]);
 
   const handleResetTimeline = async () => {
     if (!selectedProjectId) return;
@@ -143,6 +165,7 @@ export function MindMapWorkspace() {
   };
 
   const handleNodeSelect = async (node: ITimelineNode) => {
+    if (!currentUser) return;
     setSelectedNode(node);
     setMutationError(null);
     setFormSchema(null);
@@ -243,7 +266,7 @@ export function MindMapWorkspace() {
       setMutationError(null);
       const res = await timelineApi.updateNodeForm(selectedProjectId, selectedNode._id, updatedFormData);
       if (res.node) {
-        setSelectedNode((prev) => {
+        setSelectedNode((prev: ITimelineNode | null) => {
           if (!prev) return null;
           return {
             ...prev,
@@ -301,7 +324,7 @@ export function MindMapWorkspace() {
             {selectedProject && (
               <p className="text-[11px] text-slate-500 font-medium flex items-center gap-1">
                 <Building2 className="w-3 h-3" />
-                {selectedProject.projectCode} — {selectedProject.title}
+                {selectedProject.projectId} — {selectedProject.projectName || selectedProject.title}
               </p>
             )}
           </div>
@@ -318,11 +341,22 @@ export function MindMapWorkspace() {
             >
               {projects.map((p) => (
                 <option key={p._id} value={p._id} className="bg-white text-slate-800">
-                  {p.projectCode} — {p.title}
+                  {p.projectId} — {p.projectName || p.title}
                 </option>
               ))}
             </select>
           </div>
+
+          {canRequestProject && (
+            <button
+              type="button"
+              onClick={() => setIsModalOpen(true)}
+              className="bg-[#51a8b1] text-white px-3.5 py-2 rounded-xl text-xs font-bold hover:bg-[#3a7d84] active:scale-95 transition-all flex items-center gap-1.5 shadow-xs cursor-pointer flex-shrink-0"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>New Project Request</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -366,11 +400,17 @@ export function MindMapWorkspace() {
         </div>
       ) : nodes.length === 0 ? (
         <div className="text-center py-32 border border-dashed border-[#b9c0cb]/60 rounded-2xl text-[#4a5462] space-y-3 bg-white shadow-xs p-6">
-          <AlertCircle className="w-10 h-10 text-[#51a8b1] mx-auto" />
+          <AlertCircle className={`w-10 h-10 mx-auto ${selectedProject?.status === 'PENDING_REVIEW' ? 'text-amber-500' : 'text-[#51a8b1]'}`} />
           <div className="max-w-md mx-auto space-y-1">
-            <p className="text-sm font-bold text-[#333333] font-heading">No timeline nodes initialized yet</p>
+            <p className="text-sm font-bold text-[#333333] font-heading">
+              {selectedProject?.status === 'PENDING_REVIEW'
+                ? 'Project Request Pending Review'
+                : 'No timeline nodes initialized yet'}
+            </p>
             <p className="text-xs text-[#4a5462]">
-              Stages for this project have not been created yet or need re-initialization from the standard 8-stage rollout template.
+              {selectedProject?.status === 'PENDING_REVIEW'
+                ? 'This project request is currently awaiting review by the assigned reviewer. The execution timeline roadmap will be automatically generated once the request is confirmed and approved.'
+                : 'Stages for this project have not been created yet or need re-initialization from the standard 8-stage rollout template.'}
             </p>
           </div>
           <div className="flex items-center justify-center gap-3 pt-2">
@@ -379,15 +419,17 @@ export function MindMapWorkspace() {
               onClick={() => fetchTimeline(selectedProjectId, true)}
               className="px-3.5 py-1.5 rounded-xl border border-[#b9c0cb]/60 text-xs font-semibold text-[#4a5462] hover:bg-[#f8fafb] transition cursor-pointer"
             >
-              Refresh
+              Refresh Status
             </button>
-            <button
-              type="button"
-              onClick={handleResetTimeline}
-              className="px-4 py-1.5 rounded-xl bg-[#51a8b1] text-white text-xs font-bold hover:bg-[#3a7d84] transition cursor-pointer shadow-xs"
-            >
-              Initialize 8-Stage Timeline
-            </button>
+            {currentUser && selectedProject?.status !== 'PENDING_REVIEW' && (
+              <button
+                type="button"
+                onClick={handleResetTimeline}
+                className="px-4 py-1.5 rounded-xl bg-[#51a8b1] text-white text-xs font-bold hover:bg-[#3a7d84] transition cursor-pointer shadow-xs"
+              >
+                Initialize 8-Stage Timeline
+              </button>
+            )}
           </div>
         </div>
       ) : (
@@ -395,32 +437,43 @@ export function MindMapWorkspace() {
           <HorizontalRoadmapCanvas
             project={selectedProject}
             nodes={nodes}
-            selectedNode={selectedNode}
-            onSelectNode={handleNodeSelect}
-            projectCode={selectedProject?.projectCode}
-            projectTitle={selectedProject?.title}
+            selectedNode={currentUser ? selectedNode : null}
+            onSelectNode={currentUser ? handleNodeSelect : () => {}}
+            projectId={selectedProject?.projectId}
+            projectTitle={selectedProject?.projectName || selectedProject?.title}
             employees={employees}
-            onAssign={(nodeId, empId) => handleAssignmentChange(empId, nodeId)}
+            onAssign={currentUser ? (nodeId, empId) => handleAssignmentChange(empId, nodeId) : undefined}
+            isClickable={Boolean(currentUser)}
           />
 
-          <NodeInspectorDrawer
-            node={selectedNode}
-            employees={employees}
-            currentUser={currentUser}
-            formSchema={formSchema}
-            formData={formData}
-            mutating={mutating}
-            mutationError={mutationError}
-            onClose={() => setSelectedNode(null)}
-            onStatusChange={handleStatusChange}
-            onAssignmentChange={handleAssignmentChange}
-            onFormSubmit={handleFormSubmit}
-            canModifyStatus={canModifyStatus}
-            canModifyAssignment={canModifyAssignment}
-            allNodes={nodes}
-          />
+          {currentUser && selectedNode && (
+            <NodeInspectorDrawer
+              node={selectedNode}
+              employees={employees}
+              currentUser={currentUser}
+              formSchema={formSchema}
+              formData={formData}
+              mutating={mutating}
+              mutationError={mutationError}
+              onClose={() => setSelectedNode(null)}
+              onStatusChange={handleStatusChange}
+              onAssignmentChange={handleAssignmentChange}
+              onFormSubmit={handleFormSubmit}
+              canModifyStatus={canModifyStatus}
+              canModifyAssignment={canModifyAssignment}
+              allNodes={nodes}
+            />
+          )}
         </>
       )}
+
+      {/* ── Create / Request Project Modal ─────────────────────────────── */}
+      <CreateProjectRequestModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        employees={employees}
+        onSubmit={handleCreateProjectRequest}
+      />
     </div>
   );
 }

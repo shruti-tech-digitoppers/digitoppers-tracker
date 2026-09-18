@@ -35,11 +35,14 @@ const errorHandler = (err, req, res, next) => {
     console.error('ERROR 💥:', err);
   }
 
+  const message = error.message || 'Something went wrong on the server';
+
   res.status(statusCode).json({
     success: false,
+    message,
     error: {
       code: errorCode,
-      message: error.message || 'Something went wrong on the server',
+      message,
       ...(process.env.NODE_ENV === 'development' && statusCode === 500 && { stack: err.stack })
     }
   });

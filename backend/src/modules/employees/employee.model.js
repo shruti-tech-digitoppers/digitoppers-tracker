@@ -8,8 +8,13 @@ const employeeSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true, select: false },
   globalRole: { type: String, enum: Object.values(GLOBAL_ROLES), default: GLOBAL_ROLES.EMPLOYEE, index: true },
   employeeCode: { type: String, required: true, unique: true, uppercase: true, index: true },
-  isActive: { type: Boolean, default: true, index: true }
+  isActive: { type: Boolean, default: true, index: true },
+  canRequestNewProject: { type: Boolean, default: false },
+  permissions: {
+    canRequestNewProject: { type: Boolean, default: false }
+  }
 }, { timestamps: true });
+
 
 employeeSchema.pre('save', async function () {
   if (!this.isModified('passwordHash')) return;

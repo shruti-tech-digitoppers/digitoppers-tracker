@@ -1,18 +1,20 @@
 const express = require('express');
 const router = express.Router();
 const projectController = require('./project.controller');
-const { protect } = require('../../core/auth');
-const { restrictToGlobal, verifyProjectPermission } = require('../../core/authorization');
+const { protect, optionalProtect } = require('../../core/auth');
+const { restrictToGlobal, verifyProjectPermission, canCreateOrRequestProject } = require('../../core/authorization');
 const { GLOBAL_ROLES, DESIGNATIONS } = require('../../core/constants');
 
+// GET /api/v1/projects (public dashboard stats & project list)
+router.get('/', optionalProtect, projectController.getAll);
+
+// GET /api/v1/projects/:id (public project details for tracker view)
+router.get('/:id', optionalProtect, projectController.getById);
+
+// All other project management routes require authentication
 router.use(protect);
 
-router.route('/')
-  .get(projectController.getAll)
-  .post(restrictToGlobal(GLOBAL_ROLES.ADMIN), projectController.create);
-
 router.route('/:id')
-  .get(verifyProjectPermission([DESIGNATIONS.PROJECT_MANAGER, DESIGNATIONS.CONTRIBUTOR, DESIGNATIONS.VIEWER]), projectController.getById)
   .patch(verifyProjectPermission([DESIGNATIONS.PROJECT_MANAGER]), projectController.update);
 
 router.patch('/:id/archive', restrictToGlobal(GLOBAL_ROLES.ADMIN), projectController.archive);
@@ -24,3 +26,4 @@ router.route('/:projectId/members')
 router.delete('/:projectId/members/:employeeId', verifyProjectPermission([DESIGNATIONS.PROJECT_MANAGER]), projectController.removeMember);
 
 module.exports = router;
+

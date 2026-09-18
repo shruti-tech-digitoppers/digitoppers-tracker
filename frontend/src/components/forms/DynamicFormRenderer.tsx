@@ -236,8 +236,8 @@ export function DynamicFormRenderer({
 
             // If this field is projectName / projectTitle, render as a clean Headline Card instead of an input box!
             if (fieldKey === 'projectName' || fieldKey === 'projectTitle') {
-              const displayProjectTitle = project?.title || (project as any)?.projectName || value || 'Project';
-              const displayProjectCode = project?.projectCode || (project as any)?.projectId || '';
+              const displayProjectTitle = project?.projectName || project?.title || value || 'Project';
+              const displayProjectId = project?.projectId || '';
               return (
                 <div key={fieldKey} className="sm:col-span-2">
                   <div className="p-3.5 bg-gradient-to-r from-[#3a7d84]/10 via-[#51a8b1]/10 to-[#f8fafb] border border-[#51a8b1]/30 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
@@ -254,9 +254,9 @@ export function DynamicFormRenderer({
                         </h4>
                       </div>
                     </div>
-                    {displayProjectCode && (
+                    {displayProjectId && (
                       <span className="text-xs font-mono px-2.5 py-1 rounded-lg bg-white border border-[#51a8b1]/30 text-[#3a7d84] font-bold shadow-2xs shrink-0">
-                        {displayProjectCode}
+                        {displayProjectId}
                       </span>
                     )}
                   </div>

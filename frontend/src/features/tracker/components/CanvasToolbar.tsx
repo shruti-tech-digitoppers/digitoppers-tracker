@@ -6,7 +6,7 @@ import { Building2, Layers, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
 
 interface CanvasToolbarProps {
   project?: IProject | null;
-  projectCode?: string;
+  projectId?: string;
   projectTitle?: string;
   hideProjectHeader?: boolean;
   totalStages: number;
@@ -22,7 +22,7 @@ interface CanvasToolbarProps {
 
 export function CanvasToolbar({
   project,
-  projectCode,
+  projectId,
   projectTitle,
   hideProjectHeader = false,
   totalStages,
@@ -38,7 +38,7 @@ export function CanvasToolbar({
   return (
     <div className="border-b border-[#b9c0cb]/40 bg-white px-5 py-3 flex flex-wrap items-center justify-between gap-3 shadow-xs">
       {/* Project Header Info */}
-      {!hideProjectHeader && (project || projectCode || projectTitle) && (
+      {!hideProjectHeader && (project || projectId || projectTitle) && (
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] flex items-center justify-center text-[#51a8b1] shadow-2xs">
             <Building2 className="w-4 h-4" />
@@ -46,7 +46,7 @@ export function CanvasToolbar({
           <div>
             <div className="flex items-center gap-2">
               <span className="font-mono text-[10px] font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-1.5 py-0.5 rounded">
-                {project?.projectCode || projectCode || 'PROJECT'}
+                {project?.projectId || projectId || 'PROJECT'}
               </span>
               {project?.status && (
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#f7fbe9] text-[#465b1c] border border-[#dfefa6]">
@@ -55,7 +55,7 @@ export function CanvasToolbar({
               )}
             </div>
             <h2 className="font-heading text-sm font-bold text-[#333333] leading-tight mt-0.5">
-              {project?.title || projectTitle || 'Project Roadmap'}
+              {project?.projectName || project?.title || projectTitle || 'Project Roadmap'}
             </h2>
           </div>
         </div>

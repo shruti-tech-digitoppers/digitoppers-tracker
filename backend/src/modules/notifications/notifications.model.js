@@ -20,8 +20,26 @@ const notificationSchema = new mongoose.Schema({
   },
   type: {
     type: String,
-    enum: ['ASSIGNMENT', 'STATUS_UPDATE', 'DEPENDENCY_UNLOCKED', 'GENERAL'],
+    enum: [
+      'ASSIGNMENT',
+      'PROJECT_ASSIGNED',
+      'TASK_ASSIGNED',
+      'MEMBER_ASSIGNED',
+      'STATUS_UPDATE',
+      'STAGE_UPDATED',
+      'TIMELINE_UPDATED',
+      'DEPENDENCY_UNLOCKED',
+      'GENERAL',
+      'PROJECT_REQUEST_REVIEW',
+      'PROJECT_REQUEST_APPROVED',
+      'PROJECT_REQUEST_REJECTED',
+      'UPDATE'
+    ],
     default: 'GENERAL'
+  },
+  metadata: {
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   isRead: {
     type: Boolean,

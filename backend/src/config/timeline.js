@@ -101,7 +101,7 @@ module.exports = {
               { key: 'address', label: 'School Address & City', type: 'textarea' },
               { key: 'deploymentLocations', label: 'Implementation Site(s) / Lab Rooms / Branches', type: 'textarea', placeholder: 'e.g. Branch 1: STEM Lab Room 101, Branch 2: Robotics Room' },
               { key: 'principalName', label: 'Principal / Head Name', type: 'text' },
-              { key: 'contactPerson', label: 'Coordinator / Contact Person Name', type: 'text' },
+              { key: 'contactPerson', label: 'Contact Person Name', type: 'text' },
               { key: 'phone', label: 'Contact Phone Number', type: 'text' },
               { key: 'email', label: 'Contact Email Address', type: 'text' },
               { key: 'totalStudents', label: 'Total Student Strength', type: 'number' },

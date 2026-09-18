@@ -14,9 +14,10 @@ interface ParallelStreamColumnProps {
   toggleNodeExpand: (id: string, e?: React.MouseEvent) => void;
   isGateLocked: (node: ITimelineNode) => boolean;
   matchesFilter: (node: ITimelineNode) => boolean;
-  onSelectNode: (node: ITimelineNode) => void;
+  onSelectNode?: (node: ITimelineNode) => void;
   employees?: IUser[];
   onAssign?: (nodeId: string, empId: string) => void;
+  isClickable?: boolean;
 }
 
 export function ParallelStreamColumn({
@@ -30,6 +31,7 @@ export function ParallelStreamColumn({
   onSelectNode,
   employees = [],
   onAssign,
+  isClickable = true,
 }: ParallelStreamColumnProps) {
   if (!streamNode) return null;
   const isExpanded = isNodeExpanded(streamNode._id);
@@ -49,6 +51,7 @@ export function ParallelStreamColumn({
         isGateLocked={isGateLocked(streamNode)}
         employees={employees}
         onAssign={onAssign}
+        isClickable={isClickable}
       />
 
       {/* Subtasks flowing DOWNWARDS directly below the stream node */}
@@ -75,6 +78,7 @@ export function ParallelStreamColumn({
                   isGateLocked={isGateLocked(task)}
                   employees={employees}
                   onAssign={onAssign}
+                  isClickable={isClickable}
                 />
               </div>
             ))}

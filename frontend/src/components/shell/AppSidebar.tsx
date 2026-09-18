@@ -7,10 +7,13 @@ import {
   LayoutDashboard, 
   FolderKanban, 
   Compass, 
+  Users,
   LogOut, 
   ChevronLeft, 
   ChevronRight, 
-  LogIn
+  LogIn,
+  ShieldCheck,
+  UserCheck
 } from 'lucide-react';
 import { IUser } from '../../types/auth';
 
@@ -21,7 +24,7 @@ interface AppSidebarProps {
   onLogout: () => void;
 }
 
-export function AppSidebar({
+export const AppSidebar = React.memo(function AppSidebar({
   collapsed,
   onToggleCollapse,
   currentUser,
@@ -29,11 +32,19 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname();
 
+  const isAdmin = 
+    currentUser?.globalRole === 'ADMIN' || 
+    (currentUser as any)?.role === 'ADMIN';
+
   const navItems = [
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Projects', href: '/projects', icon: FolderKanban },
     { label: 'Tracker', href: '/tracker', icon: Compass },
+    { label: 'Assign & Requests', href: '/requests', icon: UserCheck },
+    ...(isAdmin ? [{ label: 'Employees', href: '/employees', icon: Users, badge: 'Admin' }] : []),
   ];
+
+
 
   return (
     <aside
@@ -45,16 +56,22 @@ export function AppSidebar({
     >
       {/* Top: Brand & Collapse Toggle */}
       <div>
-        <div className="h-16 px-4 flex items-center justify-between border-b border-[#f1f3f6]">
+        <div className="h-20 px-4 flex items-center justify-between border-b border-[#f1f3f6]">
           {!collapsed ? (
-            <Link href="/dashboard" className="flex items-center gap-1.5 group">
-              <span className="font-heading font-black text-xl tracking-tight text-[#3a7d84] transition-colors">
-                DIGI<span className="text-[#a8cf45]">TOPPERS</span>
-              </span>
+            <Link href="/dashboard" className="flex items-center gap-1.5 group min-w-0">
+              <img
+                src="/digitoppers-logo.png"
+                alt="Digitoppers"
+                className="h-14 w-auto object-contain max-w-[190px]"
+              />
             </Link>
           ) : (
-            <Link href="/dashboard" className="w-full flex justify-center">
-              <span className="font-heading font-black text-lg tracking-tight text-[#51a8b1]">DT</span>
+            <Link href="/dashboard" className="w-full flex justify-center py-1">
+              <img
+                src="/digitoppers-logo.png"
+                alt="Digitoppers"
+                className="h-9 w-auto object-contain"
+              />
             </Link>
           )}
 
@@ -90,7 +107,16 @@ export function AppSidebar({
                 title={collapsed ? item.label : undefined}
               >
                 <Icon className={`w-4 h-4 flex-shrink-0 ${isActive ? 'text-[#51a8b1]' : 'text-[#4a5462]'}`} />
-                {!collapsed && <span className="truncate">{item.label}</span>}
+                {!collapsed && (
+                  <div className="flex items-center justify-between flex-1 min-w-0">
+                    <span className="truncate">{item.label}</span>
+                    {item.badge && (
+                      <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#e6f4f6] text-[#3a7d84] border border-[#b6e0e4]/60">
+                        {item.badge}
+                      </span>
+                    )}
+                  </div>
+                )}
               </Link>
             );
           })}
@@ -148,4 +174,4 @@ export function AppSidebar({
       </div>
     </aside>
   );
-}
+});

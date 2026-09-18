@@ -1,13 +1,6 @@
 const projectService = require('./project.service');
 
 class ProjectController {
-  async create(req, res, next) {
-    try {
-      const project = await projectService.createProject(req.body, req.employee._id);
-      res.status(201).json({ success: true, data: project, message: 'Project initialized successfully' });
-    } catch (err) { next(err); }
-  }
-
   async getAll(req, res, next) {
     try {
       const projects = await projectService.getAllProjects(req.employee, req.query);

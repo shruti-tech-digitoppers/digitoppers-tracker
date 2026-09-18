@@ -15,9 +15,10 @@ interface ExecutionParallelContainerProps {
   toggleNodeExpand: (id: string, e?: React.MouseEvent) => void;
   isGateLocked: (node: ITimelineNode) => boolean;
   matchesFilter: (node: ITimelineNode) => boolean;
-  onSelectNode: (node: ITimelineNode) => void;
+  onSelectNode?: (node: ITimelineNode) => void;
   employees?: IUser[];
   onAssign?: (nodeId: string, empId: string) => void;
+  isClickable?: boolean;
 }
 
 export function ExecutionParallelContainer({
@@ -30,6 +31,7 @@ export function ExecutionParallelContainer({
   onSelectNode,
   employees = [],
   onAssign,
+  isClickable = true,
 }: ExecutionParallelContainerProps) {
   const hardwareStream = executionStage?.children?.find(
     (c) => (c.key || '').toUpperCase().includes('HARDWARE') || (c.name || '').toLowerCase().includes('hardware')
@@ -72,6 +74,7 @@ export function ExecutionParallelContainer({
           isGateLocked={isGateLocked(executionStage)}
           employees={employees}
           onAssign={onAssign}
+          isClickable={isClickable}
         />
 
         {/* 3 Parallel Streams Opening DOWNWARDS beneath Execution */}
@@ -102,6 +105,7 @@ export function ExecutionParallelContainer({
                   onSelectNode={onSelectNode}
                   employees={employees}
                   onAssign={onAssign}
+                  isClickable={isClickable}
                 />
 
                 {/* Tech Stream Column */}
@@ -116,6 +120,7 @@ export function ExecutionParallelContainer({
                   onSelectNode={onSelectNode}
                   employees={employees}
                   onAssign={onAssign}
+                  isClickable={isClickable}
                 />
 
                 {/* Content Stream Column */}
@@ -130,6 +135,7 @@ export function ExecutionParallelContainer({
                   onSelectNode={onSelectNode}
                   employees={employees}
                   onAssign={onAssign}
+                  isClickable={isClickable}
                 />
 
                 {/* Other Custom Streams if any */}
@@ -142,6 +148,7 @@ export function ExecutionParallelContainer({
                       onSelect={onSelectNode}
                       employees={employees}
                       onAssign={onAssign}
+                      isClickable={isClickable}
                     />
                   </div>
                 ))}

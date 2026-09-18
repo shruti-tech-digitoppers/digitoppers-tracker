@@ -16,7 +16,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
       <div className="space-y-2.5">
         <div className="flex justify-between items-start">
           <span className="text-xs font-bold font-mono px-2.5 py-0.5 rounded bg-slate-900 text-white">
-            {project.projectCode}
+            {project.projectId}
           </span>
           <span
             className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
@@ -30,13 +30,13 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
             {project.status}
           </span>
         </div>
-        <h3 className="text-base font-bold text-slate-900 leading-snug">{project.title}</h3>
+        <h3 className="text-base font-bold text-slate-900 leading-snug">{project.projectName || project.title}</h3>
         <p className="text-xs text-slate-500 line-clamp-2">{project.description || 'No description provided.'}</p>
       </div>
 
       <div className="space-y-3 pt-3 border-t border-slate-100">
         <div className="flex items-center justify-between text-xs text-slate-500">
-          <span>Client: <strong className="text-slate-700">{project.client || 'N/A'}</strong></span>
+          <span>Organization: <strong className="text-slate-700">{project.organization || 'N/A'}</strong></span>
           <button
             type="button"
             onClick={() => onDelete(project._id)}

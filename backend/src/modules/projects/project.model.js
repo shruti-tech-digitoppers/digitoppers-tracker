@@ -1,50 +1,44 @@
 const mongoose = require('mongoose');
-const { PROJECT_STATUSES } = require('../../core/constants');
 
 const projectSchema = new mongoose.Schema({
-  // Unified Identifier fields (Core Backend: projectId, Tracker: projectCode)
-  projectCode: { type: String, uppercase: true, index: true },
-  projectId: { type: String, index: true },
-
-  // Unified Title fields (Core Backend: projectName, Tracker: title)
-  title: { type: String, trim: true },
-  projectName: { type: String, trim: true },
-
-  // Core Backend metadata
-  email: { type: String },
-  phone: { type: String },
-  address: { type: String },
+  projectName: { type: String, required: true, trim: true },
+  projectId: { type: String, required: true, trim: true, uppercase: true, index: true },
+  email: { type: String, required: true, trim: true },
+  phone: { type: String, required: true, trim: true },
+  address: { type: String, trim: true },
   numberOfSchools: { type: Number, default: 0 },
   numberOfLicenses: { type: Number, default: 0 },
-  country: { type: mongoose.Schema.Types.ObjectId },
-  isActive: { type: Boolean, default: true },
-
-  // Tracker workflow fields
-  description: { type: String, trim: true },
-  client: { type: String, trim: true },
-  status: { type: String, enum: Object.values(PROJECT_STATUSES), default: PROJECT_STATUSES.ACTIVE, index: true },
-  projectManager: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false, index: true },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false },
-  archived: { type: Boolean, default: false, index: true }
-}, { timestamps: true });
-
-// Auto-sync between Core Backend fields and Tracker fields before validation
-projectSchema.pre('validate', function (next) {
-  if (this.projectId && !this.projectCode) {
-    this.projectCode = this.projectId.toUpperCase();
-  } else if (this.projectCode && !this.projectId) {
-    this.projectId = this.projectCode;
+  country: { type: mongoose.Schema.Types.ObjectId, ref: 'Country', required: false },
+  isActive: { type: Boolean, default: true }
+}, {
+  timestamps: true,
+  toJSON: {
+    virtuals: true,
+    transform: function (doc, ret) {
+      ret.title = ret.projectName;
+      ret.status = ret.status || (ret.isActive ? 'ACTIVE' : 'ARCHIVED');
+      return ret;
+    }
+  },
+  toObject: {
+    virtuals: true,
+    transform: function (doc, ret) {
+      ret.title = ret.projectName;
+      ret.status = ret.status || (ret.isActive ? 'ACTIVE' : 'ARCHIVED');
+      return ret;
+    }
   }
+});
 
-  if (this.projectName && !this.title) {
-    this.title = this.projectName;
-  } else if (this.title && !this.projectName) {
-    this.projectName = this.title;
-  }
+// Virtual alias for title to support legacy readers
+projectSchema.virtual('title').get(function () {
+  return this.projectName;
+}).set(function (v) {
+  this.projectName = v;
+});
 
-
-
-  next();
+projectSchema.virtual('status').get(function () {
+  return this.isActive ? 'ACTIVE' : 'ARCHIVED';
 });
 
 module.exports = mongoose.model('Project', projectSchema);

@@ -5,7 +5,7 @@ class AuthController {
     try {
       const { email, password } = req.body;
       const { token, employee } = await authService.login(email, password);
-      res.status(200).json({ success: true, data: { token, employee }, message: 'Logged in successfully' });
+      res.status(200).json({ success: true, token, data: { token, employee }, message: 'Logged in successfully' });
     } catch (err) { next(err); }
   }
 

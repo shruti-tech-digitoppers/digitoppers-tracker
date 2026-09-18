@@ -149,7 +149,7 @@ export function AppFileDownloadSection({
               <span>No Application / APK file uploaded yet in Tech Stream</span>
             </div>
             <p className="text-[11px] text-amber-700">
-              The Tech Lead must upload the Application / APK file in Stage 04 (Tech Stream ➔ Project Configuration & Implementation). Once uploaded, the direct download button will automatically appear here for testers.
+              The assigned member must upload the Application / APK file in Stage 04 (Tech Stream ➔ Project Configuration & Implementation). Once uploaded, the direct download button will automatically appear here for testers.
             </p>
           </div>
         )}

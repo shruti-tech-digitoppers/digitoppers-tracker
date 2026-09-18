@@ -15,12 +15,13 @@ interface HorizontalRoadmapCanvasProps {
   nodes: ITimelineNode[];
   selectedNode?: ITimelineNode | null;
   selectedNodeId?: string | null;
-  onSelectNode: (node: ITimelineNode) => void;
+  onSelectNode?: (node: ITimelineNode) => void;
   hideProjectHeader?: boolean;
-  projectCode?: string;
+  projectId?: string;
   projectTitle?: string;
   employees?: IUser[];
   onAssign?: (nodeId: string, empId: string) => void;
+  isClickable?: boolean;
 }
 
 export function HorizontalRoadmapCanvas({
@@ -30,10 +31,11 @@ export function HorizontalRoadmapCanvas({
   selectedNodeId,
   onSelectNode,
   hideProjectHeader = false,
-  projectCode,
+  projectId,
   projectTitle,
   employees = [],
   onAssign,
+  isClickable = true,
 }: HorizontalRoadmapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState<number>(1);
@@ -170,7 +172,7 @@ export function HorizontalRoadmapCanvas({
       {/* ── Top Header Toolbar ─────────────────────────────── */}
       <CanvasToolbar
         project={project}
-        projectCode={projectCode}
+        projectId={projectId}
         projectTitle={projectTitle}
         hideProjectHeader={hideProjectHeader}
         totalStages={totalStages}
@@ -187,7 +189,7 @@ export function HorizontalRoadmapCanvas({
       {/* ── Main Mindmap Canvas Area ───────────────────────── */}
       <div
         ref={containerRef}
-        className="flex-1 overflow-x-auto overflow-y-auto p-6 relative bg-[radial-gradient(#b9c0cb_1px,transparent_1px)] [background-size:20px_20px]"
+        className="flex-1 overflow-x-auto overflow-y-auto p-6 relative bg-gradient-to-br from-[#f8fafb] via-white to-[#f0f8f9]/50"
       >
         {nodes.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-64 text-[#4a5462] gap-2">
@@ -214,6 +216,7 @@ export function HorizontalRoadmapCanvas({
                 showConnector={true}
                 employees={employees}
                 onAssign={onAssign}
+                isClickable={isClickable}
               />
             ))}
 
@@ -229,6 +232,7 @@ export function HorizontalRoadmapCanvas({
                 onSelectNode={onSelectNode}
                 employees={employees}
                 onAssign={onAssign}
+                isClickable={isClickable}
               />
             )}
 
@@ -247,6 +251,7 @@ export function HorizontalRoadmapCanvas({
                 showConnector={idx < postExecutionStages.length - 1}
                 employees={employees}
                 onAssign={onAssign}
+                isClickable={isClickable}
               />
             ))}
           </div>

@@ -23,8 +23,8 @@ export interface INotificationsListResponse {
 }
 
 export const notificationsApi = {
-  getNotifications: async (): Promise<INotificationsListResponse> => {
-    const response = await apiClient.get<any>('/notifications');
+  getNotifications: async (params?: { days?: number; category?: string; subCategory?: string }): Promise<INotificationsListResponse> => {
+    const response = await apiClient.get<any>('/notifications', { params });
     const rawList = response.data?.data || response.data?.notifications || (Array.isArray(response.data) ? response.data : []);
     return {
       success: true,
@@ -34,6 +34,7 @@ export const notificationsApi = {
       unreadCount: rawList.filter((n: any) => !n.isRead).length
     };
   },
+
 
   markAsRead: async (id: string): Promise<{ success: boolean; notification: INotificationItem }> => {
     const response = await apiClient.patch<{ success: boolean; notification: INotificationItem }>(`/notifications/${id}/read`);

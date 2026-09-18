@@ -22,7 +22,7 @@ async function verifyConnection() {
       console.log('\n--- Projects List from Shared DB ---');
       projects.forEach((p, idx) => {
         console.log(
-          `[${idx + 1}] ID/Code: ${p.projectId || p.projectCode || p._id} | Title: "${p.projectName || p.title}" | Schools: ${p.numberOfSchools || 0} | Licenses: ${p.numberOfLicenses || 0} | Status: ${p.status || (p.isActive ? 'ACTIVE' : 'INACTIVE')}`
+          `[${idx + 1}] ID: ${p.projectId || p._id} | Name: "${p.projectName || p.title}" | Schools: ${p.numberOfSchools || 0} | Licenses: ${p.numberOfLicenses || 0} | Status: ${p.status || (p.isActive ? 'ACTIVE' : 'INACTIVE')}`
         );
       });
       console.log('\n🎯 CONCLUSION: Core Backend, Dashboard, and Project Tracker are SUCCESSFULLY CONNECTED on the same database!');

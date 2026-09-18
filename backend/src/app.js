@@ -12,6 +12,7 @@ const activityRoutes = require('./modules/activity/activity.routes');
 const requirementRouter = require('./modules/requirements/requirements.routes');
 const notificationRouter = require('./modules/notifications/notifications.routes');
 const uploadRouter = require('./modules/upload/upload.routes');
+const requestRouter = require('./modules/requests/request.routes');
 
 const app = express();
 
@@ -36,10 +37,12 @@ app.get('/', (req, res) => {
 // API Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/employees', employeeRoutes);
-app.use('/api/v1/projects', projectRoutes);
 app.use('/api/v1/projects/:projectId/timeline', timelineRoutes);
 app.use('/api/v1/projects/:projectId/activity', activityRoutes);
+app.use('/api/v1/projects', projectRoutes);
+app.use('/api/v1/activities', activityRoutes);
 app.use('/api/v1/requirements', requirementRouter);
+app.use('/api/v1/requests', requestRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/upload', uploadRouter);
 

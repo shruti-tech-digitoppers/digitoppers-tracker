@@ -202,7 +202,7 @@ export function MultiSchoolSection({
               </span>
             </h4>
             <p className="text-[11px] text-[#4a5462]">
-              Configure separate onboarding details, coordinators, and infrastructure for each affiliated school.
+              Configure separate onboarding details, contacts, and infrastructure for each affiliated school.
             </p>
           </div>
         </div>
@@ -379,11 +379,11 @@ export function MultiSchoolSection({
             />
           </div>
 
-          {/* Coordinator / Contact Person */}
+          {/* Contact Person */}
           <div className="space-y-1">
             <label className="block text-xs font-bold text-[#3a7d84] flex items-center gap-1">
               <User className="w-3.5 h-3.5 text-[#51a8b1]" />
-              Coordinator / Incharge Contact Person
+              Contact Person / Representative
             </label>
             <input
               type="text"

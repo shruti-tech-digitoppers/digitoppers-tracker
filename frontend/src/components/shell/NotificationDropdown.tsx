@@ -3,6 +3,7 @@
 import React from 'react';
 import { INotificationItem } from '../../lib/api/notifications.api';
 import { Bell, CheckCheck, Sparkles, Inbox, ArrowRight } from 'lucide-react';
+import { useClickOutside } from '../../hooks/useClickOutside';
 
 interface NotificationDropdownProps {
   notifications: INotificationItem[];
@@ -13,7 +14,7 @@ interface NotificationDropdownProps {
   onSelectNotification?: (item: INotificationItem) => void;
 }
 
-export function NotificationDropdown({
+export const NotificationDropdown = React.memo(function NotificationDropdown({
   notifications = [],
   isOpen,
   onToggle,
@@ -21,6 +22,12 @@ export function NotificationDropdown({
   onMarkAllAsRead,
   onSelectNotification,
 }: NotificationDropdownProps) {
+  const containerRef = useClickOutside<HTMLDivElement>(() => {
+    if (isOpen) {
+      onToggle();
+    }
+  }, { enabled: isOpen });
+
   const unreadCount = notifications.filter((n) => !n.isRead).length;
 
   const formatRelativeTime = (dateStr: string) => {
@@ -52,7 +59,7 @@ export function NotificationDropdown({
   };
 
   return (
-    <div className="relative font-sans">
+    <div ref={containerRef} className="relative font-sans">
       {/* Notification Bell Button */}
       <button
         type="button"
@@ -162,4 +169,4 @@ export function NotificationDropdown({
       )}
     </div>
   );
-}
+});

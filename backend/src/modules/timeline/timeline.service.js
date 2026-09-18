@@ -8,11 +8,47 @@ const { NODE_STATUSES, NODE_TYPES, GLOBAL_ROLES, DESIGNATIONS } = require('../..
 const { AppError } = require('../../core/errors');
 
 class TimelineService {
-  async initializeTimelineForProject(projectId) {
-    let timeline = await Timeline.findOne({ project: projectId });
+  async _findProject(projectId) {
+    if (!projectId) return null;
+    const mongoose = require('mongoose');
+
+    // 1. If already a Mongoose ObjectId instance or populated project object
+    if (projectId instanceof mongoose.Types.ObjectId) {
+      return await Project.findById(projectId);
+    }
+    if (typeof projectId === 'object' && projectId._id) {
+      return await Project.findById(projectId._id);
+    }
+
+    const idStr = String(projectId).trim();
+    if (!idStr || idStr === '[object Object]' || idStr === 'undefined' || idStr === 'null') {
+      return null;
+    }
+
+    // 2. Check if valid 24-char ObjectId string
+    if (mongoose.Types.ObjectId.isValid(idStr) && idStr.length === 24) {
+      const proj = await Project.findById(idStr);
+      if (proj) return proj;
+    }
+
+    // 3. Fallback to custom human-readable projectId or id field
+    return await Project.findOne({ $or: [{ projectId: idStr }, { id: idStr }] });
+  }
+
+  async initializeTimelineForProject(projectId, force = false) {
+    const project = await this._findProject(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    if ((project.status === 'PENDING_REVIEW' || project.reviewStatus === 'PENDING') && !force) {
+      return null;
+    }
+
+    let timeline = await Timeline.findOne({ project: project._id });
     if (!timeline) {
       timeline = await Timeline.create({
-        project: projectId,
+        project: project._id,
         templateVersion: timelineConfig.version || 'v1',
         status: NODE_STATUSES.IN_PROGRESS
       });
@@ -92,9 +128,34 @@ class TimelineService {
   }
 
   async getTimelineHierarchy(projectId) {
-    let timeline = await Timeline.findOne({ project: projectId });
+    const project = await this._findProject(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    if (project.status === 'PENDING_REVIEW' || project.reviewStatus === 'PENDING') {
+      return {
+        timeline: null,
+        nodes: [],
+        hierarchy: [],
+        isPendingReview: true,
+        message: 'Project request is pending review. Timeline will be created upon confirmation.'
+      };
+    }
+
+    let timeline = await Timeline.findOne({ project: project._id });
     if (!timeline) {
-      timeline = await this.initializeTimelineForProject(projectId);
+      timeline = await this.initializeTimelineForProject(project._id);
+    }
+
+    if (!timeline) {
+      return {
+        timeline: null,
+        nodes: [],
+        hierarchy: [],
+        isPendingReview: true,
+        message: 'Project request is pending review. Timeline will be created upon confirmation.'
+      };
     }
 
     let nodes = await TimelineNode.find({ timeline: timeline._id })
@@ -102,7 +163,7 @@ class TimelineService {
       .sort({ order: 1 });
 
     if (nodes.length === 0) {
-      await this.initializeTimelineForProject(projectId);
+      await this.initializeTimelineForProject(project._id);
       nodes = await TimelineNode.find({ timeline: timeline._id })
         .populate('assignedTo', 'name email employeeCode')
         .sort({ order: 1 });
@@ -338,8 +399,8 @@ class TimelineService {
         const project = await Project.findById(projectId);
         const title = isPoPiNode ? `Task Assigned: PO Upload & PI Workflow` : `Task Assigned: ${node.name}`;
         const message = isPoPiNode
-          ? `You have been assigned to handle PO Upload and PI tasks in project ${project ? project.projectCode : ''} (${project ? project.title : ''}).`
-          : `You have been assigned to "${node.name}" in project ${project ? project.projectCode : ''} (${project ? project.title : ''}).`;
+          ? `You have been assigned to handle PO Upload and PI tasks in project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`
+          : `You have been assigned to "${node.name}" in project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`;
 
         await Notification.create({
           recipient: employeeId,
@@ -396,6 +457,33 @@ class TimelineService {
       resourceId: node._id,
       metadata: { previousStatus, newStatus, comment }
     });
+
+    // Notify Project Manager, Admins, and Assignee of status changes
+    try {
+      const notificationService = require('../notifications/notifications.service');
+      const project = await Project.findById(projectId);
+      const readableStatus = newStatus.replace(/_/g, ' ');
+      const statusTitle = `Stage Updated: ${node.name} (${readableStatus})`;
+      const statusMessage = `${employee.name || 'Team member'} updated "${node.name}" status to "${readableStatus}" in project ${project?.projectId || ''} (${project?.projectName || project?.title || ''}).`;
+
+      await notificationService.notifyWithAdminsAndPMs({
+        assignedTo: node.assignedTo,
+        projectId,
+        title: statusTitle,
+        message: statusMessage,
+        type: 'STAGE_UPDATED',
+        metadata: {
+          nodeId: node._id,
+          nodeKey: node.key,
+          previousStatus,
+          newStatus,
+          updatedBy: employee._id
+        },
+        excludeUserIds: [employee._id]
+      });
+    } catch (notifErr) {
+      console.error('Status change notification error:', notifErr.message);
+    }
 
     return await this.getNodeById(projectId, nodeId);
   }
@@ -495,12 +583,12 @@ class TimelineService {
               recipient: formData.assignedTechLead,
               project: projectId,
               title: `Tech Lead Assigned: Project Configuration & Testing`,
-              message: `You have been assigned as Tech Lead for project ${project ? project.projectCode : ''} (${project ? project.title : ''}). Please proceed with app configuration and testing.`,
+              message: `You have been assigned as Tech Lead for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}). Please proceed with app configuration and testing.`,
               type: 'ASSIGNMENT',
               metadata: {
                 projectId: projectId.toString(),
-                projectCode: project?.projectCode,
-                projectTitle: project?.title,
+                projectCustomId: project?.projectId,
+                projectName: project?.projectName || project?.title,
                 nodeKey: 'PROJECT_CONFIG_AND_IMPLEMENTATION',
                 targetUrl: `/tracker`
               }
@@ -522,12 +610,12 @@ class TimelineService {
               recipient: formData.assignedContentLead,
               project: projectId,
               title: `Content Lead Assigned: Curriculum Configuration & Readiness`,
-              message: `You have been assigned as Content Lead for project ${project ? project.projectCode : ''} (${project ? project.title : ''}). Please configure boards, languages, classes and verification sheets.`,
+              message: `You have been assigned as Content Lead for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}). Please configure boards, languages, classes and verification sheets.`,
               type: 'ASSIGNMENT',
               metadata: {
                 projectId: projectId.toString(),
-                projectCode: project?.projectCode,
-                projectTitle: project?.title,
+                projectCustomId: project?.projectId,
+                projectName: project?.projectName || project?.title,
                 nodeKey: 'CONTENT_CONFIGURATION',
                 targetUrl: `/tracker`
               }
@@ -562,12 +650,12 @@ class TimelineService {
               recipient: hwManagerId,
               project: projectId,
               title: `Hardware Lead Assigned: Equipment Review & Stock Check`,
-              message: `You have been assigned as Hardware Lead for project ${project ? project.projectCode : ''} (${project ? project.title : ''}). Please review equipment requirements and verify warehouse stock.`,
+              message: `You have been assigned as Hardware Lead for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}). Please review equipment requirements and verify warehouse stock.`,
               type: 'ASSIGNMENT',
               metadata: {
                 projectId: projectId.toString(),
-                projectCode: project?.projectCode,
-                projectTitle: project?.title,
+                projectCustomId: project?.projectId,
+                projectName: project?.projectName || project?.title,
                 nodeKey: 'REQ_AND_STOCK_CHECK',
                 targetUrl: `/tracker`
               }
@@ -607,12 +695,12 @@ class TimelineService {
                   recipient: stockAssignee,
                   project: projectId,
                   title: `Hardware In-Stock Dispatch: ${itemTitle} (${inStockCount} Units)`,
-                  message: `You have been assigned to dispatch ${inStockCount} units of "${itemTitle}" from warehouse stock for project ${project ? project.projectCode : ''} (${project ? project.title : ''}).`,
+                  message: `You have been assigned to dispatch ${inStockCount} units of "${itemTitle}" from warehouse stock for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`,
                   type: 'ASSIGNMENT',
                   metadata: {
                     projectId: projectId.toString(),
-                    projectCode: project?.projectCode,
-                    projectTitle: project?.title,
+                    projectCustomId: project?.projectId,
+                    projectName: project?.projectName || project?.title,
                     nodeKey: 'REQ_AND_STOCK_CHECK',
                     targetUrl: `/tracker`
                   }
@@ -627,12 +715,12 @@ class TimelineService {
                   recipient: purchaseAssignee,
                   project: projectId,
                   title: `Hardware Purchase Required: ${itemTitle} (${purchaseCount} Units)`,
-                  message: `You have been assigned to procure ${purchaseCount} units of "${itemTitle}" from vendor for project ${project ? project.projectCode : ''} (${project ? project.title : ''}).`,
+                  message: `You have been assigned to procure ${purchaseCount} units of "${itemTitle}" from vendor for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`,
                   type: 'ASSIGNMENT',
                   metadata: {
                     projectId: projectId.toString(),
-                    projectCode: project?.projectCode,
-                    projectTitle: project?.title,
+                    projectCustomId: project?.projectId,
+                    projectName: project?.projectName || project?.title,
                     nodeKey: 'PURCHASE_IF_NEEDED',
                     targetUrl: `/tracker`
                   }
@@ -696,12 +784,12 @@ class TimelineService {
                   recipient: assigneeId,
                   project: projectId,
                   title: `Testing Feedback [Needs Improvement]: ${s.label}`,
-                  message: `QA reported issues in "${s.label}" for project ${project?.projectCode || ''} (${project?.title || ''}). Feedback: "${remarks || 'Please review test sheet'}". Test Sheet: ${sheetUrl || 'N/A'}`,
+                  message: `QA reported issues in "${s.label}" for project ${project?.projectId || ''} (${project?.projectName || project?.title || ''}). Feedback: "${remarks || 'Please review test sheet'}". Test Sheet: ${sheetUrl || 'N/A'}`,
                   type: 'ASSIGNMENT',
                   metadata: {
                     projectId: projectId.toString(),
-                    projectCode: project?.projectCode,
-                    projectTitle: project?.title,
+                    projectCustomId: project?.projectId,
+                    projectName: project?.projectName || project?.title,
                     nodeKey: 'INTEGRATION_TESTING',
                     streamKey: s.key,
                     targetUrl: `/tracker`
@@ -780,9 +868,14 @@ class TimelineService {
 
   // Delete all nodes for a project's timeline and re-create from current config
   async resetTimelineForProject(projectId) {
-    let timeline = await Timeline.findOne({ project: projectId });
+    const project = await this._findProject(projectId);
+    if (!project) {
+      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    let timeline = await Timeline.findOne({ project: project._id });
     if (!timeline) {
-      return await this.initializeTimelineForProject(projectId);
+      return await this.initializeTimelineForProject(project._id, true);
     }
 
     // Delete all existing nodes

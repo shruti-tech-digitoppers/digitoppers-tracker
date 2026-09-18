@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { BarChart3, PlayCircle, Clock, CheckCircle2, Archive } from 'lucide-react';
+import { BarChart3, PlayCircle, Clock, CheckCircle2, Archive, AlertCircle } from 'lucide-react';
 
 export type StatusFilter = 'ALL' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'ARCHIVED';
 

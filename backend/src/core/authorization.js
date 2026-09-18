@@ -6,14 +6,8 @@ const checkProjectAccess = async (employeeId, projectId) => {
   return await ProjectMember.findOne({ project: projectId, employee: employeeId, isActive: true });
 };
 
-const restrictToGlobal = (...roles) => {
-  return (req, res, next) => {
-    if (!roles.includes(req.employee.globalRole)) {
-      return next(new AppError('You do not have global permissions to perform this action.', 403, 'FORBIDDEN'));
-    }
-    next();
-  };
-};
+const { restrictTo } = require('./auth');
+const restrictToGlobal = restrictTo;
 
 const verifyProjectPermission = (requiredDesignations = []) => {
   return async (req, res, next) => {
@@ -46,4 +40,16 @@ const verifyProjectPermission = (requiredDesignations = []) => {
   };
 };
 
-module.exports = { restrictToGlobal, verifyProjectPermission, checkProjectAccess };
+const canCreateOrRequestProject = (req, res, next) => {
+  if (
+    req.employee.globalRole === GLOBAL_ROLES.ADMIN ||
+    req.employee.canRequestNewProject ||
+    (req.employee.permissions && req.employee.permissions.canRequestNewProject)
+  ) {
+    return next();
+  }
+  return next(new AppError('You do not have permission to create or request new projects.', 403, 'FORBIDDEN'));
+};
+
+module.exports = { restrictToGlobal, verifyProjectPermission, checkProjectAccess, canCreateOrRequestProject };
+

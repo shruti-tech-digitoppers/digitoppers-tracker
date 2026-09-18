@@ -18,13 +18,17 @@ import {
 interface ProjectsTableProps {
   projects: IProject[];
   onDelete?: (id: string) => Promise<void>;
+  onReview?: (project: IProject) => void;
   isAdmin?: boolean;
+  currentUserId?: string;
 }
 
 export function ProjectsTable({
   projects,
   onDelete,
-  isAdmin = false
+  onReview,
+  isAdmin = false,
+  currentUserId
 }: ProjectsTableProps) {
   const getStatusBadge = (status: string, archived?: boolean) => {
     if (archived || status === 'ARCHIVED') {
@@ -37,6 +41,13 @@ export function ProjectsTable({
     }
 
     switch (status) {
+      case 'PENDING_REVIEW':
+        return (
+          <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-purple-50 text-purple-800 border border-purple-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500 animate-pulse" />
+            Pending Review
+          </span>
+        );
       case 'ACTIVE':
       case 'IN_PROGRESS':
         return (
@@ -90,13 +101,13 @@ export function ProjectsTable({
           <thead>
             <tr className="bg-[#f8fafb] border-b border-[#b9c0cb]/40 text-[#3a7d84] text-xs font-bold font-heading uppercase tracking-wider">
               <th scope="col" className="py-3.5 px-4 sm:px-6">
-                1. Project Code &amp; Title
+                1. Project ID &amp; Name
               </th>
               <th scope="col" className="py-3.5 px-4">
-                2. Client / Organization
+                2. Organization
               </th>
               <th scope="col" className="py-3.5 px-4">
-                3. Project Manager / Lead
+                3. Project Manager
               </th>
               <th scope="col" className="py-3.5 px-4">
                 4. Status &amp; State
@@ -119,12 +130,22 @@ export function ProjectsTable({
               const pmName = pmObj?.name || (typeof project.projectManager === 'string' ? project.projectManager : 'Unassigned PM');
               const pmEmail = pmObj?.email || '';
 
+              const requesterObj = typeof project.requestedBy === 'object' && project.requestedBy !== null
+                ? project.requestedBy as any
+                : null;
+              const reviewerObj = typeof project.assignedReviewer === 'object' && project.assignedReviewer !== null
+                ? project.assignedReviewer as any
+                : null;
+              const reviewerId = reviewerObj?._id || (typeof project.assignedReviewer === 'string' ? project.assignedReviewer : '');
+              const isReviewerOrAdmin = isAdmin || (currentUserId && reviewerId === currentUserId);
+              const isPendingReview = project.status === 'PENDING_REVIEW';
+
               return (
                 <tr 
                   key={project._id || `proj-${idx}`} 
                   className="hover:bg-[#f0f8f9]/30 transition-colors group"
                 >
-                  {/* Column 1: Project Code & Title */}
+                  {/* Column 1: Project ID & Name */}
                   <td className="py-4 px-4 sm:px-6">
                     <div className="flex items-start gap-3">
                       <div className="w-8 h-8 rounded-xl bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] flex items-center justify-center font-mono font-bold text-[11px] shrink-0 mt-0.5 group-hover:bg-[#51a8b1] group-hover:text-white transition-colors">
@@ -133,14 +154,14 @@ export function ProjectsTable({
                       <div className="min-w-0 max-w-xs sm:max-w-sm md:max-w-md">
                         <div className="flex items-center gap-2 mb-0.5">
                           <span className="px-2 py-0.5 rounded-md bg-[#2f4154] text-white font-mono text-[10.5px] font-bold shadow-2xs">
-                            {project.projectCode}
+                            {project.projectId}
                           </span>
                         </div>
                         <Link 
                           href={`/tracker?projectId=${project._id}`}
                           className="font-heading font-bold text-xs sm:text-[13px] text-[#333333] hover:text-[#51a8b1] transition-colors line-clamp-1 block"
                         >
-                          {project.title}
+                          {project.projectName || project.title}
                         </Link>
                         {project.description && (
                           <p className="text-[11px] text-[#4a5462] line-clamp-1 mt-0.5">
@@ -151,7 +172,7 @@ export function ProjectsTable({
                     </div>
                   </td>
 
-                  {/* Column 2: Client / Organization */}
+                  {/* Column 2: Organization */}
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-2">
                       <div className="w-6 h-6 rounded-lg bg-[#f8fafb] text-[#4a5462] border border-[#b9c0cb]/40 flex items-center justify-center shrink-0">
@@ -159,7 +180,7 @@ export function ProjectsTable({
                       </div>
                       <div className="min-w-0 max-w-[200px]">
                         <p className="font-bold text-[#333333] truncate">
-                          {project.client || 'Direct Client'}
+                          {project.organization || 'Direct Organization'}
                         </p>
                         <p className="text-[10px] text-[#4a5462] truncate">
                           Affiliated Institutional Node
@@ -168,20 +189,35 @@ export function ProjectsTable({
                     </div>
                   </td>
 
-                  {/* Column 3: Project Manager / Lead */}
+                  {/* Column 3: Project Manager */}
                   <td className="py-4 px-4">
                     <div className="flex items-center gap-2">
                       <div className="w-7 h-7 rounded-full bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] flex items-center justify-center font-bold text-[11px] shrink-0">
-                        {pmName.charAt(0).toUpperCase()}
+                        {isPendingReview
+                          ? (requesterObj?.name?.charAt(0) || 'R').toUpperCase()
+                          : pmName.charAt(0).toUpperCase()}
                       </div>
                       <div className="min-w-0 max-w-[180px]">
-                        <p className="font-bold text-[#333333] truncate">
-                          {pmName}
-                        </p>
-                        {pmEmail && (
-                          <p className="text-[10px] text-[#4a5462] truncate">
-                            {pmEmail}
-                          </p>
+                        {isPendingReview ? (
+                          <>
+                            <p className="font-bold text-[#333333] truncate">
+                              {requesterObj?.name || 'Requester'}
+                            </p>
+                            <p className="text-[10px] text-emerald-700 font-semibold truncate">
+                              Future PM (Pending Review)
+                            </p>
+                          </>
+                        ) : (
+                          <>
+                            <p className="font-bold text-[#333333] truncate">
+                              {pmName}
+                            </p>
+                            {pmEmail && (
+                              <p className="text-[10px] text-[#4a5462] truncate">
+                                {pmEmail}
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -189,7 +225,7 @@ export function ProjectsTable({
 
                   {/* Column 4: Status (Active / Inactive / Completed) */}
                   <td className="py-4 px-4 whitespace-nowrap">
-                    {getStatusBadge(project.status, project.archived)}
+                    {getStatusBadge(project.status, !project.isActive)}
                   </td>
 
                   {/* Column 5: Created Date */}
@@ -205,6 +241,17 @@ export function ProjectsTable({
                   {/* Column 6: Actions */}
                   <td className="py-4 px-4 pr-6 text-right whitespace-nowrap">
                     <div className="flex items-center justify-end gap-2">
+                      {isPendingReview && onReview && isReviewerOrAdmin && (
+                        <button
+                          type="button"
+                          onClick={() => onReview(project)}
+                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95 transition-all shadow-xs cursor-pointer"
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5" />
+                          <span>Review &amp; Approve</span>
+                        </button>
+                      )}
+
                       <Link
                         href={`/tracker?projectId=${project._id}`}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#51a8b1] text-white hover:bg-[#3a7d84] active:scale-95 transition-all shadow-2xs"

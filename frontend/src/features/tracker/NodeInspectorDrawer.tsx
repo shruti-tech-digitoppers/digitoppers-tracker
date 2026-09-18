@@ -5,6 +5,7 @@ import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/t
 import { IUser } from '../../types/auth';
 import { IProject } from '../../types/project';
 import { DynamicFormRenderer } from '../../components/forms/DynamicFormRenderer';
+import { useClickOutside } from '../../hooks/useClickOutside';
 import {
   X,
   CheckCircle2,
@@ -70,6 +71,10 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   canAssign,
   allNodes = [],
 }) => {
+  const modalRef = useClickOutside<HTMLDivElement>(() => {
+    onClose();
+  }, { enabled: Boolean(node) });
+
   if (!node) return null;
 
   const empList = employees.length > 0 ? employees : availableEmployees;
@@ -166,7 +171,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
       />
 
       {/* Center Floating Modal Container */}
-      <div className="relative w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] bg-white border border-[#b9c0cb]/40 shadow-2xl rounded-3xl flex flex-col z-10 text-[#333333] animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
+      <div ref={modalRef} className="relative w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] bg-white border border-[#b9c0cb]/40 shadow-2xl rounded-3xl flex flex-col z-10 text-[#333333] animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
 
         {/* Modal Header */}
         <div className="px-6 py-4 border-b border-[#f1f3f6] bg-gradient-to-r from-[#f8fafb] to-white flex items-center justify-between gap-4">
@@ -186,7 +191,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   <span className="text-xs font-bold text-[#3a7d84] flex items-center gap-1 bg-[#51a8b1]/10 px-2.5 py-0.5 rounded-md border border-[#51a8b1]/20 max-w-[400px] truncate" title={project.title || (project as any).projectName}>
                     <Building2 className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
                     <span className="truncate">
-                      {project.projectCode ? `${project.projectCode} — ` : ''}{project.title || (project as any).projectName}
+                      {project.projectId ? `${project.projectId} — ` : ''}{project.projectName || project.title}
                     </span>
                   </span>
                 )}
@@ -277,7 +282,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                     <div className="flex items-center justify-between">
                       <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
                         <User className="w-3.5 h-3.5 text-[#a8cf45]" />
-                        {node.type === 'STAGE' || (node as any).isBranch ? 'Stage / Stream Lead' : 'Task Assignee / Owner'}
+                        {node.type === 'STAGE' || (node as any).isBranch ? 'Stage Assignee' : 'Task Assignee'}
                       </label>
                       <span className="text-[10px] text-[#4a5462]">
                         {allowAssignEdit ? (node.key === 'PO_AND_PI' ? 'Applies to PO & PI' : 'Assigned Member') : 'Assignment Status'}
@@ -291,7 +296,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                         onChange={(e) => handleAssign(e.target.value)}
                         className="w-full border border-[#b9c0cb]/60 rounded-xl px-3 py-2 text-xs bg-white text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer font-medium"
                       >
-                        <option value="">👤 Unassigned (Select Member)</option>
+                        <option value="">Unassigned (Select Member)</option>
                         {empList.map((emp) => (
                           <option key={emp._id} value={emp._id}>
                             {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({emp.email})

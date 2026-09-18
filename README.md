@@ -48,7 +48,7 @@
 
 ## 🗺️ End-to-End Workflow Engine (Stages 01–08)
 
-The Project Tracker structures institutional rollouts into an 8-stage linear & branching pipeline defined in [`backend/src/config/timeline.js`](file:///c:/Users/shrik/OneDrive/Desktop/digitopper-project-tracker/backend/src/config/timeline.js):
+The Project Tracker structures institutional rollouts into an 8-stage linear & branching pipeline defined in `backend/src/config/timeline.js`:
 
 ```
 [01 LEAD & NEGOTIATION] ──> [02 PO & PI] ──> [03 ORDER REQUIREMENT]
@@ -106,9 +106,9 @@ The Project Tracker natively integrates with the existing **DigiTopper Dashboard
 
 | Dashboard Entity (`dashboard/src/models/`) | Tracker Entity (`backend/src/modules/`) | Transformation & Target Mapping |
 | :--- | :--- | :--- |
-| `Project.projectId` (`PRJ-DASH-001`) | `Project.projectCode` | Primary alphanumeric code, indexed & uppercase |
-| `Project.projectName` | `Project.title` | Full human-readable project title |
-| `Project.orgId` (Organization) | `Project.client` & `Requirement.leadAndNegotiation.organizationName` | Client name & issuing organization |
+| `Project.projectId` (`PRJ-DASH-001`) | `Project.projectId` | Primary alphanumeric code, indexed & uppercase |
+| `Project.projectName` | `Project.projectName` | Full human-readable project title |
+| `Project.orgId` (Organization) | `Project.organization` & `Requirement.leadAndNegotiation.organizationName` | Organization name & issuing organization |
 | `Project.email`, `Project.phone` | `Requirement.leadAndNegotiation.email`, `phone` | Master institutional contact channels |
 | `School.name` | `Requirement.orderRequirement.schoolInformation.schools[].schoolName` | Multi-School Switcher Tab label |
 | `School.schoolId` | `Requirement.orderRequirement.schoolInformation.schools[].schoolCode` | School UDISE / Branch Code |
@@ -118,7 +118,7 @@ The Project Tracker natively integrates with the existing **DigiTopper Dashboard
 
 ### Platform-to-Hardware Translation Engine
 
-Dashboard platform quotas are automatically translated into physical hardware inventory items in [`backend/src/utils/seedFromDashboard.js`](file:///c:/Users/shrik/OneDrive/Desktop/digitopper-project-tracker/backend/src/utils/seedFromDashboard.js):
+Dashboard platform quotas are automatically translated into physical hardware inventory items in [`backend/src/utils/seedFromDashboard.js`](file:///c:/Users/shrik/OneDrive/Desktop/digitoppers-project-tracker/backend/src/utils/seedFromDashboard.js):
 
 | Dashboard Platform (`school.platforms[]`) | Tracker Hardware Item Key | Equipment Name & Specification Notes |
 | :--- | :--- | :--- |
@@ -133,7 +133,7 @@ Dashboard platform quotas are automatically translated into physical hardware in
 
 Projects often span multiple school branches under a single education trust or state department (e.g. DoE Delhi, Pune ZP).
 
-### Frontend Component: [`MultiSchoolSection.tsx`](file:///c:/Users/shrik/OneDrive/Desktop/digitopper-project-tracker/frontend/src/components/forms/fields/MultiSchoolSection.tsx)
+### Frontend Component: [`MultiSchoolSection.tsx`](file:///c:/Users/shrik/OneDrive/Desktop/digitoppers-project-tracker/frontend/src/components/forms/fields/MultiSchoolSection.tsx)
 - **Dynamic Tab Switcher**: Seamlessly switch between schools (e.g. `Tab 1: Sarvodaya Kanya Vidyalaya`, `Tab 2: RPVV Surajmal Vihar`) without full-page reloads.
 - **Aggregated Statistics Banner**:
   - Live count of active school sites.
@@ -148,15 +148,15 @@ Projects often span multiple school branches under a single education trust or s
 
 The Tracker includes an inventory workflow in **Stage 04 (Execution)**:
 
-1. **Stock Verification ([`HardwareStockCheck.tsx`](file:///c:/Users/shrik/OneDrive/Desktop/digitopper-project-tracker/frontend/src/components/forms/fields/HardwareStockCheck.tsx))**:
+1. **Stock Verification ([`HardwareStockCheck.tsx`](file:///c:/Users/shrik/OneDrive/Desktop/digitoppers-project-tracker/frontend/src/components/forms/fields/HardwareStockCheck.tsx))**:
    - Takes total required quantities from Stage 03.
    - User inputs warehouse `inStockQuantity`.
    - Engine computes deficit:  
      $$\text{purchaseQuantity} = \max(0, \text{requiredQuantity} - \text{inStockQuantity})$$
-2. **Conditional Procurement ([`HardwarePurchaseSection.tsx`](file:///c:/Users/shrik/OneDrive/Desktop/digitopper-project-tracker/frontend/src/components/forms/fields/HardwarePurchaseSection.tsx))**:
+2. **Conditional Procurement ([`HardwarePurchaseSection.tsx`](file:///c:/Users/shrik/OneDrive/Desktop/digitoppers-project-tracker/frontend/src/components/forms/fields/HardwarePurchaseSection.tsx))**:
    - Automatically activates if any item has deficit $> 0$.
    - Allows per-item vendor assignment, PO/PI document uploads, unit pricing, and payment term logging.
-3. **Logistics & Dispatch Tracking ([`HardwareConsignmentSection.tsx`](file:///c:/Users/shrik/OneDrive/Desktop/digitopper-project-tracker/frontend/src/components/forms/fields/HardwareConsignmentSection.tsx))**:
+3. **Logistics & Dispatch Tracking ([`HardwareConsignmentSection.tsx`](file:///c:/Users/shrik/OneDrive/Desktop/digitoppers-project-tracker/frontend/src/components/forms/fields/HardwareConsignmentSection.tsx))**:
    - Logs courier partners, tracking airway bill (AWB) numbers, estimated delivery dates, and receiving person confirmation.
 
 ---
@@ -178,17 +178,18 @@ The system enforces two-tier authorization:
 
 ## 🗄️ Database Schema & Data Models
 
-### 1. Project Model ([`project.model.js`](file:///c:/Users/shrik/OneDrive/Desktop/digitopper-project-tracker/backend/src/modules/projects/project.model.js))
+### 1. Project Model ([`project.model.js`](file:///c:/Users/Admin/Desktop/Digitoppers/project-tracker/digi-ops-portal/backend/src/modules/projects/project.model.js))
 ```javascript
 {
-  projectCode: { type: String, required: true, unique: true, uppercase: true, index: true },
-  title: { type: String, required: true, trim: true },
-  description: { type: String, trim: true },
-  client: { type: String, required: true, trim: true },
-  status: { type: String, enum: ['ACTIVE', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'ARCHIVED'], default: 'ACTIVE' },
-  projectManager: { type: ObjectId, ref: 'Employee', required: true },
-  createdBy: { type: ObjectId, ref: 'Employee', required: true },
-  archived: { type: Boolean, default: false }
+  projectName: { type: String, required: true },
+  projectId: { type: String, required: true, uppercase: true, index: true },
+  email: { type: String, required: true },
+  phone: { type: String, required: true },
+  address: { type: String },
+  numberOfSchools: { type: Number, default: 0 },
+  numberOfLicenses: { type: Number, default: 0 },
+  country: { type: mongoose.Schema.Types.ObjectId, ref: 'Country', required: false },
+  isActive: { type: Boolean, default: true }
 }
 ```
 
@@ -320,9 +321,9 @@ npm run dev
 | **System Administrator** | `ADMIN` | `admin@digitopper.com` | `Admin@123` | Master access to all projects, user management & settings |
 | **Rahul Sharma (PM)** | `EMPLOYEE` | `rahul.pm@digitopper.com` | `Password@123` | PM for Delhi Schools (`PRJ-DASH-001`) & Karnataka (`PRJ-DASH-003`) |
 | **Sneha Kulkarni (PM)** | `EMPLOYEE` | `sneha.pm@digitopper.com` | `Password@123` | PM for Maharashtra ZP (`PRJ-DASH-002`) & DAV Trust (`PRJ-DASH-004`)|
-| **Amit Verma (Tech Lead)** | `EMPLOYEE` | `amit.contrib@digitopper.com` | `Password@123` | Hardware Stock Verifications, Device Builds & Tech Streams |
-| **Divya Nair (Content Lead)**| `EMPLOYEE` | `divya.contrib@digitopper.com` | `Password@123` | Curriculum Mapping, Dump Readiness & QA Review Streams |
-| **Priya Iyer (Coordinator)**| `EMPLOYEE` | `priya.viewer@digitopper.com` | `Password@123` | Read-only access to Roadmaps, School Info & Handover status |
+| **Amit Verma** | `EMPLOYEE` | `amit.contrib@digitopper.com` | `Password@123` | Contributor for Hardware & Tech streams |
+| **Divya Nair** | `EMPLOYEE` | `divya.contrib@digitopper.com` | `Password@123` | Contributor for Content & QA streams |
+| **Priya Iyer** | `EMPLOYEE` | `priya.viewer@digitopper.com` | `Password@123` | Viewer with read-only access to projects & status |
 
 ---
 

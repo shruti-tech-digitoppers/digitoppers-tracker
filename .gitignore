@@ -34,4 +34,6 @@ Thumbs.db
 .idea/
 scratch/
 uploads/
+**/uploads/**
+backend/uploads/
 *.bat

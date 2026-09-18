@@ -27,11 +27,12 @@ interface MindmapNodeProps {
   level?: number;
   isSelected?: boolean;
   isExpanded?: boolean;
-  onSelect: (node: ITimelineNode) => void;
+  onSelect?: (node: ITimelineNode) => void;
   onToggleExpand?: (nodeId: string, e: React.MouseEvent) => void;
   orderNumber?: number;
   streamType?: 'HARDWARE' | 'TECH' | 'CONTENT';
   isGateLocked?: boolean;
+  isClickable?: boolean;
   /** When true, renders an inline assign dropdown on the card (stream root nodes) */
   showAssignDropdown?: boolean;
   /** List of available employees for the dropdown */
@@ -40,7 +41,7 @@ interface MindmapNodeProps {
   onAssign?: (nodeId: string, empId: string) => void;
 }
 
-export const MindmapNode: React.FC<MindmapNodeProps> = ({
+export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
   node,
   level = 0,
   isSelected = false,
@@ -50,10 +51,11 @@ export const MindmapNode: React.FC<MindmapNodeProps> = ({
   orderNumber,
   streamType,
   isGateLocked = false,
+  isClickable = true,
   showAssignDropdown = false,
   employees = [],
   onAssign,
-}) => {
+}: MindmapNodeProps) {
   const hasChildren = Boolean(node.children && node.children.length > 0);
   
   const totalChildren = node.children?.length || 0;
@@ -182,13 +184,14 @@ export const MindmapNode: React.FC<MindmapNodeProps> = ({
       
       {/* ── Main Node Card ───────────────────────────────── */}
       <div
-        onClick={() => onSelect(node)}
+        onClick={isClickable && onSelect ? () => onSelect(node) : undefined}
         className={`
-          relative w-52 rounded-xl transition-all duration-200 cursor-pointer select-none text-left
+          relative w-52 rounded-xl transition-all duration-200 select-none text-left
           border shadow-xs overflow-hidden
           ${statusCfg.cardBg}
           ${isSelected ? statusCfg.borderSelected : statusCfg.border}
-          ${isGateLocked ? 'opacity-70 saturate-50' : 'hover:shadow-md hover:-translate-y-0.5'}
+          ${isClickable ? 'cursor-pointer' : 'cursor-default'}
+          ${isGateLocked ? 'opacity-70 saturate-50' : isClickable ? 'hover:shadow-md hover:-translate-y-0.5' : ''}
         `}
       >
         {/* Top subtle accent line */}
@@ -258,7 +261,7 @@ export const MindmapNode: React.FC<MindmapNodeProps> = ({
             <div className="pt-1 border-t border-[#f1f3f6]">
 
               {/* ── STREAM ROOT: inline quick-assign dropdown ── */}
-              {showAssignDropdown && onAssign ? (
+              {showAssignDropdown && onAssign && isClickable ? (
                 <div
                   className="space-y-1"
                   onClick={(e) => e.stopPropagation()}
@@ -335,4 +338,4 @@ export const MindmapNode: React.FC<MindmapNodeProps> = ({
       </div>
     </div>
   );
-};
+});

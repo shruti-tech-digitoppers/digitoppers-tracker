@@ -81,7 +81,7 @@ export function HardwareConfigSection({
           <label className="block text-xs font-bold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center justify-between">
             <span className="flex items-center gap-1.5">
               <User className="w-3.5 h-3.5 text-[#51a8b1]" />
-              Assign Hardware Lead (Responsible for Stage 04 Stock Check)
+              Assign Hardware Incharge / Member (Responsible for Stage 04 Stock Check)
             </span>
             {assignedHardwareManager && (
               <span className="text-[10px] text-[#759724] font-semibold">● Alert Enabled</span>
@@ -93,7 +93,7 @@ export function HardwareConfigSection({
             onChange={(e) => setHardwareManager(e.target.value)}
             className="w-full border border-[#b9c0cb]/60 rounded-xl px-3 py-2 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white cursor-pointer"
           >
-            <option value="">👤 Select Hardware Lead / Member</option>
+            <option value="">Select Assigned Member</option>
             {employees.map((emp) => (
               <option key={emp._id} value={emp._id}>
                 {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({(emp as any).globalRole || 'Employee'})
