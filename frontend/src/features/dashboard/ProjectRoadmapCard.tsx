@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { timelineApi } from '../../lib/api/timeline.api';
-import { employeesApi } from '../../lib/api/employees.api';
 import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
 import { IProject } from '../../types/project';
 import { IUser } from '../../types/auth';
@@ -28,6 +27,7 @@ interface ProjectRoadmapCardProps {
   onToggle: () => void;
   onProjectUpdated?: () => void;
   compactTimeline?: boolean;
+  employees?: IUser[];
 }
 
 const DEFAULT_STAGE_LABELS = [
@@ -68,11 +68,11 @@ export function ProjectRoadmapCard({
   onToggle,
   onProjectUpdated,
   compactTimeline = false,
+  employees = [],
 }: ProjectRoadmapCardProps) {
   const isCardExpanded = isExpanded !== undefined ? isExpanded : Boolean(expanded);
 
   const [nodes, setNodes] = useState<ITimelineNode[]>([]);
-  const [employees, setEmployees] = useState<IUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -97,14 +97,6 @@ export function ProjectRoadmapCard({
       if (showLoader) setLoading(false);
     }
   }, [project._id]);
-
-  useEffect(() => {
-    if (currentUser) {
-      employeesApi.getEmployees()
-        .then((res) => setEmployees(res.employees || []))
-        .catch(() => { });
-    }
-  }, [currentUser]);
 
   // Load timeline on mount so progress is visible even when collapsed
   useEffect(() => {

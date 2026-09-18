@@ -53,8 +53,8 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       setError(null);
       const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('accessToken')) : null;
 
-      if (!token) {
-        // Guest mode: only fetch public projects list
+      if (!token || hideSidePanel) {
+        // Guest / Root mode: only fetch projects and their timelines
         const res = await projectsApi.getProjects();
         const projectList = res.projects || [];
         setProjects(projectList);
@@ -294,6 +294,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                 onProjectUpdated={fetchDashboardData}
                 currentUser={currentUser}
                 compactTimeline={showSidePanel}
+                employees={employees}
               />
             </div>
 

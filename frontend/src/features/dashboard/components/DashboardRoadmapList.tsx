@@ -19,6 +19,7 @@ interface DashboardRoadmapListProps {
   onProjectUpdated: () => void;
   currentUser?: IUser | null;
   compactTimeline?: boolean;
+  employees?: IUser[];
 }
 
 export function DashboardRoadmapList({
@@ -32,6 +33,7 @@ export function DashboardRoadmapList({
   onProjectUpdated,
   currentUser = null,
   compactTimeline = false,
+  employees = [],
 }: DashboardRoadmapListProps) {
   const { searchQuery, clearSearch } = useSearch();
 
@@ -109,6 +111,7 @@ export function DashboardRoadmapList({
           onToggle={() => onToggleProject(project._id)}
           onProjectUpdated={onProjectUpdated}
           compactTimeline={compactTimeline}
+          employees={employees}
         />
       ))}
     </div>
