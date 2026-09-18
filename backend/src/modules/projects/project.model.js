@@ -9,6 +9,11 @@ const projectSchema = new mongoose.Schema({
   numberOfSchools: { type: Number, default: 0 },
   numberOfLicenses: { type: Number, default: 0 },
   country: { type: mongoose.Schema.Types.ObjectId, ref: 'Country', required: false },
+  status: {
+    type: String,
+    enum: ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'ARCHIVED'],
+    default: 'ACTIVE'
+  },
   isActive: { type: Boolean, default: true }
 }, {
   timestamps: true,
@@ -35,10 +40,6 @@ projectSchema.virtual('title').get(function () {
   return this.projectName;
 }).set(function (v) {
   this.projectName = v;
-});
-
-projectSchema.virtual('status').get(function () {
-  return this.isActive ? 'ACTIVE' : 'ARCHIVED';
 });
 
 module.exports = mongoose.model('Project', projectSchema);
