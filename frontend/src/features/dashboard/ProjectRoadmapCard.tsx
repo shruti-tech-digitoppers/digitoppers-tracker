@@ -294,24 +294,24 @@ export function ProjectRoadmapCard({
 
         {/* Center: Stage Progress (Compact Progress Bar in Split View, Full 8-Stage Stepper in Full Width) */}
         {compactTimeline ? (
-          <div className="w-full lg:flex-1 max-w-full lg:max-w-[340px] xl:max-w-[400px] mx-0 lg:mx-4 px-1 py-1 flex flex-col justify-center space-y-2">
+          <div className="w-full lg:flex-1 max-w-full lg:max-w-[285px] xl:max-w-[340px] mx-0 lg:mx-3 px-1 py-1 flex flex-col justify-center space-y-1.5">
             {/* Project Manager & Progress Counter */}
             <div className="flex items-center justify-between text-xs font-bold gap-2">
               <div className="flex items-center gap-1.5 text-[#3a7d84] min-w-0">
                 <User className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
                 <span className="text-[11px] text-[#556987] font-medium shrink-0">PM:</span>
-                <span className="truncate max-w-[130px] sm:max-w-[160px] font-bold text-[#1e293b]">{pmName}</span>
+                <span className="truncate max-w-[110px] sm:max-w-[140px] font-bold text-[#1e293b]">{pmName}</span>
               </div>
               <div className="flex items-center gap-1.5 text-[11px] shrink-0">
-                <span className="text-[#556987] font-semibold">{completedStages}/{totalStages} Stages</span>
-                <span className="font-mono font-black bg-[#f0f8f9] text-[#3a7d84] px-2 py-0.5 rounded-md border border-[#b6e0e4] text-[10.5px]">
+                <span className="text-[#556987] font-semibold text-[10.5px]">{completedStages}/{totalStages} Stages</span>
+                <span className="font-mono font-black bg-[#f0f8f9] text-[#3a7d84] px-1.5 py-0.5 rounded-md border border-[#b6e0e4] text-[10px]">
                   {progressPct}%
                 </span>
               </div>
             </div>
 
-            {/* Compact Progress Bar */}
-            <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200/90 shadow-inner">
+            {/* Compact Progress Bar (-15% compact width & slim h-1.5 track) */}
+            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/90 shadow-inner">
               <div
                 className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] transition-all duration-700 rounded-full"
                 style={{ width: `${Math.max(progressPct, 4)}%` }}
