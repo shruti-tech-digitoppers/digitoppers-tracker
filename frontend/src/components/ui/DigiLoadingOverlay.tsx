@@ -1,7 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
-import { Lottie } from 'lottie-react';
+import React, { useState, useEffect, useRef } from 'react';
 import loaderAnimationData from '../../../public/lottie/digitoppers-loader.json';
 
 interface DigiLoadingOverlayProps {
@@ -9,6 +8,51 @@ interface DigiLoadingOverlayProps {
   subtext?: string;
   onDismiss?: () => void;
   fullScreen?: boolean;
+}
+
+function LottiePlayer() {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let anim: any = null;
+    let isMounted = true;
+
+    // Dynamically import lottie-web for clean client-side SVG rendering
+    import('lottie-web').then((lottieModule) => {
+      if (!isMounted || !containerRef.current) return;
+      const lottie = lottieModule.default || lottieModule;
+      
+      // Clean up previous animations in container if any
+      containerRef.current.innerHTML = '';
+
+      anim = lottie.loadAnimation({
+        container: containerRef.current,
+        renderer: 'svg',
+        loop: true,
+        autoplay: true,
+        animationData: loaderAnimationData,
+        rendererSettings: {
+          preserveAspectRatio: 'xMidYMid meet',
+          progressiveLoad: true,
+        },
+      });
+    });
+
+    return () => {
+      isMounted = false;
+      if (anim) {
+        anim.destroy();
+      }
+    };
+  }, []);
+
+  return (
+    <div
+      ref={containerRef}
+      className="w-full h-full flex items-center justify-center filter drop-shadow-[0_10px_25px_rgba(77,168,176,0.45)]"
+      style={{ minHeight: '180px', minWidth: '180px' }}
+    />
+  );
 }
 
 export default function DigiLoadingOverlay({
@@ -21,7 +65,6 @@ export default function DigiLoadingOverlay({
 
   useEffect(() => {
     setMounted(true);
-    // Prevent background scrolling when loading overlay is active
     if (fullScreen) {
       document.body.style.overflow = 'hidden';
     }
@@ -39,23 +82,18 @@ export default function DigiLoadingOverlay({
       aria-label="Loading"
       className={`fixed inset-0 z-[9999] flex flex-col items-center justify-center transition-all duration-300 ${
         fullScreen ? 'w-screen h-screen' : 'w-full h-full'
-      } bg-slate-950/70 backdrop-blur-md animate-fade-in`}
+      } bg-slate-950/75 backdrop-blur-md animate-fade-in`}
     >
       {/* Ambient glowing backdrop circle */}
-      <div className="absolute w-72 h-72 rounded-full bg-cyan-500/15 blur-3xl -top-10 -left-10 pointer-events-none animate-pulse" />
-      <div className="absolute w-72 h-72 rounded-full bg-emerald-500/15 blur-3xl -bottom-10 -right-10 pointer-events-none animate-pulse" />
+      <div className="absolute w-80 h-80 rounded-full bg-cyan-500/20 blur-3xl -top-12 -left-12 pointer-events-none animate-pulse" />
+      <div className="absolute w-80 h-80 rounded-full bg-emerald-500/20 blur-3xl -bottom-12 -right-12 pointer-events-none animate-pulse" />
 
       {/* Modern Glass Container */}
-      <div className="relative flex flex-col items-center justify-center p-8 sm:p-10 rounded-3xl bg-slate-900/90 border border-slate-700/60 shadow-2xl shadow-cyan-950/40 max-w-sm sm:max-w-md w-[90%] text-center backdrop-blur-xl">
+      <div className="relative flex flex-col items-center justify-center p-8 sm:p-10 rounded-3xl bg-slate-900/90 border border-slate-700/70 shadow-2xl shadow-cyan-950/50 max-w-sm sm:max-w-md w-[92%] text-center backdrop-blur-xl">
         
-        {/* Lottie Animation Wrapper */}
-        <div className="relative w-44 h-44 sm:w-52 sm:h-52 flex items-center justify-center mb-4">
-          <Lottie
-            src={loaderAnimationData}
-            loop={true}
-            autoplay={true}
-            className="w-full h-full object-contain filter drop-shadow-[0_8px_16px_rgba(77,168,176,0.35)]"
-          />
+        {/* Lottie Animation Display */}
+        <div className="relative w-48 h-48 sm:w-56 sm:h-56 flex items-center justify-center mb-3">
+          <LottiePlayer />
         </div>
 
         {/* Loading Text & Status */}
@@ -69,18 +107,18 @@ export default function DigiLoadingOverlay({
         </div>
 
         {/* Progress bar shimmer effect */}
-        <div className="w-48 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-5 border border-slate-700/50">
+        <div className="w-52 h-1.5 bg-slate-800 rounded-full overflow-hidden mt-6 border border-slate-700/50">
           <div className="h-full bg-gradient-to-r from-cyan-400 via-teal-400 to-emerald-400 rounded-full w-full animate-[progress_1.8s_ease-in-out_infinite] origin-left-right" />
         </div>
 
-        {/* Optional Manual Dismiss for testing */}
+        {/* Manual Dismiss for testing */}
         {onDismiss && (
           <button
             onClick={onDismiss}
             type="button"
-            className="mt-6 text-[11px] font-medium text-slate-500 hover:text-slate-300 transition-colors uppercase tracking-widest hover:underline"
+            className="mt-6 px-4 py-1.5 rounded-lg bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700 text-[11px] font-semibold text-slate-400 hover:text-slate-200 transition-all uppercase tracking-wider cursor-pointer"
           >
-            Cancel / Dismiss
+            Close / Dismiss
           </button>
         )}
       </div>
