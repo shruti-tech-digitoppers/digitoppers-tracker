@@ -1,6 +1,7 @@
 const Employee = require('./employee.model');
 const Project = require('../projects/project.model');
 const ProjectMember = require('../projects/project-member.model');
+const activityService = require('../activity/activity.service');
 const bcrypt = require('bcryptjs');
 const { DESIGNATIONS } = require('../../core/constants');
 const { AppError } = require('../../core/errors');
@@ -24,6 +25,15 @@ class EmployeeService {
     const employee = await Employee.create(basicData);
     employee.passwordHash = undefined;
 
+    // Log activity
+    await activityService.log({
+      actor: actorId,
+      action: 'EMPLOYEE_CREATED',
+      description: `New employee created: ${employee.name} (${employee.employeeCode})`,
+      resourceType: 'Employee',
+      resourceId: employee._id,
+      metadata: { employeeName: employee.name, email: employee.email, department: employee.department, role: employee.globalRole }
+    });
 
     // If initial project roles are provided, assign them and trigger notifications
     if (Array.isArray(projectRoles) && projectRoles.length > 0) {
@@ -72,7 +82,7 @@ class EmployeeService {
     return employee;
   }
 
-  async updateEmployee(id, updateData) {
+  async updateEmployee(id, updateData, actorId) {
     if (updateData.password) {
       const salt = await bcrypt.genSalt(10);
       updateData.passwordHash = await bcrypt.hash(updateData.password, salt);
@@ -83,20 +93,50 @@ class EmployeeService {
 
     const employee = await Employee.findByIdAndUpdate(id, updateData, { new: true, runValidators: true }).select('-passwordHash');
     if (!employee) throw new AppError('Employee not found.', 404, 'EMPLOYEE_NOT_FOUND');
+
+    await activityService.log({
+      actor: actorId,
+      action: 'EMPLOYEE_UPDATED',
+      description: `Employee profile updated: ${employee.name} (${employee.employeeCode})`,
+      resourceType: 'Employee',
+      resourceId: employee._id,
+      metadata: { employeeName: employee.name, department: employee.department, role: employee.globalRole }
+    });
+
     return employee;
   }
 
-  async updateStatus(id, isActive) {
+  async updateStatus(id, isActive, actorId) {
     const employee = await Employee.findByIdAndUpdate(id, { isActive }, { new: true }).select('-passwordHash');
     if (!employee) throw new AppError('Employee not found.', 404, 'EMPLOYEE_NOT_FOUND');
+
+    await activityService.log({
+      actor: actorId,
+      action: isActive ? 'EMPLOYEE_ACTIVATED' : 'EMPLOYEE_DEACTIVATED',
+      description: `Employee ${employee.name} was ${isActive ? 'activated' : 'deactivated'}`,
+      resourceType: 'Employee',
+      resourceId: employee._id,
+      metadata: { employeeName: employee.name, isActive }
+    });
+
     return employee;
   }
 
-  async deleteEmployee(id) {
+  async deleteEmployee(id, actorId) {
     const employee = await Employee.findByIdAndDelete(id);
     if (!employee) throw new AppError('Employee not found.', 404, 'EMPLOYEE_NOT_FOUND');
     // Clean up project memberships
     await ProjectMember.deleteMany({ employee: id });
+
+    await activityService.log({
+      actor: actorId,
+      action: 'EMPLOYEE_DELETED',
+      description: `Employee deleted: ${employee.name} (${employee.employeeCode})`,
+      resourceType: 'Employee',
+      resourceId: id,
+      metadata: { employeeName: employee.name, employeeCode: employee.employeeCode }
+    });
+
     return { success: true, message: 'Employee deleted successfully' };
   }
 
@@ -163,6 +203,17 @@ class EmployeeService {
     // If designation is VIEWER, remove any custom membership or set to VIEWER (default access is Viewer)
     if (designation === DESIGNATIONS.VIEWER) {
       await ProjectMember.findOneAndDelete({ project: projectId, employee: employeeId });
+
+      await activityService.log({
+        project: projectId,
+        actor: actorId,
+        action: 'PROJECT_MEMBER_REMOVED',
+        description: `${employee.name} reverted to default Viewer for project ${project.projectName || project.projectId}`,
+        resourceType: 'ProjectMember',
+        resourceId: employeeId,
+        metadata: { projectName: project.projectName || project.projectId, employeeName: employee.name }
+      });
+
       return {
         projectId,
         employeeId,
@@ -188,6 +239,16 @@ class EmployeeService {
       });
     }
 
+    await activityService.log({
+      project: projectId,
+      actor: actorId,
+      action: 'PROJECT_MEMBER_ASSIGNED',
+      description: `${employee.name} assigned as ${designation === DESIGNATIONS.PROJECT_MANAGER ? 'Project Manager' : 'Contributor'} for project ${project.projectName || project.projectId}`,
+      resourceType: 'ProjectMember',
+      resourceId: member._id,
+      metadata: { projectName: project.projectName || project.projectId, employeeName: employee.name, designation }
+    });
+
     // Trigger Notification
     try {
       const Notification = require('../notifications/notifications.model');
@@ -212,4 +273,5 @@ class EmployeeService {
 }
 
 module.exports = new EmployeeService();
+
 

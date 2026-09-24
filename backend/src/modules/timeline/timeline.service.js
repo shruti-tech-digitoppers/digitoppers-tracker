@@ -45,18 +45,56 @@ class TimelineService {
       return null;
     }
 
+    const pmId = project.projectManager;
+
     let timeline = await Timeline.findOne({ project: project._id });
     if (!timeline) {
       timeline = await Timeline.create({
         project: project._id,
+        projectId: project.projectId,
+        projectName: project.projectName || project.title,
+        organization: project.organization || project.client || project.projectName,
+        email: project.email,
+        phone: project.phone,
+        address: project.address,
+        numberOfSchools: project.numberOfSchools || 0,
+        numberOfLicenses: project.numberOfLicenses || 0,
+        country: project.country,
+        projectManager: pmId || undefined,
+        coreBackendData: project.toObject ? project.toObject() : project,
+        metadata: project.metadata || {},
         templateVersion: timelineConfig.version || 'v1',
         status: NODE_STATUSES.IN_PROGRESS
       });
+    } else {
+      let needsSave = false;
+      if (!timeline.projectId && project.projectId) { timeline.projectId = project.projectId; needsSave = true; }
+      if (!timeline.projectName && (project.projectName || project.title)) { timeline.projectName = project.projectName || project.title; needsSave = true; }
+      if (!timeline.organization && (project.organization || project.client)) { timeline.organization = project.organization || project.client; needsSave = true; }
+      if (!timeline.email && project.email) { timeline.email = project.email; needsSave = true; }
+      if (!timeline.phone && project.phone) { timeline.phone = project.phone; needsSave = true; }
+      if (!timeline.address && project.address) { timeline.address = project.address; needsSave = true; }
+      if (!timeline.projectManager && pmId) { timeline.projectManager = pmId; needsSave = true; }
+      if ((timeline.numberOfSchools === undefined || timeline.numberOfSchools === 0) && project.numberOfSchools) {
+        timeline.numberOfSchools = project.numberOfSchools; needsSave = true;
+      }
+      if ((timeline.numberOfLicenses === undefined || timeline.numberOfLicenses === 0) && project.numberOfLicenses) {
+        timeline.numberOfLicenses = project.numberOfLicenses; needsSave = true;
+      }
+      if (!timeline.country && project.country) { timeline.country = project.country; needsSave = true; }
+      if (!timeline.coreBackendData || Object.keys(timeline.coreBackendData).length === 0) {
+        timeline.coreBackendData = project.toObject ? project.toObject() : project;
+        needsSave = true;
+      }
+      if (needsSave) {
+        await timeline.save();
+      }
     }
 
     const existingCount = await TimelineNode.countDocuments({ timeline: timeline._id });
     if (existingCount === 0) {
       for (const stageDef of timelineConfig.stages) {
+        const stageAssignedTo = pmId || null;
         const stageNode = await TimelineNode.create({
           timeline: timeline._id,
           parentNode: null,
@@ -65,12 +103,14 @@ class TimelineService {
           name: stageDef.name,
           order: stageDef.order,
           status: NODE_STATUSES.PENDING,
+          assignedTo: stageAssignedTo,
           dependencies: stageDef.dependencies || [],
           metadata: stageDef.metadata || {}
         });
 
         if (stageDef.substages) {
           for (const subDef of stageDef.substages) {
+            const subAssignedTo = pmId || null;
             const subTaskNode = await TimelineNode.create({
               timeline: timeline._id,
               parentNode: stageNode._id,
@@ -79,12 +119,14 @@ class TimelineService {
               name: subDef.name,
               order: subDef.order,
               status: NODE_STATUSES.PENDING,
+              assignedTo: subAssignedTo,
               formSchema: subDef.formSchema || null,
               metadata: subDef.metadata || {}
             });
 
             if (subDef.nested) {
               for (const nestedDef of subDef.nested) {
+                const nestedAssignedTo = pmId || null;
                 await TimelineNode.create({
                   timeline: timeline._id,
                   parentNode: subTaskNode._id,
@@ -93,6 +135,7 @@ class TimelineService {
                   name: nestedDef.name,
                   order: nestedDef.order,
                   status: NODE_STATUSES.PENDING,
+                  assignedTo: nestedAssignedTo,
                   formSchema: nestedDef.formSchema || null,
                   metadata: {
                     ...(nestedDef.metadata || {}),
@@ -143,9 +186,34 @@ class TimelineService {
       };
     }
 
-    let timeline = await Timeline.findOne({ project: project._id });
+    // Robust PM resolution: Project -> ProjectMember -> ProjectRequest -> Default PM
+    let effectivePmId = project.projectManager;
+    if (!effectivePmId) {
+      const ProjectMember = require('../projects/project-member.model');
+      const pmMember = await ProjectMember.findOne({ project: project._id, designation: 'PROJECT_MANAGER', isActive: true });
+      if (pmMember && pmMember.employee) {
+        effectivePmId = pmMember.employee;
+      } else {
+        const ProjectRequest = require('../requests/project-request.model');
+        const reqDoc = await ProjectRequest.findOne({
+          $or: [{ confirmedProjectId: project._id }, { projectId: project.projectId }, { title: project.projectName }]
+        });
+        if (reqDoc && reqDoc.projectManager) {
+          effectivePmId = reqDoc.projectManager;
+        }
+      }
+    }
+
+    let timeline = await Timeline.findOne({ project: project._id }).populate('projectManager', 'name email employeeCode globalRole');
     if (!timeline) {
       timeline = await this.initializeTimelineForProject(project._id);
+      if (timeline) {
+        timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole');
+      }
+    } else if (!timeline.projectManager && effectivePmId) {
+      timeline.projectManager = effectivePmId;
+      await timeline.save();
+      timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole');
     }
 
     if (!timeline) {
@@ -161,6 +229,23 @@ class TimelineService {
     let nodes = await TimelineNode.find({ timeline: timeline._id })
       .populate('assignedTo', 'name email employeeCode')
       .sort({ order: 1 });
+
+    // Ensure all stages and substage nodes are assigned to PM by default if not yet assigned
+    if (effectivePmId) {
+      let pmAssignedUpdated = false;
+      for (const node of nodes) {
+        if (!node.assignedTo) {
+          node.assignedTo = effectivePmId;
+          await node.save();
+          pmAssignedUpdated = true;
+        }
+      }
+      if (pmAssignedUpdated) {
+        nodes = await TimelineNode.find({ timeline: timeline._id })
+          .populate('assignedTo', 'name email employeeCode')
+          .sort({ order: 1 });
+      }
+    }
 
     if (nodes.length === 0) {
       await this.initializeTimelineForProject(project._id);
@@ -256,6 +341,16 @@ class TimelineService {
       }
     }
 
+    // Auto-start Execution Phase if Order Requirement is already completed
+    const orderReqNode = nodes.find(n => n.key === 'ORDER_REQUIREMENT');
+    const execNode = nodes.find(n => n.key === 'EXECUTION');
+    if (orderReqNode && orderReqNode.status === NODE_STATUSES.COMPLETED && execNode && (execNode.status === NODE_STATUSES.PENDING || execNode.status === 'NOT_STARTED')) {
+      await this.startExecutionPhaseIfOrderReqCompleted(timeline._id, project._id);
+      nodes = await TimelineNode.find({ timeline: timeline._id })
+        .populate('assignedTo', 'name email employeeCode')
+        .sort({ order: 1 });
+    }
+
     const DISABLED_KEYS = new Set([
       'ADDRESS_CONFIRMATION',
       'DELIVERY_AND_TRACKING',
@@ -271,6 +366,20 @@ class TimelineService {
     nodes = nodes.filter(n => !DISABLED_KEYS.has(n.key));
 
     const schemaMap = this.getSchemaMap();
+    const nameMap = {};
+    for (const stage of timelineConfig.stages) {
+      nameMap[stage.key] = stage.name;
+      if (stage.substages) {
+        for (const sub of stage.substages) {
+          nameMap[sub.key] = sub.name;
+          if (sub.nested) {
+            for (const n of sub.nested) {
+              nameMap[n.key] = n.name;
+            }
+          }
+        }
+      }
+    }
 
     // Build hierarchical tree
     const nodeMap = {};
@@ -278,6 +387,9 @@ class TimelineService {
       const obj = node.toObject();
       if (schemaMap[node.key]) {
         obj.formSchema = schemaMap[node.key];
+      }
+      if (nameMap[node.key]) {
+        obj.name = nameMap[node.key];
       }
       nodeMap[node._id.toString()] = { ...obj, children: [] };
     });
@@ -293,7 +405,7 @@ class TimelineService {
       }
     });
 
-    return { timeline, structure: tree };
+    return { timeline, structure: tree, nodes };
   }
 
   async getNodeDoc(projectId, nodeId) {
@@ -323,6 +435,62 @@ class TimelineService {
     const nodeObj = node.toObject();
     if (schemaMap[node.key]) {
       nodeObj.formSchema = schemaMap[node.key];
+    }
+
+    // Auto-fill node formData from Project & Requirements if empty
+    try {
+      const Requirements = require('../requirements/requirements.model');
+      const reqDoc = await Requirements.findOne({ project: projectId }).lean();
+      const projDoc = await Project.findById(projectId).lean();
+
+      if (!nodeObj.formData || Object.keys(nodeObj.formData).length === 0) {
+        nodeObj.formData = {};
+      }
+
+      if (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(node.key)) {
+        const pReview = reqDoc?.projectReviewer?.projectCreated || {};
+        nodeObj.formData = {
+          projectName: nodeObj.formData.projectName || pReview.organizationName || projDoc?.projectName || projDoc?.title || '',
+          organizationName: nodeObj.formData.organizationName || pReview.organizationName || projDoc?.organization || projDoc?.projectName || '',
+          email: nodeObj.formData.email || pReview.email || projDoc?.email || '',
+          phone: nodeObj.formData.phone || pReview.phone || projDoc?.phone || '',
+          address: nodeObj.formData.address || pReview.address || projDoc?.address || '',
+          location: nodeObj.formData.location || pReview.address || projDoc?.address || '',
+          country: nodeObj.formData.country || pReview.country || 'India',
+          confirmed: nodeObj.formData.confirmed || pReview.confirmed || 'YES',
+          projectReviewed: nodeObj.formData.projectReviewed || pReview.projectReviewed || 'YES',
+          projectCreated: nodeObj.formData.projectCreated || pReview.projectCreated || 'YES',
+          remarks: nodeObj.formData.remarks || pReview.remarks || projDoc?.description || '',
+          ...nodeObj.formData
+        };
+      } else if (node.key === 'SCHOOL_ONBOARDING_INFORMATION') {
+        const sInfo = reqDoc?.orderRequirement?.schoolInformation || {};
+        const schoolsList = Array.isArray(nodeObj.formData?.schools) && nodeObj.formData.schools.length > 0
+          ? nodeObj.formData.schools
+          : (Array.isArray(sInfo?.schools) && sInfo.schools.length > 0 ? sInfo.schools : []);
+        nodeObj.formData = {
+          schoolName: nodeObj.formData.schoolName || sInfo.schoolName || projDoc?.organization || projDoc?.projectName || '',
+          address: nodeObj.formData.address || sInfo.address || projDoc?.address || '',
+          phone: nodeObj.formData.phone || sInfo.phone || projDoc?.phone || '',
+          email: nodeObj.formData.email || sInfo.email || projDoc?.email || '',
+          totalStudents: nodeObj.formData.totalStudents || sInfo.totalStudents || projDoc?.numberOfSchools || 0,
+          remarks: nodeObj.formData.remarks || sInfo.remarks || '',
+          ...nodeObj.formData,
+          schools: schoolsList
+        };
+      } else if (['INSTALLATION_EXECUTION', 'INSTALLATION_PLANNING', 'INSTALLATION_COMPLETED', 'INSTALLATION'].includes(node.key)) {
+        const sInfo = reqDoc?.orderRequirement?.schoolInformation || {};
+        const schoolsList = Array.isArray(nodeObj.formData?.schools) && nodeObj.formData.schools.length > 0
+          ? nodeObj.formData.schools
+          : (Array.isArray(sInfo?.schools) && sInfo.schools.length > 0 ? sInfo.schools : []);
+        
+        nodeObj.formData = {
+          ...nodeObj.formData,
+          schools: schoolsList.length > 0 ? schoolsList : (nodeObj.formData.schools || [])
+        };
+      }
+    } catch (fillErr) {
+      console.warn('Auto-fill formData warning:', fillErr.message);
     }
 
     // Attach children populated with assignedTo
@@ -367,21 +535,16 @@ class TimelineService {
     const node = await TimelineNode.findById(nodeId);
     if (!node) throw new AppError('Timeline node not found.', 404, 'NODE_NOT_FOUND');
     node.assignedTo = employeeId || null;
+
+    // Automatically transition to IN_PROGRESS when a contributor is assigned to a pending/unstarted task
+    if (employeeId && (node.status === NODE_STATUSES.PENDING || node.status === 'NOT_STARTED')) {
+      node.status = NODE_STATUSES.IN_PROGRESS;
+    }
     await node.save();
 
-    // If assigned on PO Upload or PO & PI stage, automatically assign same contributor to PI Request and PI Upload
-    const isPoPiNode = ['PO_UPLOAD', 'PO_AND_PI', 'PI_REQUEST', 'PI_UPLOAD'].includes(node.key);
-    if (isPoPiNode) {
-      const timeline = await Timeline.findOne({ project: projectId });
-      if (timeline) {
-        await TimelineNode.updateMany(
-          {
-            timeline: timeline._id,
-            key: { $in: ['PO_UPLOAD', 'PI_REQUEST', 'PI_UPLOAD', 'PO_AND_PI'] }
-          },
-          { assignedTo: employeeId }
-        );
-      }
+    // Recalculate parent stage status so the stage accurately reflects IN_PROGRESS
+    if (node.parentNode) {
+      await this.recalculateStageStatus(node.parentNode);
     }
 
     await Activity.create({
@@ -397,10 +560,8 @@ class TimelineService {
     if (employeeId) {
       try {
         const project = await Project.findById(projectId);
-        const title = isPoPiNode ? `Task Assigned: PO Upload & PI Workflow` : `Task Assigned: ${node.name}`;
-        const message = isPoPiNode
-          ? `You have been assigned to handle PO Upload and PI tasks in project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`
-          : `You have been assigned to "${node.name}" in project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`;
+        const title = `Task Assigned: ${node.name}`;
+        const message = `You have been assigned to "${node.name}" in project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`;
 
         await Notification.create({
           recipient: employeeId,
@@ -429,14 +590,42 @@ class TimelineService {
       throw new AppError('Viewers cannot update node statuses.', 403, 'VIEWER_FORBIDDEN');
     }
 
-    // Check Dependency Gate for Stage 07 (TECH + CONTENT TESTING requires Tech Ready & Content Ready)
+    // Check Dependency Gate: Stage 04 (EXECUTION and its sub-streams/tasks require Stage 03 ORDER_REQUIREMENT to be COMPLETED)
+    const execKeys = [
+      'EXECUTION',
+      'HARDWARE_STREAM',
+      'TECH_STREAM',
+      'CONTENT_STREAM',
+      'REQ_AND_STOCK_CHECK',
+      'PURCHASE_IF_NEEDED',
+      'CONSIGNMENT_TRACKING',
+      'HARDWARE_READY',
+      'PROJECT_CONFIG_AND_IMPLEMENTATION',
+      'TECH_TESTING',
+      'CONTENT_CONFIGURATION',
+      'CONTENT_REVIEW_QA',
+      'SHEET_READINESS',
+      'DUMP_READINESS',
+      'CONTENT_READY'
+    ];
+    if (execKeys.includes(node.key) && (newStatus === NODE_STATUSES.IN_PROGRESS || newStatus === NODE_STATUSES.COMPLETED)) {
+      const timeline = await Timeline.findOne({ project: projectId });
+      if (timeline) {
+        const orderReq = await TimelineNode.findOne({ timeline: timeline._id, key: 'ORDER_REQUIREMENT' });
+        if (orderReq && orderReq.status !== NODE_STATUSES.COMPLETED) {
+          throw new AppError('Order Requirement stage (Stage 03) must be completed before Execution phase (Stage 04) can start.', 422, 'ORDER_REQUIREMENT_NOT_COMPLETED');
+        }
+      }
+    }
+
+    // Check Dependency Gate for Stage 05 (TECH + CONTENT TESTING requires Tech Testing/Ready & Content Ready)
     if (node.key === 'TESTING_PREPARATION' && newStatus === NODE_STATUSES.IN_PROGRESS) {
       const timeline = await Timeline.findOne({ project: projectId });
-      const techReady = await TimelineNode.findOne({ timeline: timeline._id, key: 'TECH_READY' });
+      const techReady = await TimelineNode.findOne({ timeline: timeline._id, key: { $in: ['TECH_TESTING', 'TECH_READY'] } });
       const contentReady = await TimelineNode.findOne({ timeline: timeline._id, key: 'CONTENT_READY' });
 
       if ((techReady && techReady.status !== NODE_STATUSES.COMPLETED) || (contentReady && contentReady.status !== NODE_STATUSES.COMPLETED)) {
-        throw new AppError('Dependency Gate Failure: Both Tech Ready and Content Ready must be COMPLETED before testing can start.', 422, 'DEPENDENCY_GATE_FAILED');
+        throw new AppError('Dependency Gate Failure: Both Tech Testing and Content Ready must be COMPLETED before testing can start.', 422, 'DEPENDENCY_GATE_FAILED');
       }
     }
 
@@ -499,6 +688,34 @@ class TimelineService {
       throw new AppError('Viewers cannot update forms.', 403, 'VIEWER_FORBIDDEN');
     }
 
+    // Check Dependency Gate for Form Update: Stage 04 Execution tasks require Stage 03 Order Requirement to be completed
+    const execKeys = [
+      'EXECUTION',
+      'HARDWARE_STREAM',
+      'TECH_STREAM',
+      'CONTENT_STREAM',
+      'REQ_AND_STOCK_CHECK',
+      'PURCHASE_IF_NEEDED',
+      'CONSIGNMENT_TRACKING',
+      'HARDWARE_READY',
+      'PROJECT_CONFIG_AND_IMPLEMENTATION',
+      'TECH_TESTING',
+      'CONTENT_CONFIGURATION',
+      'CONTENT_REVIEW_QA',
+      'SHEET_READINESS',
+      'DUMP_READINESS',
+      'CONTENT_READY'
+    ];
+    if (execKeys.includes(node.key)) {
+      const timeline = await Timeline.findOne({ project: projectId });
+      if (timeline) {
+        const orderReq = await TimelineNode.findOne({ timeline: timeline._id, key: 'ORDER_REQUIREMENT' });
+        if (orderReq && orderReq.status !== NODE_STATUSES.COMPLETED) {
+          throw new AppError('Order Requirement stage (Stage 03) must be completed before Execution tasks can be updated.', 422, 'ORDER_REQUIREMENT_NOT_COMPLETED');
+        }
+      }
+    }
+
     node.formData = { ...(node.formData || {}), ...formData };
     node.markModified('formData');
     await node.save();
@@ -520,13 +737,13 @@ class TimelineService {
         reqDoc.markModified('projectReviewer');
 
         // Automatically complete or put on hold based on PM review YES / NO
-        if (formData.confirmed === 'YES' || formData.pmReviewStatus === 'APPROVED' || formData.autoComplete === true) {
+        if (formData.confirmed === 'YES' || formData.pmReviewStatus === 'APPROVED' || formData.projectReviewed === 'YES' || formData.projectCreated === 'YES' || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
-        } else if (formData.confirmed === 'NO' || formData.pmReviewStatus === 'REJECTED') {
+        } else if (formData.confirmed === 'NO' || formData.pmReviewStatus === 'REJECTED' || formData.projectReviewed === 'NO' || formData.projectCreated === 'NO') {
           node.status = NODE_STATUSES.ON_HOLD;
           await node.save();
           if (node.parentNode) {
@@ -534,35 +751,156 @@ class TimelineService {
           }
         }
       } else if (key === 'PO_UPLOAD') {
+        const purchaseOrders = Array.isArray(formData.purchaseOrders)
+          ? formData.purchaseOrders.map(po => ({
+              ...po,
+              uploadDate: po.uploadDate || po.submittedAt || new Date()
+            }))
+          : (formData.poNumber || formData.poDocumentUrl ? [{
+              poNumber: formData.poNumber,
+              poDate: formData.poDate,
+              uploadDate: formData.uploadDate || new Date(),
+              poDocumentUrl: formData.poDocumentUrl,
+              issuingOrganization: formData.issuingOrganization,
+              remarks: formData.remarks,
+              submittedBy: employee._id,
+              submittedAt: new Date()
+            }] : []);
+
         reqDoc.poAndPi = {
           ...(reqDoc.poAndPi || {}),
-          poUpload: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
+          purchaseOrders: purchaseOrders.length > 0 ? purchaseOrders : ((reqDoc.poAndPi && reqDoc.poAndPi.purchaseOrders) || []),
+          poUpload: { ...formData, uploadDate: formData.uploadDate || new Date(), submittedBy: employee._id, submittedAt: new Date() }
         };
         reqDoc.markModified('poAndPi');
+
+        if (purchaseOrders.some(p => p.poNumber || p.poDocumentUrl) || formData.poNumber || formData.poDocumentUrl || formData.autoComplete === true) {
+          node.status = NODE_STATUSES.COMPLETED;
+          await node.save();
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        }
       } else if (key === 'PI_REQUEST') {
         reqDoc.poAndPi = {
           ...(reqDoc.poAndPi || {}),
           piRequest: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
         };
         reqDoc.markModified('poAndPi');
-      } else if (key === 'PI_UPLOAD') {
+
+        if (formData.requestedDate || formData.expectedPIDate || formData.requestRemarks || formData.autoComplete === true) {
+          node.status = NODE_STATUSES.COMPLETED;
+          await node.save();
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        }
+      } else if (key === 'PI_UPLOAD' || key === 'PI_AND_TAX_INVOICE_UPLOAD') {
+        const proformaInvoices = Array.isArray(formData.proformaInvoices)
+          ? formData.proformaInvoices.map(pi => ({
+              ...pi,
+              ewayBillNumber: pi.ewayBillNumber || '',
+              paymentStatus: pi.paymentStatus || 'PENDING',
+              uploadDate: pi.uploadDate || pi.piUploadDate || pi.submittedAt || new Date()
+            }))
+          : (formData.piNumber || formData.piDocumentUrl ? [{
+              piNumber: formData.piNumber,
+              piDate: formData.piDate,
+              uploadDate: formData.piUploadDate || formData.uploadDate || new Date(),
+              ewayBillNumber: formData.ewayBillNumber || '',
+              paymentStatus: formData.paymentStatus || 'PENDING',
+              piDocumentUrl: formData.piDocumentUrl,
+              paymentTerms: formData.paymentTerms,
+              remarks: formData.remarks,
+              submittedBy: employee._id,
+              submittedAt: new Date()
+            }] : []);
+
+        const taxInvoices = Array.isArray(formData.taxInvoices)
+          ? formData.taxInvoices.map(ti => ({
+              ...ti,
+              ewayBillNumber: ti.ewayBillNumber || formData.ewayBillNumber || '',
+              paymentStatus: ti.paymentStatus || formData.paymentStatus || 'PENDING',
+              uploadDate: ti.uploadDate || ti.invoiceUploadDate || ti.submittedAt || new Date()
+            }))
+          : (formData.invoiceNumber || formData.invoiceDocumentUrl ? [{
+              invoiceNumber: formData.invoiceNumber,
+              invoiceDate: formData.invoiceDate,
+              uploadDate: formData.invoiceUploadDate || formData.uploadDate || new Date(),
+              ewayBillNumber: formData.ewayBillNumber || '',
+              paymentStatus: formData.paymentStatus || 'PENDING',
+              invoiceDocumentUrl: formData.invoiceDocumentUrl,
+              paymentTerms: formData.paymentTerms,
+              remarks: formData.remarks,
+              submittedBy: employee._id,
+              submittedAt: new Date()
+            }] : []);
+
         reqDoc.poAndPi = {
           ...(reqDoc.poAndPi || {}),
-          piUpload: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
+          proformaInvoices: proformaInvoices.length > 0 ? proformaInvoices : ((reqDoc.poAndPi && reqDoc.poAndPi.proformaInvoices) || []),
+          taxInvoices: taxInvoices.length > 0 ? taxInvoices : ((reqDoc.poAndPi && reqDoc.poAndPi.taxInvoices) || []),
+          piUpload: {
+            ...formData,
+            uploadDate: formData.uploadDate || new Date(),
+            piUploadDate: formData.piUploadDate || formData.uploadDate || new Date(),
+            invoiceUploadDate: formData.invoiceUploadDate || formData.uploadDate || new Date(),
+            ewayBillNumber: formData.ewayBillNumber || (taxInvoices[0] && taxInvoices[0].ewayBillNumber) || '',
+            paymentStatus: formData.paymentStatus || (taxInvoices[0] && taxInvoices[0].paymentStatus) || 'PENDING',
+            submittedBy: employee._id,
+            submittedAt: new Date()
+          }
         };
         reqDoc.markModified('poAndPi');
+
+        if (proformaInvoices.some(p => p.piNumber || p.piDocumentUrl) || taxInvoices.some(t => t.invoiceNumber || t.invoiceDocumentUrl) || formData.piNumber || formData.invoiceNumber || formData.piDocumentUrl || formData.invoiceDocumentUrl || formData.autoComplete === true) {
+          node.status = NODE_STATUSES.COMPLETED;
+          await node.save();
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        }
       } else if (key === 'SCHOOL_ONBOARDING_INFORMATION') {
+        const schoolsArr = Array.isArray(formData.schools) ? formData.schools : (formData.schoolName ? [{ schoolName: formData.schoolName, address: formData.address, totalStudents: formData.totalStudents }] : []);
         reqDoc.orderRequirement = {
           ...(reqDoc.orderRequirement || {}),
-          schoolInformation: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
+          schoolInformation: { 
+            ...formData, 
+            schools: schoolsArr.length > 0 ? schoolsArr : ((reqDoc.orderRequirement && reqDoc.orderRequirement.schoolInformation && reqDoc.orderRequirement.schoolInformation.schools) || []),
+            submittedBy: employee._id, 
+            submittedAt: new Date() 
+          }
         };
         reqDoc.markModified('orderRequirement');
+
+        if (formData.schoolName || schoolsArr.length > 0 || formData.address || formData.autoComplete === true) {
+          node.status = NODE_STATUSES.COMPLETED;
+          await node.save();
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        }
       } else if (key === 'SOLUTION_SELECTION') {
         reqDoc.orderRequirement = {
           ...(reqDoc.orderRequirement || {}),
-          solutionSelection: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
+          solutionSelection: { 
+            ...formData, 
+            activeSolutionKeys: formData.activeSolutionKeys || [],
+            schoolWiseSolutions: formData.schoolWiseSolutions || {},
+            solutions: formData.solutions || {},
+            submittedBy: employee._id, 
+            submittedAt: new Date() 
+          }
         };
         reqDoc.markModified('orderRequirement');
+
+        if (formData.activeSolutionKeys?.length > 0 || (formData.schoolWiseSolutions && Object.keys(formData.schoolWiseSolutions).length > 0) || (formData.solutions && Object.keys(formData.solutions).length > 0) || formData.autoComplete === true) {
+          node.status = NODE_STATUSES.COMPLETED;
+          await node.save();
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        }
 
         // Auto-assign Tech & Content Leads if selected by PM
         try {
@@ -812,6 +1150,16 @@ class TimelineService {
         } catch (notifErr) {
           console.error('Integration testing notification error:', notifErr.message);
         }
+      } else if (key === 'INSTALLATION_EXECUTION' || key === 'INSTALLATION_PLANNING' || key === 'INSTALLATION_COMPLETED' || key === 'INSTALLATION') {
+        reqDoc.installation = {
+          ...(reqDoc.installation || {}),
+          installationExecution: {
+            ...formData,
+            submittedBy: employee._id,
+            submittedAt: new Date()
+          }
+        };
+        reqDoc.markModified('installation');
       }
 
       await reqDoc.save();
@@ -860,9 +1208,87 @@ class TimelineService {
       await parentNode.save();
     }
 
+    // Automatic Progression: When ORDER_REQUIREMENT completes, automatically start EXECUTION phase
+    if (parentNode.key === 'ORDER_REQUIREMENT' && updatedStatus === NODE_STATUSES.COMPLETED) {
+      await this.startExecutionPhaseIfOrderReqCompleted(parentNode.timeline, parentNode.project);
+    }
+
     // Recursively walk up to the grandparent if this was a substage
     if (parentNode.parentNode) {
       await this.recalculateStageStatus(parentNode.parentNode);
+    }
+  }
+
+  async startExecutionPhaseIfOrderReqCompleted(timelineId, projectId) {
+    try {
+      const execStage = await TimelineNode.findOne({ timeline: timelineId, key: 'EXECUTION' });
+      if (!execStage) return;
+
+      // Transition EXECUTION to IN_PROGRESS if not already completed/in-progress
+      if (execStage.status === NODE_STATUSES.PENDING || execStage.status === 'NOT_STARTED') {
+        execStage.status = NODE_STATUSES.IN_PROGRESS;
+        await execStage.save();
+
+        // 1. Activate the 3 parallel stream parent nodes
+        const streamNodes = await TimelineNode.find({
+          timeline: timelineId,
+          key: { $in: ['HARDWARE_STREAM', 'TECH_STREAM', 'CONTENT_STREAM'] }
+        });
+
+        for (const sNode of streamNodes) {
+          if (sNode.status === NODE_STATUSES.PENDING || sNode.status === 'NOT_STARTED') {
+            sNode.status = NODE_STATUSES.IN_PROGRESS;
+            await sNode.save();
+          }
+        }
+
+        // 2. Activate the first task of each parallel stream
+        const initialTasks = await TimelineNode.find({
+          timeline: timelineId,
+          key: { $in: ['REQ_AND_STOCK_CHECK', 'PROJECT_CONFIG_AND_IMPLEMENTATION', 'CONTENT_CONFIGURATION'] }
+        });
+
+        for (const tNode of initialTasks) {
+          if (tNode.status === NODE_STATUSES.PENDING || tNode.status === 'NOT_STARTED') {
+            tNode.status = NODE_STATUSES.IN_PROGRESS;
+            await tNode.save();
+          }
+        }
+
+        // 3. Send real-time notifications to PM and Admins
+        const timeline = await Timeline.findById(timelineId).populate('project');
+        const projId = projectId || timeline?.project?._id || timeline?.project;
+        const project = timeline?.project || (projId ? await Project.findById(projId) : null);
+
+        try {
+          const notificationService = require('../notifications/notifications.service');
+          await notificationService.notifyWithAdminsAndPMs({
+            projectId: projId,
+            title: 'Execution Phase Started (Stage 04)',
+            message: `Order Requirement stage has been completed! Stage 04 Execution Phase (Hardware, Tech, and Content streams) has automatically started for project ${project?.projectId || ''} (${project?.projectName || project?.title || ''}).`,
+            type: 'STAGE_UPDATED',
+            metadata: {
+              nodeKey: 'EXECUTION',
+              stage: '04 — EXECUTION',
+              targetUrl: '/tracker'
+            }
+          });
+        } catch (notifErr) {
+          console.error('Notification error on execution start:', notifErr.message);
+        }
+
+        if (projId) {
+          await Activity.create({
+            project: projId,
+            action: 'STAGE_STARTED',
+            resourceType: 'TimelineNode',
+            resourceId: execStage._id,
+            metadata: { stage: 'EXECUTION', reason: 'Order Requirement stage completed' }
+          });
+        }
+      }
+    } catch (err) {
+      console.error('Error starting execution phase after order requirement completion:', err);
     }
   }
 
@@ -881,7 +1307,9 @@ class TimelineService {
     // Delete all existing nodes
     await TimelineNode.deleteMany({ timeline: timeline._id });
 
-    // Re-create from config
+    const pmId = project.projectManager;
+
+    // Re-create from config with default PM assignment
     for (const stageDef of timelineConfig.stages) {
       const stageNode = await TimelineNode.create({
         timeline: timeline._id,
@@ -891,6 +1319,7 @@ class TimelineService {
         name: stageDef.name,
         order: stageDef.order,
         status: NODE_STATUSES.PENDING,
+        assignedTo: pmId || null,
         dependencies: stageDef.dependencies || [],
         metadata: stageDef.metadata || {}
       });
@@ -905,6 +1334,7 @@ class TimelineService {
             name: subDef.name,
             order: subDef.order,
             status: NODE_STATUSES.PENDING,
+            assignedTo: pmId || null,
             formSchema: subDef.formSchema || null,
             metadata: subDef.metadata || {}
           });
@@ -919,6 +1349,7 @@ class TimelineService {
                 name: nestedDef.name,
                 order: nestedDef.order,
                 status: NODE_STATUSES.PENDING,
+                assignedTo: pmId || null,
                 formSchema: nestedDef.formSchema || null,
                 metadata: {
                   ...(nestedDef.metadata || {}),

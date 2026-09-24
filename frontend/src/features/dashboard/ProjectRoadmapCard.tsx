@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { timelineApi } from '../../lib/api/timeline.api';
 import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
@@ -7,6 +7,7 @@ import { IUser } from '../../types/auth';
 import { canUpdateNodeStatus, canAssignNode } from '../../lib/permissions';
 import { HorizontalRoadmapCanvas } from '../tracker/HorizontalRoadmapCanvas';
 import { NodeInspectorDrawer } from '../tracker/NodeInspectorDrawer';
+import { getStageTheme } from '../tracker/utils/stageColorThemes';
 import {
   RefreshCw,
   AlertCircle,
@@ -70,12 +71,14 @@ export function ProjectRoadmapCard({
   compactTimeline = false,
   employees = [],
 }: ProjectRoadmapCardProps) {
+  const cardRef = useRef<HTMLDivElement>(null);
   const isCardExpanded = isExpanded !== undefined ? isExpanded : Boolean(expanded);
 
   const [nodes, setNodes] = useState<ITimelineNode[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(false);
+  const [inView, setInView] = useState(false);
 
   // Inspector state
   const [selectedNode, setSelectedNode] = useState<ITimelineNode | null>(null);
@@ -98,10 +101,36 @@ export function ProjectRoadmapCard({
     }
   }, [project._id]);
 
-  // Load timeline on mount so progress is visible even when collapsed
+  // 1. Lazy Viewport Observer: Pre-fetch when card scrolls near the viewport
   useEffect(() => {
-    fetchTimeline(false);
-  }, [fetchTimeline]);
+    const el = cardRef.current;
+    if (!el || loaded) return;
+
+    if (typeof IntersectionObserver === 'undefined') {
+      setInView(true);
+      return;
+    }
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting) {
+          setInView(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: '300px 0px' }
+    );
+
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [loaded]);
+
+  // 2. Fetch on-demand: when in view OR when card is expanded
+  useEffect(() => {
+    if ((inView || isCardExpanded) && !loaded && !loading) {
+      fetchTimeline(false);
+    }
+  }, [inView, isCardExpanded, loaded, loading, fetchTimeline]);
 
   const handleNodeSelect = async (node: ITimelineNode) => {
     // In guest mode (not logged in), no form/drawer opens
@@ -171,9 +200,10 @@ export function ProjectRoadmapCard({
     if (!nodeIdToAssign) return;
 
     const assignedEmpObj = empId ? employees.find((e) => e._id === empId) || null : null;
-    const assignmentUpdates = {
-      assignedTo: assignedEmpObj || empId || null,
-      assignedEmployee: assignedEmpObj || empId || null,
+    const assignmentUpdates: Partial<ITimelineNode> = {
+      assignedTo: assignedEmpObj || (empId ? ({ _id: empId } as any) : null),
+      assignedEmployee: assignedEmpObj || (empId ? ({ _id: empId } as any) : null),
+      ...(empId ? { status: 'IN_PROGRESS' as any } : {})
     };
 
     // 1. Optimistically update local nodes tree immediately (zero latency, zero reload)
@@ -193,6 +223,8 @@ export function ProjectRoadmapCard({
     try {
       setMutationError(null);
       await timelineApi.assignNode(project._id, nodeIdToAssign, empId || null);
+      await fetchTimeline(false);
+      if (onProjectUpdated) onProjectUpdated();
     } catch (err: any) {
       setMutationError(err.response?.data?.message || 'Failed to assign.');
       // Quietly sync on failure
@@ -252,77 +284,156 @@ export function ProjectRoadmapCard({
 
   return (
     <div
+      ref={cardRef}
       className={`rounded-2xl border bg-white shadow-xs transition-all duration-300 overflow-hidden font-sans ${isCardExpanded
           ? 'border-[#51a8b1]/60 shadow-md ring-1 ring-[#51a8b1]/20'
           : 'border-[#b9c0cb]/40 hover:border-[#51a8b1]/50 hover:shadow-md'
         }`}
     >
-      {/* ── Card Header — always visible with space-between layout ── */}
-      <div
-        className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 px-5 py-4 cursor-pointer select-none group"
-        onClick={onToggle}
-      >
-        {/* Left: Project Meta Details */}
-        <div className="flex items-center gap-3.5 min-w-0 max-w-full lg:max-w-[280px] xl:max-w-[320px] flex-shrink-0">
-          <div
-            className={`flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center bg-[#f0f8f9] border border-[#b6e0e4] ${statusCfg.icon} shadow-2xs`}
-          >
-            <Building2 className="w-5 h-5 text-[#51a8b1]" />
-          </div>
-
-          <div className="min-w-0 space-y-0.5">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="font-mono text-[10.5px] font-black text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-0.5 rounded-lg">
-                {project.projectId}
-              </span>
-              <span
-                className={`lg:hidden inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}
+      {/* ── Card Header — Compact 2-Row Layout in Split Mode, Spacious 3-Col Layout in Full Width Mode ── */}
+      {compactTimeline ? (
+        <div
+          className="cursor-pointer select-none group transition-colors"
+          onClick={onToggle}
+        >
+          {/* Top Row: Meta details on Left + Actions on Right */}
+          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5">
+            {/* Left: Icon + Code + Title + Org */}
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <div
+                className={`flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center bg-[#f0f8f9] border border-[#b6e0e4] ${statusCfg.icon} shadow-2xs`}
               >
-                <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-                {statusCfg.label}
-              </span>
+                <Building2 className="w-5 h-5 text-[#51a8b1]" />
+              </div>
+
+              <div className="min-w-0 space-y-0.5">
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-[10px] font-black text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2 py-0.5 rounded-md shrink-0">
+                    {project.projectId}
+                  </span>
+                  <span
+                    className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+                    {statusCfg.label}
+                  </span>
+                </div>
+
+                <h3 className="font-heading text-sm font-bold text-slate-900 leading-tight truncate">
+                  {project.projectName || project.title}
+                </h3>
+                <p className="text-[11px] text-slate-500 truncate font-medium">{project.organization || 'Direct Organization'}</p>
+              </div>
             </div>
 
-            <div>
-              <h3 className="font-heading text-sm font-bold text-[#1e293b] leading-tight truncate max-w-[260px] sm:max-w-[300px]">
-                {project.projectName || project.title}
-              </h3>
-              <p className="text-[11px] text-[#556987] truncate">{project.organization || 'Direct Organization'}</p>
+            {/* Right: Open Tracker + Chevron */}
+            <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+              <Link
+                href={`/tracker?projectId=${project._id}`}
+                onClick={(e) => e.stopPropagation()}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-xs font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
+                title="Open in Tracker workspace"
+              >
+                <span>Open Tracker</span>
+                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+              </Link>
+
+              {isCardExpanded && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    fetchTimeline(true);
+                  }}
+                  className="p-1.5 rounded-xl border border-[#b9c0cb]/50 text-[#4a5462] hover:bg-[#f0f8f9] hover:text-[#3a7d84] transition cursor-pointer"
+                  title="Refresh timeline"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#51a8b1]' : ''}`} />
+                </button>
+              )}
+
+              <div
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                  isCardExpanded
+                    ? 'bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]'
+                    : 'bg-[#f8fafb] text-[#4a5462] border border-[#b9c0cb]/40 group-hover:text-[#3a7d84]'
+                }`}
+              >
+                {isCardExpanded ? (
+                  <ChevronUp className="w-4 h-4" />
+                ) : (
+                  <ChevronDown className="w-4 h-4" />
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Row: Full-width PM + Stage Progress Bar */}
+          <div className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-slate-50/90 via-[#f8fafb] to-slate-50/90 border-t border-slate-100 flex items-center justify-between gap-4 text-xs">
+            {/* PM Name */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              <User className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
+              <span className="text-slate-500 font-medium text-[11px] shrink-0">PM:</span>
+              <span className="font-bold text-slate-800 truncate text-[11.5px]">{pmName}</span>
+            </div>
+
+            {/* Progress Bar & Stage Count */}
+            <div className="flex items-center gap-2.5 flex-1 max-w-[260px] sm:max-w-[320px] justify-end">
+              <span className="text-[11px] font-bold text-slate-600 shrink-0">
+                <strong className="text-[#3a7d84]">{completedStages}</strong>/8 Stages
+              </span>
+              <div className="flex-1 h-2 bg-slate-200/90 rounded-full overflow-hidden shadow-inner min-w-[70px]">
+                <div
+                  className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] rounded-full transition-all duration-500"
+                  style={{ width: `${Math.max(progressPct, 4)}%` }}
+                />
+              </div>
+              <span className="font-mono font-black text-[10.5px] text-[#3a7d84] bg-white border border-[#b6e0e4] px-1.5 py-0.5 rounded-md shadow-2xs shrink-0">
+                {progressPct}%
+              </span>
             </div>
           </div>
         </div>
+      ) : (
+        <div
+          className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 px-5 py-4 cursor-pointer select-none group"
+          onClick={onToggle}
+        >
+          {/* Left: Project Meta Details */}
+          <div className="flex items-center gap-3.5 min-w-0 max-w-full lg:max-w-[280px] xl:max-w-[320px] flex-shrink-0">
+            <div
+              className={`flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center bg-[#f0f8f9] border border-[#b6e0e4] ${statusCfg.icon} shadow-2xs`}
+            >
+              <Building2 className="w-5 h-5 text-[#51a8b1]" />
+            </div>
 
-        {/* Center: Stage Progress (Compact Progress Bar in Split View, Full 8-Stage Stepper in Full Width) */}
-        {compactTimeline ? (
-          <div className="w-full lg:flex-1 max-w-full lg:max-w-[285px] xl:max-w-[340px] mx-0 lg:mx-3 px-1 py-1 flex flex-col justify-center space-y-1.5">
-            {/* Project Manager & Progress Counter */}
-            <div className="flex items-center justify-between text-xs font-bold gap-2">
-              <div className="flex items-center gap-1.5 text-[#3a7d84] min-w-0">
-                <User className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
-                <span className="text-[11px] text-[#556987] font-medium shrink-0">PM:</span>
-                <span className="truncate max-w-[110px] sm:max-w-[140px] font-bold text-[#1e293b]">{pmName}</span>
-              </div>
-              <div className="flex items-center gap-1.5 text-[11px] shrink-0">
-                <span className="text-[#556987] font-semibold text-[10.5px]">{completedStages}/{totalStages} Stages</span>
-                <span className="font-mono font-black bg-[#f0f8f9] text-[#3a7d84] px-1.5 py-0.5 rounded-md border border-[#b6e0e4] text-[10px]">
-                  {progressPct}%
+            <div className="min-w-0 space-y-0.5">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-mono text-[10.5px] font-black text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-0.5 rounded-lg">
+                  {project.projectId}
+                </span>
+                <span
+                  className={`lg:hidden inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+                  {statusCfg.label}
                 </span>
               </div>
-            </div>
 
-            {/* Compact Progress Bar (-15% compact width & slim h-1.5 track) */}
-            <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden border border-slate-200/90 shadow-inner">
-              <div
-                className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] transition-all duration-700 rounded-full"
-                style={{ width: `${Math.max(progressPct, 4)}%` }}
-              />
+              <div>
+                <h3 className="font-heading text-sm font-bold text-[#1e293b] leading-tight truncate max-w-[260px] sm:max-w-[300px]">
+                  {project.projectName || project.title}
+                </h3>
+                <p className="text-[11px] text-[#556987] truncate">{project.organization || 'Direct Organization'}</p>
+              </div>
             </div>
           </div>
-        ) : (
+
+          {/* Center: Full 8-Stage Stepper in Full Width Mode */}
           <div className="w-full lg:flex-1 max-w-full lg:max-w-[580px] xl:max-w-[690px] mx-0 lg:mx-6 px-1 sm:px-3 py-1.5 flex flex-col justify-center">
             {/* Horizontal Stepper Track */}
             <div className="flex items-center justify-between w-full relative">
-              {/* Background connecting track line (aligned with circle centers) */}
+              {/* Background connecting track line */}
               <div className="absolute top-3.5 sm:top-4 left-4 right-4 -translate-y-1/2 h-2 bg-slate-100 border border-slate-200/90 rounded-full z-0 overflow-hidden shadow-inner">
                 <div
                   className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] transition-all duration-700 rounded-full"
@@ -342,7 +453,7 @@ export function ProjectRoadmapCard({
                     key={idx}
                     className="relative z-10 flex flex-col items-center max-w-[58px] sm:max-w-[70px]"
                   >
-                    {/* Step Bubble (+20% size increase) */}
+                    {/* Step Bubble showing clear progress status */}
                     <div
                       className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-extrabold transition-all duration-200 shadow-2xs ${
                         isCompleted
@@ -376,7 +487,7 @@ export function ProjectRoadmapCard({
               })}
             </div>
 
-            {/* Project Manager & Stage Count Subtext (Clean & Direct) */}
+            {/* Project Manager & Stage Count Subtext */}
             <div className="flex items-center justify-between w-full mt-2.5 px-1 text-[11px] sm:text-xs">
               <div className="flex items-center gap-1.5 text-[#556987] font-medium truncate max-w-[320px] sm:max-w-[380px]">
                 <User className="w-3.5 h-3.5 text-[#51a8b1] flex-shrink-0" />
@@ -395,60 +506,56 @@ export function ProjectRoadmapCard({
               </div>
             </div>
           </div>
-        )}
 
-        {/* Right: Status Badge + Open Tracker button + Refresh + Chevron */}
-        <div className="flex items-center gap-3 sm:gap-3.5 flex-shrink-0 self-end lg:self-center">
-          {/* Status Badge */}
-          <span
-            className={`hidden lg:inline-flex items-center gap-1.5 text-[10.5px] font-bold px-2.5 py-1 rounded-full border ${statusCfg.cls}`}
-          >
-            <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
-            {statusCfg.label}
-          </span>
-
-          {/* Open Tracker Button */}
-          <Link
-            href={`/tracker?projectId=${project._id}`}
-            onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-xs font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
-            title="Open in Tracker workspace"
-          >
-            <span>Open Tracker</span>
-            <ExternalLink className="w-3.5 h-3.5 opacity-80" />
-          </Link>
-
-          {/* Refresh (only when expanded) */}
-          {isCardExpanded && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                fetchTimeline(true);
-              }}
-              className="p-2 rounded-xl border border-[#b9c0cb]/50 text-[#4a5462] hover:bg-[#f0f8f9] hover:text-[#3a7d84] transition cursor-pointer"
-              title="Refresh timeline"
+          {/* Right: Status Badge + Open Tracker button + Refresh + Chevron */}
+          <div className="flex items-center gap-3 sm:gap-3.5 flex-shrink-0 self-end lg:self-center">
+            <span
+              className={`hidden lg:inline-flex items-center gap-1.5 text-[10.5px] font-bold px-2.5 py-1 rounded-full border ${statusCfg.cls}`}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#51a8b1]' : ''}`} />
-            </button>
-          )}
+              <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
+              {statusCfg.label}
+            </span>
 
-          {/* Chevron */}
-          <div
-            className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${
-              isCardExpanded
-                ? 'bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]'
-                : 'bg-[#f8fafb] text-[#4a5462] border border-[#b9c0cb]/40 group-hover:text-[#3a7d84]'
-            }`}
-          >
-            {isCardExpanded ? (
-              <ChevronUp className="w-4 h-4" />
-            ) : (
-              <ChevronDown className="w-4 h-4" />
+            <Link
+              href={`/tracker?projectId=${project._id}`}
+              onClick={(e) => e.stopPropagation()}
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-xs font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
+              title="Open in Tracker workspace"
+            >
+              <span>Open Tracker</span>
+              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+            </Link>
+
+            {isCardExpanded && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  fetchTimeline(true);
+                }}
+                className="p-2 rounded-xl border border-[#b9c0cb]/50 text-[#4a5462] hover:bg-[#f0f8f9] hover:text-[#3a7d84] transition cursor-pointer"
+                title="Refresh timeline"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#51a8b1]' : ''}`} />
+              </button>
             )}
+
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                isCardExpanded
+                  ? 'bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]'
+                  : 'bg-[#f8fafb] text-[#4a5462] border border-[#b9c0cb]/40 group-hover:text-[#3a7d84]'
+              }`}
+            >
+              {isCardExpanded ? (
+                <ChevronUp className="w-4 h-4" />
+              ) : (
+                <ChevronDown className="w-4 h-4" />
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* ── Smooth Collapse / Expand Body ─────────────────── */}
       <div
@@ -502,6 +609,8 @@ export function ProjectRoadmapCard({
       {selectedNode && currentUser && (
         <NodeInspectorDrawer
           node={selectedNode}
+          project={project}
+          currentUser={currentUser}
           isOpen={Boolean(selectedNode && currentUser)}
           onClose={() => setSelectedNode(null)}
           formSchema={formSchema}

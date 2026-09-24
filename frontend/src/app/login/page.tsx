@@ -36,9 +36,30 @@ export default function LoginPage() {
     }
   };
 
-  const handleQuickLogin = (quickEmail: string, quickPass: string) => {
+  const handleQuickLogin = async (quickEmail: string, quickPass: string, autoSubmit = true) => {
     setEmail(quickEmail);
     setPassword(quickPass);
+
+    if (autoSubmit) {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await authApi.login({ email: quickEmail, password: quickPass });
+        if (res.token) {
+          localStorage.setItem('token', res.token);
+          localStorage.setItem('accessToken', res.token);
+          localStorage.setItem('digitopper_token', res.token);
+          localStorage.setItem('user', JSON.stringify(res.user));
+          window.location.href = '/dashboard';
+        } else {
+          setError('Login failed: Token not received from server.');
+        }
+      } catch (err: any) {
+        setError(err.response?.data?.message || err.message || 'Login failed. Please check credentials.');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   return (
@@ -75,7 +96,7 @@ export default function LoginPage() {
         />
 
         {/* Quick Demo Accounts */}
-        <QuickDemoAccounts onSelectAccount={handleQuickLogin} />
+        <QuickDemoAccounts onSelectAccount={handleQuickLogin} disabled={loading} />
       </div>
     </div>
   );

@@ -3,6 +3,7 @@
 import React from 'react';
 import { IFormFieldSchema } from '../../../types/timeline';
 import { normalizeOption } from '../utils/formHelpers';
+import { CheckCircle2, Clock, AlertCircle } from 'lucide-react';
 
 interface FormFieldSelectProps {
   field: IFormFieldSchema;
@@ -21,6 +22,65 @@ export function FormFieldSelect({
 }: FormFieldSelectProps) {
   const options = (field.options || []).map(normalizeOption);
   const isMulti = field.type === 'multiselect';
+  const isPaymentStatus = name === 'paymentStatus' || field.key === 'paymentStatus' || field.name === 'paymentStatus';
+
+  if (isPaymentStatus) {
+    const currentVal = value || 'PENDING';
+    return (
+      <div>
+        <label className="block text-xs font-semibold text-[#333333] mb-1.5 flex items-center justify-between">
+          <span>
+            {field.label || 'Payment Status'}
+            {field.required && <span className="text-rose-500 ml-0.5">*</span>}
+          </span>
+          <span className="text-[10px] font-semibold text-gray-500">
+            Selected: <strong className="text-[#3a7d84]">{currentVal}</strong>
+          </span>
+        </label>
+        <div className="grid grid-cols-3 gap-2">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange('PAID')}
+            className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
+              currentVal === 'PAID'
+                ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                : 'bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50'
+            } disabled:opacity-60 disabled:cursor-not-allowed`}
+          >
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>PAID</span>
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange('PARTIALLY_PAID')}
+            className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
+              currentVal === 'PARTIALLY_PAID' || currentVal === 'PARTIAL'
+                ? 'bg-amber-500 border-amber-500 text-white shadow-xs'
+                : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'
+            } disabled:opacity-60 disabled:cursor-not-allowed`}
+          >
+            <Clock className="w-3.5 h-3.5" />
+            <span>PARTIALLY PAID</span>
+          </button>
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => onChange('PENDING')}
+            className={`py-2 px-2.5 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs ${
+              !currentVal || currentVal === 'PENDING' || currentVal === 'UNPAID'
+                ? 'bg-rose-500 border-rose-500 text-white shadow-xs'
+                : 'bg-white border-rose-200 text-rose-700 hover:bg-rose-50'
+            } disabled:opacity-60 disabled:cursor-not-allowed`}
+          >
+            <AlertCircle className="w-3.5 h-3.5" />
+            <span>PENDING</span>
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   if (isMulti) {
     const selectedValues: string[] = Array.isArray(value) ? value : value ? [String(value)] : [];

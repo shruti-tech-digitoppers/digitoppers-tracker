@@ -31,7 +31,7 @@ module.exports = {
     },
     {
       key: 'PO_AND_PI',
-      name: '02 — PO & PI',
+      name: '02 — PO, PI & TAX INVOICE',
       order: 2,
       substages: [
         {
@@ -41,12 +41,13 @@ module.exports = {
           metadata: { noAssignment: true },
           formSchema: {
             fields: [
-              { key: 'poDocumentUrl', label: 'PO Document (PDF)', type: 'file', required: true, hint: 'Upload official Purchase Order document (PDF / Images)' },
+              { key: 'multiPoSection', label: 'Purchase Orders (Multiple)', type: 'multiPoSection' },
+              { key: 'poDocumentUrl', label: 'Primary PO Document (PDF)', type: 'file', required: false, hint: 'Upload official Purchase Order document (PDF / Images)' },
               { key: 'poNumber', label: 'PO Number', type: 'text' },
               { key: 'poDate', label: 'PO Date', type: 'date' },
-              { key: 'poAmount', label: 'PO Amount (₹)', type: 'number' },
+              { key: 'uploadDate', label: 'PO Upload Date', type: 'date' },
               { key: 'issuingOrganization', label: 'Issuing Organization', type: 'text' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
+              { key: 'remarks', label: 'PO Remarks', type: 'textarea' }
             ]
           }
         },
@@ -65,19 +66,24 @@ module.exports = {
         },
         {
           key: 'PI_UPLOAD',
-          name: 'PI Upload',
+          name: 'PI & Tax Invoice Upload',
           order: 3,
           metadata: { noAssignment: true },
           formSchema: {
             fields: [
-              { key: 'piDocumentUrl', label: 'PI Document (PDF)', type: 'file', required: true, hint: 'Upload Proforma Invoice document (PDF / Images)' },
+              { key: 'multiPiInvoiceSection', label: 'Proforma & Tax Invoices (Multiple)', type: 'multiPiInvoiceSection' },
+              { key: 'piDocumentUrl', label: 'Primary PI Document (PDF)', type: 'file', required: false, hint: 'Upload Proforma Invoice document (PDF / Images)' },
               { key: 'piNumber', label: 'PI Number', type: 'text' },
               { key: 'piDate', label: 'PI Date', type: 'date' },
-              { key: 'amount', label: 'Base Amount (₹)', type: 'number' },
-              { key: 'tax', label: 'Tax / GST (%)', type: 'number' },
-              { key: 'totalAmount', label: 'Total Amount (₹)', type: 'number' },
+              { key: 'piUploadDate', label: 'PI Upload Date', type: 'date' },
+              { key: 'invoiceDocumentUrl', label: 'Primary Tax Invoice Document (PDF)', type: 'file', required: false, hint: 'Upload Tax Invoice document (PDF / Images)' },
+              { key: 'invoiceNumber', label: 'Tax Invoice Number', type: 'text' },
+              { key: 'invoiceDate', label: 'Tax Invoice Date', type: 'date' },
+              { key: 'invoiceUploadDate', label: 'Tax Invoice Upload Date', type: 'date' },
+              { key: 'ewayBillNumber', label: 'E-Way Bill Number', type: 'text' },
+              { key: 'paymentStatus', label: 'Payment Status', type: 'select', options: ['PAID', 'PARTIALLY_PAID', 'PENDING'] },
               { key: 'paymentTerms', label: 'Payment Terms', type: 'textarea' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
+              { key: 'remarks', label: 'Invoice Remarks', type: 'textarea' }
             ]
           }
         }
@@ -96,18 +102,79 @@ module.exports = {
           metadata: { noAssignment: true },
           formSchema: {
             fields: [
-              { key: 'schoolName', label: 'School / Institution / Trust Name', type: 'text', required: true },
-              { key: 'schoolCode', label: 'School Code / UDISE', type: 'text' },
-              { key: 'address', label: 'School Address & City', type: 'textarea' },
-              { key: 'deploymentLocations', label: 'Implementation Site(s) / Lab Rooms / Branches', type: 'textarea', placeholder: 'e.g. Branch 1: STEM Lab Room 101, Branch 2: Robotics Room' },
-              { key: 'principalName', label: 'Principal / Head Name', type: 'text' },
-              { key: 'contactPerson', label: 'Contact Person Name', type: 'text' },
-              { key: 'phone', label: 'Contact Phone Number', type: 'text' },
-              { key: 'email', label: 'Contact Email Address', type: 'text' },
-              { key: 'totalStudents', label: 'Total Student Strength', type: 'number' },
-              { key: 'labAvailable', label: 'Dedicated Lab Room Available?', type: 'select', options: ['Yes', 'No'] },
-              { key: 'internetAvailable', label: 'Internet / Wi-Fi Available?', type: 'select', options: ['Yes', 'No'] },
-              { key: 'remarks', label: 'Site / Infrastructure Remarks', type: 'textarea' }
+              // 1. School Information
+              { key: 'schoolName', label: '1.1 Name of the School', type: 'text', required: true },
+              { key: 'addressContact', label: '1.2 Contact Details (Address with PIN code and Mobile number)', type: 'textarea' },
+              { key: 'schoolCategory', label: '1.3 School Category', type: 'select', options: ['Primary only with grade 1 to 5', 'Upper Primary with grade 1 to 8', 'Higher secondary with grade 1 to 12', 'Middle School only with grade 6 to 8', 'Higher secondary with grade 6 to 12'] },
+              { key: 'principalName', label: '1.4 Name of the Principal/Head contact', type: 'text' },
+              { key: 'principalDetails', label: '1.5 Principal Details (Phone / Email)', type: 'text' },
+              { key: 'pocName', label: '1.6 Name of the contact person (POC)', type: 'text' },
+              { key: 'pocDesignation', label: '1.7 Designation', type: 'text' },
+              { key: 'pocContact', label: '1.8 Contact Details (POC Phone / Email)', type: 'text' },
+              // 2. Demographics
+              { key: 'totalTeachers', label: '2.1 Number of teachers', type: 'number' },
+              { key: 'subjectWiseTeachers', label: '2.2 Subject-wise bifurcation of teacher', type: 'text' },
+              { key: 'classWiseSubjects', label: '2.3 Class-wise details of subjects', type: 'textarea' },
+              { key: 'triSystemType', label: '2.4 Tri system or multi trisystem for different subjects', type: 'text' },
+              { key: 'totalStudents', label: '2.5 Total Number of students', type: 'number' },
+              { key: 'regularStudentsRatio', label: '2.5.1 Number/percentage of student coming regularly', type: 'text' },
+              { key: 'studentCommittee', label: '2.6 Is there a student committee in school?', type: 'text' },
+              { key: 'villagesCount', label: '2.7 From how many villages students are coming', type: 'text' },
+              { key: 'parentsOccupation', label: '2.8 Basic occupation of the parents', type: 'text' },
+              { key: 'studentAttendance', label: '2.9 Student Attendance', type: 'text' },
+              { key: 'overallResult', label: '3.0 Overall School Result', type: 'text' },
+              // 3. Infrastructure
+              { key: 'totalClassrooms', label: '3.1 Total number of classroom in the school', type: 'number' },
+              { key: 'classroomCondition', label: '3.2 Condition of classroom', type: 'select', options: ['Pucca (पक्का)', 'Semi-Pucca (आंशिक रूप से पक्का)', 'Kutcha (कच्चा)', 'Tent (तंबू)'] },
+              { key: 'additionalRooms', label: '3.3 Additional rooms (Music/Computer lab/Sports/Library)', type: 'text' },
+              { key: 'spareRooms', label: '3.4 Any spare rooms for classes', type: 'text' },
+              { key: 'electricityInternetAvailability', label: '3.5 Availability of electricity / Internet', type: 'text' },
+              { key: 'drinkingWaterAvailability', label: '3.6 Availability of drinking water facilities', type: 'text' },
+              { key: 'washroomAvailability', label: '3.7 Availability of washroom facilities', type: 'text' },
+              // 4. Digital Initiatives
+              { key: 'ictLabAvailable', label: '4.1 Is the ICT Lab available in the school?', type: 'select', options: ['Yes', 'No'] },
+              { key: 'ictSetupDate', label: '4.2 When was it set up?', type: 'text' },
+              { key: 'ictHardwareComponents', label: '4.3 Hardware components of this ICT Lab', type: 'textarea' },
+              { key: 'digitalContentProvided', label: '4.4 Digital content provided?', type: 'text' },
+              { key: 'digitalContentClasses', label: '4.5 Classes and subjects covered', type: 'text' },
+              { key: 'ictLabFunctional', label: '4.6 Is the ICT Lab functional?', type: 'select', options: ['Yes', 'No'] },
+              { key: 'ictWeeklyUsage', label: '4.7 Weekly usage frequency', type: 'text' },
+              { key: 'ictStudentCount', label: '4.8 Students accessing ICT Lab', type: 'text' },
+              { key: 'computerTeacherAvailable', label: '4.9 Computer teacher available in school?', type: 'text' },
+              { key: 'internetFacilityType', label: '4.10 Internet Facility Type', type: 'text' },
+              { key: 'libraryCornerAvailable', label: '4.11 Library/Reading Corner available?', type: 'select', options: ['Yes', 'No'] },
+              { key: 'govtBooksCount', label: '4.12 Total books from NCERT, NBT, or Govt publisher', type: 'text' },
+              { key: 'fullTimeLibrarian', label: '4.13 Full-time librarian available?', type: 'select', options: ['Yes', 'No'] },
+              { key: 'newspaperSubscription', label: '4.14 Newspaper/magazines subscription', type: 'text' },
+              // 5. Additional Notes & Stakeholders
+              { key: 'additionalNotes', label: '5.1 Additional notes / Points of observation', type: 'textarea' },
+              { key: 'otherStakeholders', label: '5.2 Other stakeholders details (SMC, DEO, BEEO, etc.)', type: 'textarea' },
+              { key: 'supportingOrgName', label: '5.3.1 Supporting Organization / NGO Name', type: 'text' },
+              { key: 'supportingOrgContactPerson', label: '5.3.2 Contact Person Name', type: 'text' },
+              { key: 'supportingOrgDesignation', label: '5.3.3 Designation', type: 'text' },
+              { key: 'supportingOrgContact', label: '5.3.4 Contact Number', type: 'text' },
+              { key: 'supportingOrgEmail', label: '5.3.5 Email Address', type: 'text' },
+              { key: 'smartClassRoomIdentification', label: '5.4 Room identification for smart classroom setup', type: 'text' },
+              { key: 'smartClassRoomCondition', label: '5.5 Seating / Furniture / Ventilation / Security', type: 'text' },
+              { key: 'photoFrontView', label: '5.6 School Front View Photo URL', type: 'text' },
+              { key: 'photoSmartRoom', label: '5.6 Smart Classroom Room Photo URL', type: 'text' },
+              // 6. Socio-Economic Background
+              { key: 'parentIncomeGroup', label: '6.1 Income group of most of the parents', type: 'select', options: ['Below Poverty Line (BPL)', 'Lower Income Group (LIG)', 'Middle Income Group (MIG)', 'High Income Group (HIG)'] },
+              { key: 'parentProfessions', label: '6.2 Profession of the Parents', type: 'multiselect' },
+              { key: 'parentEducationLevel', label: '6.3 Educational Level of Parents', type: 'select', options: ['No Formal Education', 'Primary Education (Up to Class 5)', 'Secondary Education (Class 6–10)', 'Higher Secondary Education (Class 11–12)', 'Graduate', 'Postgraduate or Above'] },
+              { key: 'firstGenerationLearner', label: '6.4 Are Children first-generation learners', type: 'select', options: ['Yes, the child is the first in the family to receive formal education', 'No, other family members have received formal education'] },
+              // 7. Security and Handling
+              { key: 'securityGuard', label: '7.1 Security guard or personnel on school premises', type: 'text' },
+              { key: 'ictSecurityMeasures', label: '7.2 Security measures in place for ICT Lab (CCTV, locks, access control)', type: 'text' },
+              { key: 'deviceStorage', label: '7.3 Storage of digital devices when not in use', type: 'textarea' },
+              { key: 'lostDeviceProtocol', label: '7.4 Protocol for reporting lost or damaged devices', type: 'text' },
+              { key: 'dataBackupPlan', label: '7.5 Backup and data recovery plan', type: 'text' },
+              { key: 'responsibleUseTraining', label: '7.6 Guidelines / training on responsible & secure use', type: 'text' },
+              { key: 'usageTrackingMechanism', label: '7.7 Usage tracking mechanism of digital content', type: 'text' },
+              { key: 'cybersecurityPolicies', label: '7.8 Cybersecurity and data protection policies', type: 'text' },
+              { key: 'breachHistory', label: '7.9 Previous instances of security breaches & handling', type: 'text' },
+              { key: 'digitoppersSecurityCooperation', label: '7.10 Willingness to cooperate with Digitoppers security guidelines', type: 'text' },
+              { key: 'safetyHazardsMitigation', label: '7.11 Potential safety hazards and mitigation', type: 'textarea' }
             ]
           }
         },
@@ -120,8 +187,7 @@ module.exports = {
               {
                 key: 'solutions',
                 label: 'Solutions & Quantity Breakdown',
-                type: 'solutionsConfig',
-                hint: 'Check each solution required and enter its quantity, target classes, and implementation room'
+                type: 'solutionsConfig'
               },
               { key: 'assignedTechLead', label: 'Assigned Tech In-charge / Specialist', type: 'employeeSelect', hint: 'Assign employee responsible for Tech Stream tasks in Stage 04' },
               { key: 'assignedContentLead', label: 'Assigned Content In-charge / Specialist', type: 'employeeSelect', hint: 'Assign employee responsible for Content Stream tasks in Stage 04' },
@@ -429,9 +495,11 @@ module.exports = {
           order: 2,
           formSchema: {
             fields: [
-              { key: 'installationStarted', label: 'Installation Started?', type: 'select', options: ['Yes', 'No'] },
-              { key: 'installedItems', label: 'Installed Items Summary', type: 'textarea' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
+              {
+                key: 'installationSection',
+                label: 'Hardware Serial Numbers & 3 Installation Images',
+                type: 'installationSection'
+              }
             ]
           }
         },
@@ -453,6 +521,11 @@ module.exports = {
           order: 4,
           formSchema: {
             fields: [
+              {
+                key: 'installationSection',
+                label: 'School-wise Installation, Hardware Serial Numbers & 3 Site Images',
+                type: 'installationSection'
+              },
               { key: 'completed', label: 'Installation Completed?', type: 'select', options: ['YES', 'NO'], required: true },
               { key: 'installationReportUrl', label: 'Installation Report (PDF/Photo)', type: 'file', hint: 'Upload signed installation report' },
               { key: 'remarks', label: 'Remarks', type: 'textarea' }

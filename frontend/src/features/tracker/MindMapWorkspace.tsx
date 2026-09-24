@@ -14,6 +14,7 @@ import { canUpdateNodeStatus, canAssignNode } from '../../lib/permissions';
 import { HorizontalRoadmapCanvas } from './HorizontalRoadmapCanvas';
 import { NodeInspectorDrawer } from './NodeInspectorDrawer';
 import { CreateProjectRequestModal } from '../requests/components/CreateProjectRequestModal';
+import { ProjectActivityWorkspace } from '../activity/ProjectActivityWorkspace';
 import {
   Compass,
   RefreshCw,
@@ -23,6 +24,7 @@ import {
   ChevronLeft,
   Building2,
   Send,
+  History,
 } from 'lucide-react';
 
 export function MindMapWorkspace() {
@@ -40,6 +42,7 @@ export function MindMapWorkspace() {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<ITimelineNode | null>(null);
+  const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState<boolean>(false);
 
   const selectedNodeIdRef = useRef<string | null>(null);
   selectedNodeIdRef.current = selectedNode?._id || null;
@@ -231,9 +234,10 @@ export function MindMapWorkspace() {
     if (!selectedProjectId || !nodeIdToAssign) return;
 
     const assignedEmpObj = empId ? employees.find((e) => e._id === empId) || null : null;
-    const assignmentUpdates = {
-      assignedTo: assignedEmpObj || empId || null,
-      assignedEmployee: assignedEmpObj || empId || null,
+    const assignmentUpdates: Partial<ITimelineNode> = {
+      assignedTo: assignedEmpObj || (empId ? ({ _id: empId } as any) : null),
+      assignedEmployee: assignedEmpObj || (empId ? ({ _id: empId } as any) : null),
+      ...(empId ? { status: 'IN_PROGRESS' as any } : {})
     };
 
     // 1. Optimistically update local nodes tree immediately (zero latency, zero reload)
@@ -253,6 +257,7 @@ export function MindMapWorkspace() {
     try {
       setMutationError(null);
       await timelineApi.assignNode(selectedProjectId, nodeIdToAssign, empId || null);
+      await fetchTimeline(selectedProjectId, false);
     } catch (err: any) {
       setMutationError(err.response?.data?.message || 'Failed to assign node resource.');
       // Refresh in case of failure to roll back
@@ -399,39 +404,49 @@ export function MindMapWorkspace() {
           <p className="text-xs">Select a project from the dropdown above to view its execution roadmap.</p>
         </div>
       ) : nodes.length === 0 ? (
-        <div className="text-center py-32 border border-dashed border-[#b9c0cb]/60 rounded-2xl text-[#4a5462] space-y-3 bg-white shadow-xs p-6">
-          <AlertCircle className={`w-10 h-10 mx-auto ${selectedProject?.status === 'PENDING_REVIEW' ? 'text-amber-500' : 'text-[#51a8b1]'}`} />
-          <div className="max-w-md mx-auto space-y-1">
-            <p className="text-sm font-bold text-[#333333] font-heading">
-              {selectedProject?.status === 'PENDING_REVIEW'
-                ? 'Project Request Pending Review'
-                : 'No timeline nodes initialized yet'}
-            </p>
-            <p className="text-xs text-[#4a5462]">
-              {selectedProject?.status === 'PENDING_REVIEW'
-                ? 'This project request is currently awaiting review by the assigned reviewer. The execution timeline roadmap will be automatically generated once the request is confirmed and approved.'
-                : 'Stages for this project have not been created yet or need re-initialization from the standard 8-stage rollout template.'}
-            </p>
-          </div>
-          <div className="flex items-center justify-center gap-3 pt-2">
-            <button
-              type="button"
-              onClick={() => fetchTimeline(selectedProjectId, true)}
-              className="px-3.5 py-1.5 rounded-xl border border-[#b9c0cb]/60 text-xs font-semibold text-[#4a5462] hover:bg-[#f8fafb] transition cursor-pointer"
-            >
-              Refresh Status
-            </button>
-            {currentUser && selectedProject?.status !== 'PENDING_REVIEW' && (
+        <>
+          <div className="text-center py-32 border border-dashed border-[#b9c0cb]/60 rounded-2xl text-[#4a5462] space-y-3 bg-white shadow-xs p-6">
+            <AlertCircle className={`w-10 h-10 mx-auto ${selectedProject?.status === 'PENDING_REVIEW' ? 'text-amber-500' : 'text-[#51a8b1]'}`} />
+            <div className="max-w-md mx-auto space-y-1">
+              <p className="text-sm font-bold text-[#333333] font-heading">
+                {selectedProject?.status === 'PENDING_REVIEW'
+                  ? 'Project Request Pending Review'
+                  : 'No timeline nodes initialized yet'}
+              </p>
+              <p className="text-xs text-[#4a5462]">
+                {selectedProject?.status === 'PENDING_REVIEW'
+                  ? 'This project request is currently awaiting review by the assigned reviewer. The execution timeline roadmap will be automatically generated once the request is confirmed and approved.'
+                  : 'Stages for this project have not been created yet or need re-initialization from the standard 8-stage rollout template.'}
+              </p>
+            </div>
+            <div className="flex items-center justify-center gap-3 pt-2">
               <button
                 type="button"
-                onClick={handleResetTimeline}
-                className="px-4 py-1.5 rounded-xl bg-[#51a8b1] text-white text-xs font-bold hover:bg-[#3a7d84] transition cursor-pointer shadow-xs"
+                onClick={() => fetchTimeline(selectedProjectId, true)}
+                className="px-3.5 py-1.5 rounded-xl border border-[#b9c0cb]/60 text-xs font-semibold text-[#4a5462] hover:bg-[#f8fafb] transition cursor-pointer"
               >
-                Initialize 8-Stage Timeline
+                Refresh Status
               </button>
-            )}
+              {currentUser && selectedProject?.status !== 'PENDING_REVIEW' && (
+                <button
+                  type="button"
+                  onClick={handleResetTimeline}
+                  className="px-4 py-1.5 rounded-xl bg-[#51a8b1] text-white text-xs font-bold hover:bg-[#3a7d84] transition cursor-pointer shadow-xs"
+                >
+                  Initialize 8-Stage Timeline
+                </button>
+              )}
+            </div>
           </div>
-        </div>
+
+          {/* ── Below-Timeline Activity Stream for Selected Project (Empty/Pending State) ── */}
+          <div className="bg-white border border-[#b9c0cb]/40 rounded-2xl p-5 shadow-xs">
+            <ProjectActivityWorkspace
+              projectId={selectedProjectId}
+              projectName={selectedProject?.projectName || selectedProject?.title}
+            />
+          </div>
+        </>
       ) : (
         <>
           <HorizontalRoadmapCanvas
@@ -444,11 +459,21 @@ export function MindMapWorkspace() {
             employees={employees}
             onAssign={currentUser ? (nodeId, empId) => handleAssignmentChange(empId, nodeId) : undefined}
             isClickable={Boolean(currentUser)}
+            onOpenActivity={() => setIsActivityDrawerOpen(true)}
           />
+
+          {/* ── Below-Timeline Activity Stream for Selected Project ───────────────────────── */}
+          <div className="bg-white border border-[#b9c0cb]/40 rounded-2xl p-5 shadow-xs">
+            <ProjectActivityWorkspace
+              projectId={selectedProjectId}
+              projectName={selectedProject?.projectName || selectedProject?.title}
+            />
+          </div>
 
           {currentUser && selectedNode && (
             <NodeInspectorDrawer
               node={selectedNode}
+              project={selectedProject}
               employees={employees}
               currentUser={currentUser}
               formSchema={formSchema}
@@ -463,6 +488,26 @@ export function MindMapWorkspace() {
               canModifyAssignment={canModifyAssignment}
               allNodes={nodes}
             />
+          )}
+
+          {/* ── Project Activity Log Slide-over Drawer ───────────────────────── */}
+          {isActivityDrawerOpen && selectedProjectId && (
+            <div className="fixed inset-0 z-50 overflow-hidden flex justify-end">
+              {/* Backdrop */}
+              <div
+                className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs transition-opacity"
+                onClick={() => setIsActivityDrawerOpen(false)}
+              />
+              {/* Drawer Content */}
+              <div className="relative w-full max-w-2xl bg-white h-full shadow-2xl z-10 flex flex-col animate-in slide-in-from-right duration-300">
+                <ProjectActivityWorkspace
+                  projectId={selectedProjectId}
+                  projectName={selectedProject?.projectName || selectedProject?.title}
+                  isDrawer={true}
+                  onClose={() => setIsActivityDrawerOpen(false)}
+                />
+              </div>
+            </div>
           )}
         </>
       )}

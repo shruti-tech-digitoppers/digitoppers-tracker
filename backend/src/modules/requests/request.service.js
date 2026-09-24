@@ -7,6 +7,7 @@ const TimelineNode = require('../timeline/timeline-node.model');
 const Employee = require('../employees/employee.model');
 const Notification = require('../notifications/notifications.model');
 const Activity = require('../activity/activity.model');
+const Requirement = require('../requirements/requirements.model');
 const timelineConfig = require('../../config/timeline');
 const { DESIGNATIONS, PROJECT_STATUSES, NODE_TYPES, NODE_STATUSES } = require('../../core/constants');
 const { AppError } = require('../../core/errors');
@@ -51,15 +52,32 @@ class RequestService {
    * Helper: Initialize standard 8-Stage Timeline for a project
    */
   async _initializeProjectTimeline(projectId, session) {
-    const timeline = await Timeline.create([{
+    const project = await Project.findById(projectId).session(session);
+    const pmId = project ? project.projectManager : undefined;
+
+    const timelineData = {
       project: projectId,
+      projectId: project ? project.projectId : undefined,
+      projectName: project ? (project.projectName || project.title) : undefined,
+      organization: project ? (project.organization || project.client || project.projectName) : undefined,
+      email: project ? project.email : undefined,
+      phone: project ? project.phone : undefined,
+      address: project ? project.address : undefined,
+      numberOfSchools: project ? (project.numberOfSchools || 0) : 0,
+      numberOfLicenses: project ? (project.numberOfLicenses || 0) : 0,
+      country: project ? project.country : undefined,
+      projectManager: pmId || undefined,
+      coreBackendData: project ? (project.toObject ? project.toObject() : project) : {},
+      metadata: project ? (project.metadata || {}) : {},
       templateVersion: 'v1',
       status: NODE_STATUSES.IN_PROGRESS
-    }], { session });
+    };
 
+    const timeline = await Timeline.create([timelineData], { session });
     const createdTimeline = timeline[0];
 
     for (const stageDef of timelineConfig.stages) {
+      const stageAssignedTo = (stageDef.key === 'PROJECT_REVIEWER' && pmId) ? pmId : null;
       const stageNode = await TimelineNode.create([{
         timeline: createdTimeline._id,
         parentNode: null,
@@ -68,6 +86,7 @@ class RequestService {
         name: stageDef.name,
         order: stageDef.order,
         status: NODE_STATUSES.PENDING,
+        assignedTo: stageAssignedTo,
         dependencies: stageDef.dependencies || [],
         metadata: stageDef.metadata || {}
       }], { session });
@@ -76,6 +95,7 @@ class RequestService {
 
       if (stageDef.substages) {
         for (const subDef of stageDef.substages) {
+          const subAssignedTo = (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(subDef.key) && pmId) ? pmId : null;
           const subTaskNode = await TimelineNode.create([{
             timeline: createdTimeline._id,
             parentNode: createdStage._id,
@@ -84,6 +104,7 @@ class RequestService {
             name: subDef.name,
             order: subDef.order,
             status: NODE_STATUSES.PENDING,
+            assignedTo: subAssignedTo,
             formSchema: subDef.formSchema || null,
             metadata: subDef.metadata || {}
           }], { session });
@@ -92,6 +113,7 @@ class RequestService {
 
           if (subDef.nested) {
             for (const nestedDef of subDef.nested) {
+              const nestedAssignedTo = (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(nestedDef.key) && pmId) ? pmId : null;
               await TimelineNode.create([{
                 timeline: createdTimeline._id,
                 parentNode: createdSub._id,
@@ -100,6 +122,7 @@ class RequestService {
                 name: nestedDef.name,
                 order: nestedDef.order,
                 status: NODE_STATUSES.PENDING,
+                assignedTo: nestedAssignedTo,
                 formSchema: nestedDef.formSchema || null,
                 metadata: {
                   ...(nestedDef.metadata || {}),
@@ -401,6 +424,59 @@ class RequestService {
         await this._initializeProjectTimeline(newProject._id, session);
       }
 
+      // ── Pre-populate Master Requirements document from existing Request ──
+      const existingReq = await Requirement.findOne({ project: newProject._id }).session(session);
+      if (!existingReq) {
+        await Requirement.create([{
+          project: newProject._id,
+          workflowVersion: 'v1',
+          currentStageKey: 'PROJECT_REVIEWER',
+          currentSubstageKey: 'PROJECT_CREATED',
+          projectReviewer: {
+            projectCreated: {
+              organizationName: request.organization || request.client || newProject.organization || '',
+              contactPerson: request.contactPerson || request.title || newProject.projectName,
+              phone: request.phone || newProject.phone || '',
+              email: request.email || newProject.email || '',
+              address: request.address || newProject.address || '',
+              country: request.country || newProject.country || '',
+              confirmed: 'YES',
+              projectReviewed: 'YES',
+              projectCreated: 'YES',
+              confirmationDate: new Date(),
+              remarks: request.description || payload.reviewNotes || '',
+              submittedBy: approverEmployeeId,
+              submittedAt: new Date()
+            }
+          },
+          orderRequirement: {
+            schoolInformation: {
+              schoolName: request.organization || request.client || newProject.projectName,
+              address: request.address || newProject.address || '',
+              phone: request.phone || newProject.phone || '',
+              email: request.email || newProject.email || '',
+              totalStudents: request.numberOfSchools || newProject.numberOfSchools || 0,
+              remarks: request.description || '',
+              submittedBy: approverEmployeeId,
+              submittedAt: new Date()
+            },
+            solutionSelection: {
+              solutions: request.solutions || {},
+              remarks: request.solutionNotes || '',
+              submittedBy: approverEmployeeId,
+              submittedAt: new Date()
+            },
+            hardwareRequirement: {
+              hardware: request.hardware || {},
+              remarks: request.hardwareNotes || '',
+              submittedBy: approverEmployeeId,
+              submittedAt: new Date()
+            }
+          },
+          updatedBy: approverEmployeeId
+        }], { session });
+      }
+
       // ── Assign Project Manager Membership ─────────────────────────
       await ProjectMember.findOneAndUpdate(
         { project: newProject._id, employee: request.projectManager },
@@ -413,6 +489,28 @@ class RequestService {
         },
         { upsert: true, new: true, session }
       );
+
+      // ── Sync PM to Timeline & Stage 01 Nodes ─────────────────────
+      const assignedPmId = request.projectManager || newProject.projectManager;
+      if (assignedPmId) {
+        await Timeline.findOneAndUpdate(
+          { project: newProject._id },
+          { projectManager: assignedPmId },
+          { session }
+        );
+
+        const timelineDoc = await Timeline.findOne({ project: newProject._id }).session(session);
+        if (timelineDoc) {
+          await TimelineNode.updateMany(
+            {
+              timeline: timelineDoc._id,
+              key: { $in: ['PROJECT_REVIEWER', 'PROJECT_CREATED', 'LEAD_CREATION'] }
+            },
+            { assignedTo: assignedPmId },
+            { session }
+          );
+        }
+      }
 
       // ── Assign Requester Membership (Contributor / PM) ───────────
       if (request.requestedBy.toString() !== request.projectManager.toString()) {

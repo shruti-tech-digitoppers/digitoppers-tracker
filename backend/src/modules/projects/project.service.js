@@ -166,15 +166,32 @@ class ProjectService {
   }
 
   async _initializeProjectTimeline(projectId, session) {
-    const timeline = await Timeline.create([{
-      project: projectId,
-      templateVersion: timelineConfig.version,
-      status: NODE_STATUSES.IN_PROGRESS
-    }], { session });
+    const project = await Project.findById(projectId).session(session);
+    const pmId = project ? project.projectManager : undefined;
 
+    const timelineData = {
+      project: projectId,
+      projectId: project ? project.projectId : undefined,
+      projectName: project ? (project.projectName || project.title) : undefined,
+      organization: project ? (project.organization || project.client || project.projectName) : undefined,
+      email: project ? project.email : undefined,
+      phone: project ? project.phone : undefined,
+      address: project ? project.address : undefined,
+      numberOfSchools: project ? (project.numberOfSchools || 0) : 0,
+      numberOfLicenses: project ? (project.numberOfLicenses || 0) : 0,
+      country: project ? project.country : undefined,
+      projectManager: pmId || undefined,
+      coreBackendData: project ? (project.toObject ? project.toObject() : project) : {},
+      metadata: project ? (project.metadata || {}) : {},
+      templateVersion: timelineConfig.version || 'v1',
+      status: NODE_STATUSES.IN_PROGRESS
+    };
+
+    const timeline = await Timeline.create([timelineData], { session });
     const createdTimeline = timeline[0];
 
     for (const stageDef of timelineConfig.stages) {
+      const stageAssignedTo = (stageDef.key === 'PROJECT_REVIEWER' && pmId) ? pmId : null;
       const stageNode = await TimelineNode.create([{
         timeline: createdTimeline._id,
         parentNode: null,
@@ -183,6 +200,7 @@ class ProjectService {
         name: stageDef.name,
         order: stageDef.order,
         status: NODE_STATUSES.PENDING,
+        assignedTo: stageAssignedTo,
         dependencies: stageDef.dependencies || [],
         metadata: stageDef.metadata || {}
       }], { session });
@@ -191,6 +209,7 @@ class ProjectService {
 
       if (stageDef.substages) {
         for (const subDef of stageDef.substages) {
+          const subAssignedTo = (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(subDef.key) && pmId) ? pmId : null;
           const subTaskNode = await TimelineNode.create([{
             timeline: createdTimeline._id,
             parentNode: createdStage._id,
@@ -199,6 +218,7 @@ class ProjectService {
             name: subDef.name,
             order: subDef.order,
             status: NODE_STATUSES.PENDING,
+            assignedTo: subAssignedTo,
             formSchema: subDef.formSchema || null,
             metadata: subDef.metadata || {}
           }], { session });
@@ -207,6 +227,7 @@ class ProjectService {
 
           if (subDef.nested) {
             for (const nestedDef of subDef.nested) {
+              const nestedAssignedTo = (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(nestedDef.key) && pmId) ? pmId : null;
               await TimelineNode.create([{
                 timeline: createdTimeline._id,
                 parentNode: createdSub._id,
@@ -215,6 +236,7 @@ class ProjectService {
                 name: nestedDef.name,
                 order: nestedDef.order,
                 status: NODE_STATUSES.PENDING,
+                assignedTo: nestedAssignedTo,
                 formSchema: nestedDef.formSchema || null,
                 metadata: {
                   ...(nestedDef.metadata || {}),
@@ -418,24 +440,38 @@ class ProjectService {
     if (!projects || projects.length === 0) return [];
 
     const projectIds = projects.map(p => p._id);
-    const pmMembers = await ProjectMember.find({
+    const allMembers = await ProjectMember.find({
       project: { $in: projectIds },
-      designation: DESIGNATIONS.PROJECT_MANAGER,
       isActive: true
-    }).populate('employee', 'name email employeeCode globalRole');
+    }).populate('employee', 'name email employeeCode globalRole designation');
 
     const pmMap = new Map();
-    pmMembers.forEach(m => {
+    const membersMap = new Map();
+
+    allMembers.forEach(m => {
+      const pid = m.project.toString();
+      if (!membersMap.has(pid)) membersMap.set(pid, []);
       if (m.employee) {
-        pmMap.set(m.project.toString(), m.employee);
+        const empData = m.employee.toObject ? m.employee.toObject() : m.employee;
+        membersMap.get(pid).push({
+          ...empData,
+          projectRole: m.designation
+        });
+        if (m.designation === DESIGNATIONS.PROJECT_MANAGER && !pmMap.has(pid)) {
+          pmMap.set(pid, empData);
+        }
       }
     });
 
-    return projects.map(p => ({
-      ...p,
-      title: p.projectName || p.title,
-      projectManager: pmMap.get(p._id.toString()) || null
-    }));
+    return projects.map(p => {
+      const assignedPm = pmMap.get(p._id.toString()) || p.projectManager || null;
+      return {
+        ...p,
+        title: p.projectName || p.title,
+        projectManager: assignedPm,
+        members: membersMap.get(p._id.toString()) || []
+      };
+    });
   }
 
   async getPendingReviews(employeeId, isAdmin) {

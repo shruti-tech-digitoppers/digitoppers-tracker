@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { BarChart3, PlayCircle, Clock, CheckCircle2, Archive, AlertCircle } from 'lucide-react';
+import { BarChart3, PlayCircle, Clock, CheckCircle2, Archive } from 'lucide-react';
 
 export type StatusFilter = 'ALL' | 'ACTIVE' | 'ON_HOLD' | 'COMPLETED' | 'ARCHIVED';
 
@@ -12,6 +12,7 @@ interface DashboardStatsGridProps {
     onHold: number;
     completed: number;
     archived: number;
+    assignedToMe?: number;
   };
   currentFilter: StatusFilter;
   onSelectFilter: (filter: StatusFilter) => void;
@@ -23,11 +24,11 @@ export function DashboardStatsGrid({
   onSelectFilter,
 }: DashboardStatsGridProps) {
   const statCards = [
-    { label: 'Total Projects', filter: 'ALL'       as StatusFilter, value: stats.total,     icon: <BarChart3 className="w-5 h-5" />,    bg: 'bg-white',          border: 'border-[#b9c0cb]/40', text: 'text-[#333333]', lbl: 'text-[#4a5462]', iconBg: 'bg-[#f0f8f9] text-[#51a8b1]'   },
-    { label: 'Active',         filter: 'ACTIVE'    as StatusFilter, value: stats.active,    icon: <PlayCircle className="w-5 h-5" />,   bg: 'bg-[#f7fbe9]',      border: 'border-[#dfefa6]',   text: 'text-[#465b1c]', lbl: 'text-[#58731f]', iconBg:'bg-[#eff8d0] text-[#759724]'},
-    { label: 'On Hold',        filter: 'ON_HOLD'   as StatusFilter, value: stats.onHold,    icon: <Clock className="w-5 h-5" />,        bg: 'bg-amber-50/50',    border: 'border-amber-200',   text: 'text-amber-800', lbl: 'text-amber-700', iconBg: 'bg-amber-100 text-amber-700'   },
-    { label: 'Completed',      filter: 'COMPLETED' as StatusFilter, value: stats.completed, icon: <CheckCircle2 className="w-5 h-5" />, bg: 'bg-[#f0f8f9]',      border: 'border-[#b6e0e4]',   text: 'text-[#3a7d84]', lbl: 'text-[#51a8b1]', iconBg: 'bg-[#d9eef0] text-[#3a7d84]'     },
-    { label: 'Archived',       filter: 'ARCHIVED'  as StatusFilter, value: stats.archived,  icon: <Archive className="w-5 h-5" />,      bg: 'bg-[#f8fafb]',      border: 'border-[#b9c0cb]/40', text: 'text-[#4a5462]', lbl: 'text-[#b9c0cb]', iconBg: 'bg-[#f1f3f6] text-[#4a5462]'   },
+    { label: 'TOTAL PROJECTS', filter: 'ALL' as StatusFilter, value: stats.total, icon: <BarChart3 className="w-5 h-5" />, bg: 'bg-white', border: 'border-[#b9c0cb]/40', text: 'text-[#333333]', lbl: 'text-[#4a5462]', iconBg: 'bg-[#f0f8f9] text-[#51a8b1]' },
+    { label: 'ACTIVE', filter: 'ACTIVE' as StatusFilter, value: stats.active, icon: <PlayCircle className="w-5 h-5" />, bg: 'bg-[#f7fbe9]', border: 'border-[#dfefa6]', text: 'text-[#465b1c]', lbl: 'text-[#58731f]', iconBg: 'bg-[#eff8d0] text-[#759724]' },
+    { label: 'ON HOLD', filter: 'ON_HOLD' as StatusFilter, value: stats.onHold, icon: <Clock className="w-5 h-5" />, bg: 'bg-amber-50/50', border: 'border-amber-200', text: 'text-amber-800', lbl: 'text-amber-700', iconBg: 'bg-amber-100 text-amber-700' },
+    { label: 'COMPLETED', filter: 'COMPLETED' as StatusFilter, value: stats.completed, icon: <CheckCircle2 className="w-5 h-5" />, bg: 'bg-[#f0f8f9]', border: 'border-[#b6e0e4]', text: 'text-[#3a7d84]', lbl: 'text-[#51a8b1]', iconBg: 'bg-[#d9eef0] text-[#3a7d84]' },
+    { label: 'ARCHIVED', filter: 'ARCHIVED' as StatusFilter, value: stats.archived, icon: <Archive className="w-5 h-5" />, bg: 'bg-[#f8fafb]', border: 'border-[#b9c0cb]/40', text: 'text-[#4a5462]', lbl: 'text-[#b9c0cb]', iconBg: 'bg-[#f1f3f6] text-[#4a5462]' },
   ];
 
   return (

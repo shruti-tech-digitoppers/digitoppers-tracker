@@ -8,6 +8,7 @@ import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { NotificationDetailModal } from './NotificationDetailModal';
 import { SearchProvider } from '../../context/SearchContext';
+import { useFaviconBadge } from '../../hooks/useFaviconBadge';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -26,6 +27,13 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const [selectedNotification, setSelectedNotification] = useState<INotificationItem | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  // Calculate unread notification count
+  const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
+
+  // Dynamically update browser tab favicon and document title with unread badge
+  useFaviconBadge(unreadNotificationsCount);
 
   const fetchNotifications = useCallback(async () => {
     if (typeof window === 'undefined') return;
@@ -42,6 +50,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   // 1. Initial User Hydration & Route Protection
   useEffect(() => {
+    setMounted(true);
     if (typeof window === 'undefined') return;
     const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
 
@@ -136,50 +145,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  // Loading spinner while checking authentication on protected pages
-  if (isAuthenticated === null && !isPublicViewPage) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#2f4154] text-white">
-        <div className="w-8 h-8 border-3 border-[#51a8b1] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  const isRootPage = pathname === '/';
-
-  // Root Page or Guest Public View (NO Sidebar, Clean Full Width Timeline Roadmap)
-  if (isRootPage || (!isAuthenticated && isPublicViewPage)) {
-    return (
-      <SearchProvider>
-        <div className="min-h-screen flex flex-col bg-[#f8fafb] text-[#333333] font-sans">
-          {/* Top Header */}
-          <AppHeader
-            currentUser={currentUser}
-            notifications={notifications}
-            isNotifOpen={isNotifOpen}
-            onToggleNotif={handleToggleNotif}
-            onMarkAsRead={handleMarkAsRead}
-            onMarkAllAsRead={handleMarkAllAsRead}
-            onSelectNotification={handleSelectNotification}
-          />
-
-          {/* Full-width Timeline Roadmap Content */}
-          <main className="flex-1 w-full min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-            {children}
-          </main>
-
-          {/* Notification Modal */}
-          <NotificationDetailModal
-            notification={selectedNotification}
-            isOpen={Boolean(selectedNotification)}
-            onClose={() => setSelectedNotification(null)}
-          />
-        </div>
-      </SearchProvider>
-    );
-  }
-
-  // Authenticated Portal View (With Sidebar and Top Header)
+  // Consistent Shell Layout across SSR and Client Hydration
   return (
     <SearchProvider>
       <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
@@ -189,6 +155,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
           onToggleCollapse={handleToggleCollapse}
           currentUser={currentUser}
           onLogout={handleLogout}
+          unreadCount={unreadNotificationsCount}
         />
 
         {/* ── Main App Container with Top Header ──────────────── */}
@@ -201,6 +168,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
             onMarkAsRead={handleMarkAsRead}
             onMarkAllAsRead={handleMarkAllAsRead}
             onSelectNotification={handleSelectNotification}
+            collapsed={collapsed}
+            onToggleSidebar={handleToggleCollapse}
           />
 
           {/* Page Content */}

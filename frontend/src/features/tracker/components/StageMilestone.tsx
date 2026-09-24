@@ -4,7 +4,7 @@ import React from 'react';
 import { ITimelineNode } from '../../../types/timeline';
 import { MindmapNode } from '../MindmapNode';
 import { ChevronRight } from 'lucide-react';
-
+import { getStageTheme } from '../utils/stageColorThemes';
 import { IUser } from '../../../types/auth';
 
 interface StageMilestoneProps {
@@ -40,16 +40,17 @@ export function StageMilestone({
   const isExpanded = isNodeExpanded(stage._id);
   const subtasks = (stage.children || []).filter(matchesFilter);
   const hasSubstages = Boolean(stage.children && stage.children.length > 0);
+  const theme = getStageTheme(orderNumber || stage.order || stage.key);
 
   return (
     <div className="relative flex items-start">
       <div className="flex flex-col items-center">
         {/* Stage Number Tag */}
         <div className="flex items-center gap-1 mb-1.5">
-          <span className="flex items-center justify-center w-4 h-4 rounded-full bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] text-[9px] font-mono font-bold">
+          <span className={`flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-mono font-bold border ${theme.numberBg} ${theme.numberText} ${theme.numberBorder}`}>
             {orderNumber}
           </span>
-          <span className="text-[9px] font-semibold uppercase tracking-wider text-[#4a5462]">
+          <span className={`text-[9.5px] font-heading font-black uppercase tracking-wider ${theme.badgeText}`}>
             Phase {orderNumber}
           </span>
         </div>
@@ -58,6 +59,7 @@ export function StageMilestone({
         <MindmapNode
           node={stage}
           level={0}
+          stageIndex={orderNumber}
           orderNumber={orderNumber}
           isSelected={isSelected}
           isExpanded={isExpanded}
@@ -73,12 +75,12 @@ export function StageMilestone({
         {isExpanded && subtasks.length > 0 && (
           <div className="flex flex-col items-center mt-1 animate-in fade-in slide-in-from-top-2 duration-200">
             {/* Vertical connector stem from stage header down to subtasks */}
-            <div className="w-0.5 h-3 bg-[#51a8b1]/70 rounded-full" />
+            <div className={`w-0.5 h-3 rounded-full ${theme.connectorLine}`} />
 
             {/* Vertical Subtasks Container */}
-            <div className="flex flex-col gap-1.5 p-2 rounded-xl bg-[#f0f8f9]/50 border border-[#b6e0e4] shadow-2xs relative">
+            <div className={`flex flex-col gap-1.5 p-2 rounded-2xl border shadow-2xs relative ${theme.subtaskContainerBg} ${theme.subtaskContainerBorder}`}>
               <div className="flex items-center justify-between px-1 mb-0.5">
-                <span className="text-[8.5px] font-mono font-bold text-[#4a5462] uppercase tracking-wider">
+                <span className={`text-[8.5px] font-mono font-bold uppercase tracking-wider ${theme.badgeText}`}>
                   Subtasks ({subtasks.length})
                 </span>
               </div>
@@ -87,9 +89,9 @@ export function StageMilestone({
                 <div key={task._id} className="relative flex items-start gap-1.5">
                   {/* Step indicator dot */}
                   <div className="flex flex-col items-center pt-2.5">
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#51a8b1]" />
+                    <span className={`w-1.5 h-1.5 rounded-full ${theme.subtaskDot}`} />
                     {idx < subtasks.length - 1 && (
-                      <div className="w-0.5 h-full bg-[#b6e0e4] my-0.5" />
+                      <div className={`w-0.5 h-full my-0.5 ${theme.subtaskLine}`} />
                     )}
                   </div>
 
@@ -97,6 +99,8 @@ export function StageMilestone({
                   <MindmapNode
                     node={task}
                     level={1}
+                    stageIndex={orderNumber}
+                    orderNumber={idx + 1}
                     isSelected={selectedNodeId === task._id}
                     onSelect={onSelectNode}
                     isGateLocked={isGateLocked(task)}
@@ -116,12 +120,12 @@ export function StageMilestone({
         <div className="flex items-center h-[70px] px-1 mt-5">
           <div
             className={`h-[3px] w-6 rounded-sm ${
-              stage.status === 'COMPLETED' ? 'bg-[#a8cf45]' : 'bg-[#51a8b1]/70'
+              stage.status === 'COMPLETED' ? 'bg-[#a8cf45]' : theme.connectorLine
             }`}
           />
           <ChevronRight
             className={`w-4 h-4 -ml-1.5 stroke-[3] ${
-              stage.status === 'COMPLETED' ? 'text-[#759724]' : 'text-[#51a8b1]'
+              stage.status === 'COMPLETED' ? 'text-[#759724]' : theme.connectorArrow
             }`}
           />
         </div>

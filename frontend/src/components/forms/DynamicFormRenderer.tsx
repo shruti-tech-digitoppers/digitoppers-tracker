@@ -21,6 +21,9 @@ import { AppFileDownloadSection } from './fields/AppFileDownloadSection';
 import { IntegrationTestingSection } from './fields/IntegrationTestingSection';
 import { MultiSchoolSection } from './fields/MultiSchoolSection';
 import { ProjectReviewSection } from './fields/ProjectReviewSection';
+import { MultiPoSection } from './fields/MultiPoSection';
+import { MultiPiInvoiceSection } from './fields/MultiPiInvoiceSection';
+import { InstallationSection } from './fields/InstallationSection';
 import { FileText, Save, Check, AlertCircle, Loader2, User, Building2 } from 'lucide-react';
 
 interface DynamicFormRendererProps {
@@ -76,14 +79,34 @@ export function DynamicFormRenderer({
     return list;
   }, [schema]);
 
-  const isSchoolOnboardingForm = useMemo(() => {
-    return fieldsArray.some(f => (f.key === 'schoolName' || f.name === 'schoolName' || f.key === 'multiSchoolSection')) &&
-      fieldsArray.some(f => (f.key === 'schoolCode' || f.name === 'schoolCode' || f.key === 'principalName' || f.name === 'principalName' || f.key === 'totalStudents'));
-  }, [fieldsArray]);
-
   const isProjectReviewForm = useMemo(() => {
     return fieldsArray.some(f => (f.key === 'organizationName' || f.name === 'organizationName' || f.key === 'projectName' || f.key === 'projectReviewSection')) &&
       fieldsArray.some(f => (f.key === 'confirmed' || f.name === 'confirmed' || f.key === 'projectReviewed' || f.key === 'projectCreated' || f.key === 'leadSource' || f.key === 'expectedProjectValue' || f.key === 'pmReviewStatus'));
+  }, [fieldsArray]);
+
+  const isSchoolOnboardingForm = useMemo(() => {
+    return fieldsArray.some(f => (
+      f.key === 'schoolName' || 
+      f.name === 'schoolName' || 
+      f.key === 'multiSchoolSection' ||
+      f.type === 'multiSchoolSection'
+    )) && fieldsArray.some(f => (
+      f.key === 'schoolCategory' ||
+      f.key === 'addressContact' ||
+      f.key === 'principalName' || 
+      f.name === 'principalName' || 
+      f.key === 'schoolCode' || 
+      f.name === 'schoolCode' || 
+      f.key === 'totalStudents'
+    ));
+  }, [fieldsArray]);
+
+  const isPoUploadForm = useMemo(() => {
+    return fieldsArray.some(f => f.type === 'multiPoSection' || f.key === 'multiPoSection' || f.key === 'poNumber');
+  }, [fieldsArray]);
+
+  const isPiInvoiceUploadForm = useMemo(() => {
+    return fieldsArray.some(f => f.type === 'multiPiInvoiceSection' || f.key === 'multiPiInvoiceSection' || f.key === 'piNumber' || f.key === 'invoiceNumber');
   }, [fieldsArray]);
 
   if (fieldsArray.length === 0) {
@@ -132,7 +155,8 @@ export function DynamicFormRenderer({
     return (
       key === 'projectName' ||
       key === 'projectTitle' ||
-      type === 'textarea' ||
+      type === 'multiPoSection' ||
+      type === 'multiPiInvoiceSection' ||
       type === 'multiSchoolSection' ||
       type === 'multiSchoolInfo' ||
       type === 'solutionsConfig' ||
@@ -148,6 +172,9 @@ export function DynamicFormRenderer({
       type === 'appDownloadView' ||
       type === 'integrationTestingSection' ||
       type === 'testingResultsSection' ||
+      type === 'installationSection' ||
+      type === 'schoolInstallationSection' ||
+      type === 'installationConfigSection' ||
       type === 'radio' ||
       type === 'multiselect' ||
       type === 'file'
@@ -226,6 +253,30 @@ export function DynamicFormRenderer({
           }}
           disabled={disabled || submitting}
         />
+      ) : isPoUploadForm ? (
+        <MultiPoSection
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+          project={project}
+          allFormData={allFormData}
+        />
+      ) : isPiInvoiceUploadForm ? (
+        <MultiPiInvoiceSection
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+          project={project}
+          allFormData={allFormData}
+        />
       ) : (
         /* Grid of Dynamic Form Fields */
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -269,7 +320,31 @@ export function DynamicFormRenderer({
                 key={fieldKey}
                 className={`space-y-1 ${fullWidth ? 'sm:col-span-2' : ''}`}
               >
-                {field.type === 'multiSchoolSection' || field.type === 'multiSchoolInfo' ? (
+                {field.type === 'multiPoSection' ? (
+                  <MultiPoSection
+                    value={value || formData}
+                    onChange={(val) => {
+                      setFormData((prev) => ({ ...prev, ...val, [fieldKey]: val }));
+                      setSuccessMsg(null);
+                      setError(null);
+                    }}
+                    disabled={disabled || submitting}
+                    project={project}
+                    allFormData={allFormData}
+                  />
+                ) : field.type === 'multiPiInvoiceSection' ? (
+                  <MultiPiInvoiceSection
+                    value={value || formData}
+                    onChange={(val) => {
+                      setFormData((prev) => ({ ...prev, ...val, [fieldKey]: val }));
+                      setSuccessMsg(null);
+                      setError(null);
+                    }}
+                    disabled={disabled || submitting}
+                    project={project}
+                    allFormData={allFormData}
+                  />
+                ) : field.type === 'multiSchoolSection' || field.type === 'multiSchoolInfo' ? (
                   <MultiSchoolSection
                     value={value || formData}
                     onChange={(val) => {
@@ -288,6 +363,8 @@ export function DynamicFormRenderer({
                       value={value}
                       onChange={(val) => handleChange(fieldKey, val)}
                       disabled={disabled || submitting}
+                      schools={formData.schools || allFormData.schools || allFormData.orderRequirement?.schoolInformation?.schools || []}
+                      allFormData={allFormData}
                     />
                   </div>
                 ) : field.type === 'hardwareRequirementsInput' ? (
@@ -299,6 +376,8 @@ export function DynamicFormRenderer({
                       value={value}
                       onChange={(val) => handleChange(fieldKey, val)}
                       disabled={disabled || submitting}
+                      schools={formData.schools || allFormData.schools || allFormData.orderRequirement?.schoolInformation?.schools || []}
+                      allFormData={allFormData}
                     />
                   </div>
                 ) : field.type === 'hardwareStockCheck' ? (
@@ -356,6 +435,21 @@ export function DynamicFormRenderer({
                       onChange={(val) => handleChange(fieldKey, val)}
                       disabled={disabled || submitting}
                       employees={employees}
+                    />
+                  </div>
+                ) : field.type === 'installationSection' || field.type === 'schoolInstallationSection' || field.type === 'installationConfigSection' ? (
+                  <div>
+                    <InstallationSection
+                      value={value || formData}
+                      onChange={(val) => {
+                        setFormData((prev) => ({ ...prev, ...val, [fieldKey]: val }));
+                        setSuccessMsg(null);
+                        setError(null);
+                      }}
+                      disabled={disabled || submitting}
+                      employees={employees}
+                      allFormData={allFormData}
+                      project={project}
                     />
                   </div>
                 ) : field.type === 'select' ? (

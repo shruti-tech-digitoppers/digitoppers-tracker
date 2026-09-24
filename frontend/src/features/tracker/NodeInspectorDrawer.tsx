@@ -6,6 +6,7 @@ import { IUser } from '../../types/auth';
 import { IProject } from '../../types/project';
 import { DynamicFormRenderer } from '../../components/forms/DynamicFormRenderer';
 import { useClickOutside } from '../../hooks/useClickOutside';
+import { getStageTheme } from './utils/stageColorThemes';
 import {
   X,
   CheckCircle2,
@@ -77,12 +78,55 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
 
   if (!node) return null;
 
+  const stageTheme = getStageTheme(node.order || node.key);
   const empList = employees.length > 0 ? employees : availableEmployees;
   const isCurrentlyMutating = mutating || isMutating;
   const currentError = mutationError || error;
   const allowStatusEdit = canModifyStatus !== undefined ? canModifyStatus : (canEditStatus !== undefined ? canEditStatus : true);
   const allowAssignEdit = canModifyAssignment !== undefined ? canModifyAssignment : (canAssign !== undefined ? canAssign : true);
   const handleAssign = onAssignmentChange || onAssigneeChange || (async (employeeId: string, targetNodeId?: string) => { });
+
+  const nodeStatusMap = React.useMemo(() => {
+    const map = new Map<string, TimelineNodeStatus>();
+    const traverse = (list: ITimelineNode[]) => {
+      for (const item of list) {
+        if (item.key) map.set(item.key.toUpperCase(), item.status);
+        if (item.children) traverse(item.children);
+      }
+    };
+    traverse(allNodes);
+    return map;
+  }, [allNodes]);
+
+  const execKeys = [
+    'EXECUTION',
+    'HARDWARE_STREAM',
+    'TECH_STREAM',
+    'CONTENT_STREAM',
+    'REQ_AND_STOCK_CHECK',
+    'PURCHASE_IF_NEEDED',
+    'CONSIGNMENT_TRACKING',
+    'HARDWARE_READY',
+    'PROJECT_CONFIG_AND_IMPLEMENTATION',
+    'TECH_TESTING',
+    'CONTENT_CONFIGURATION',
+    'CONTENT_REVIEW_QA',
+    'SHEET_READINESS',
+    'DUMP_READINESS',
+    'CONTENT_READY'
+  ];
+  const isExecutionNode = node.key ? execKeys.includes(node.key.toUpperCase()) : false;
+  const orderReqStatus = nodeStatusMap.get('ORDER_REQUIREMENT');
+  const isExecutionLockedByOrderReq = isExecutionNode && orderReqStatus !== undefined && orderReqStatus !== 'COMPLETED';
+
+  const isGateLocked = isExecutionLockedByOrderReq || Boolean(
+    node.dependencies &&
+    node.dependencies.length > 0 &&
+    node.dependencies.some((depKey) => {
+      const depStatus = nodeStatusMap.get(depKey.toUpperCase());
+      return depStatus !== 'COMPLETED';
+    })
+  );
 
   const statusOptions: { value: TimelineNodeStatus; label: string; icon: any; activeClass: string; inactiveClass: string }[] = [
     {
@@ -132,11 +176,17 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
           ? node.assignedTo
           : '';
 
-  const currentAssigneeObj = typeof node.assignedEmployee === 'object' && node.assignedEmployee !== null
+  const currentAssigneeObj = typeof node.assignedEmployee === 'object' && node.assignedEmployee !== null && (node.assignedEmployee as any).name
     ? (node.assignedEmployee as any)
-    : typeof node.assignedTo === 'object' && node.assignedTo !== null
+    : typeof node.assignedTo === 'object' && node.assignedTo !== null && (node.assignedTo as any).name
       ? (node.assignedTo as any)
-      : empList.find(e => e._id === currentAssigneeId) || null;
+      : empList.find(e => 
+          e._id === currentAssigneeId || 
+          (e as any).id === currentAssigneeId || 
+          e.employeeCode === currentAssigneeId || 
+          e.phone === currentAssigneeId ||
+          (typeof node.assignedTo === 'object' && (node.assignedTo as any)?.email === e.email)
+        ) || null;
 
   // Extract stage 03 and stage 04 context for seamless cross-stage data flow
   const findNodeRecursive = (list: ITimelineNode[], targetKey: string): ITimelineNode | null => {
@@ -150,12 +200,25 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     return null;
   };
 
+  const stage3SchoolNode = findNodeRecursive(allNodes, 'SCHOOL_ONBOARDING_INFORMATION');
   const stage3HwNode = findNodeRecursive(allNodes, 'HARDWARE_REQUIREMENT');
   const stage4StockNode = findNodeRecursive(allNodes, 'REQ_AND_STOCK_CHECK');
   const stage4TechNode = findNodeRecursive(allNodes, 'PROJECT_CONFIG_AND_IMPLEMENTATION');
 
   const combinedAllFormData: Record<string, any> = {
     ...(formData || {}),
+    stage3Schools: stage3SchoolNode?.formData?.schools || (stage3SchoolNode?.formData?.schoolName ? [{
+      schoolName: stage3SchoolNode.formData.schoolName,
+      schoolCode: stage3SchoolNode.formData.schoolCode || '',
+      address: stage3SchoolNode.formData.address || '',
+      principalName: stage3SchoolNode.formData.principalName || '',
+      contactPerson: stage3SchoolNode.formData.contactPerson || '',
+      phone: stage3SchoolNode.formData.phone || '',
+      email: stage3SchoolNode.formData.email || ''
+    }] : []),
+    stage3HardwareData: stage3HwNode?.formData || {},
+    stage3HardwareKeys: stage3HwNode?.formData?.activeHardwareKeys || stage3HwNode?.formData?.hardwareRequirements?.activeHardwareKeys || [],
+    stage3SchoolWiseHardware: stage3HwNode?.formData?.schoolWiseHardware || stage3HwNode?.formData?.hardwareRequirements?.schoolWiseHardware || {},
     stage3HardwareItems: stage3HwNode?.formData?.hardwareRequirements?.items || stage3HwNode?.formData?.hardware?.items || stage3HwNode?.formData?.items || {},
     stage4StockItems: stage4StockNode?.formData?.stockCheck?.items || stage4StockNode?.formData?.items || {},
     techApkFileUrl: stage4TechNode?.formData?.apkFileUrl || stage4TechNode?.formData?.appFileUrl || stage4TechNode?.formData?.fileUrl || '',
@@ -173,41 +236,96 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
       {/* Center Floating Modal Container */}
       <div ref={modalRef} className="relative w-full max-w-4xl lg:max-w-5xl xl:max-w-6xl max-h-[92vh] bg-white border border-[#b9c0cb]/40 shadow-2xl rounded-3xl flex flex-col z-10 text-[#333333] animate-in zoom-in-95 fade-in duration-200 overflow-hidden">
 
-        {/* Modal Header */}
-        <div className="px-6 py-4 border-b border-[#f1f3f6] bg-gradient-to-r from-[#f8fafb] to-white flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-[#f0f8f9] border border-[#b6e0e4] flex items-center justify-center text-[#51a8b1] shadow-2xs">
+        {/* Modal Header with Integrated Execution Status on the Right and Stage Theme Color */}
+        <div className={`px-6 py-4 border-b border-[#f1f3f6] bg-gradient-to-r ${stageTheme.drawerHeaderGradient} flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0`}>
+          {/* Left: Stage/Task Info with prominent Project Headline */}
+          <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+            <div className={`w-10 h-10 rounded-2xl bg-gradient-to-br ${stageTheme.drawerIconBg} text-white flex items-center justify-center shadow-xs shrink-0 mt-0.5 sm:mt-0`}>
               <Layers className="w-5 h-5" />
             </div>
-            <div>
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="px-2 py-0.5 rounded-md bg-[#2f4154] text-white font-mono text-[10.5px] font-bold">
+            <div className="min-w-0 space-y-0.5">
+              {/* Project Headline */}
+              {project && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-[11px] font-mono font-bold px-2 py-0.5 rounded-md bg-[#2f4154] text-white shadow-2xs">
+                    {project.projectId || 'PROJECT'}
+                  </span>
+                  <span className="text-xs sm:text-sm font-bold text-[#1f2937] tracking-tight truncate max-w-[420px]">
+                    {project.projectName || project.title || 'DigiToppers Project'}
+                  </span>
+                </div>
+              )}
+              {/* Stage Title with Stage Color Family Badges */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${stageTheme.drawerBadgeBg} ${stageTheme.drawerBadgeText} ${stageTheme.drawerBadgeBorder}`}>
                   {node.key}
                 </span>
-                <span className="text-xs font-semibold text-[#51a8b1] uppercase tracking-wider font-heading">
-                  {node.type || 'TASK'}
-                </span>
-                {project && (
-                  <span className="text-xs font-bold text-[#3a7d84] flex items-center gap-1 bg-[#51a8b1]/10 px-2.5 py-0.5 rounded-md border border-[#51a8b1]/20 max-w-[400px] truncate" title={project.title || (project as any).projectName}>
-                    <Building2 className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
-                    <span className="truncate">
-                      {project.projectId ? `${project.projectId} — ` : ''}{project.projectName || project.title}
-                    </span>
-                  </span>
-                )}
+                <h3 className="font-heading font-extrabold text-base sm:text-lg text-[#1f2937] leading-tight truncate">
+                  {node.name}
+                </h3>
               </div>
-              <h3 className="font-heading font-bold text-base sm:text-lg text-[#333333] leading-snug mt-0.5">
-                {node.name}
-              </h3>
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-[#4a5462] hover:text-[#333333] hover:bg-[#f1f3f6] border border-transparent hover:border-[#b9c0cb]/40 transition cursor-pointer"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {/* Right: Compact Status Selector + Assignee + Close Button */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end shrink-0">
+            {/* Status Segmented Buttons */}
+            <div className="flex items-center gap-1 p-1 bg-white border border-[#b9c0cb]/40 rounded-xl shadow-2xs">
+              {statusOptions.map((opt) => {
+                const Icon = opt.icon;
+                const isSelected = node.status === opt.value;
+                return (
+                  <button
+                    key={opt.value}
+                    disabled={isCurrentlyMutating || !allowStatusEdit}
+                    onClick={() => onStatusChange(opt.value)}
+                    title={`Set status to ${opt.label}`}
+                    className={`inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer select-none border ${
+                      isSelected ? opt.activeClass : opt.inactiveClass
+                    } ${!allowStatusEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    <Icon className="w-3 h-3 flex-shrink-0" />
+                    <span>{opt.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Task Assignee Selector if applicable */}
+            <div className="hidden lg:flex items-center gap-1.5 shrink-0">
+                {allowAssignEdit ? (
+                  <select
+                    disabled={isCurrentlyMutating}
+                    value={currentAssigneeId}
+                    onChange={(e) => handleAssign(e.target.value)}
+                    className="border border-[#b9c0cb]/60 rounded-xl px-2.5 py-1 text-xs bg-white text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer font-medium max-w-[160px] truncate shadow-2xs"
+                  >
+                    <option value="">Unassigned</option>
+                    {empList.map((emp) => (
+                      <option key={emp._id} value={emp._id}>
+                        {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''}
+                      </option>
+                    ))}
+                  </select>
+                ) : (
+                  currentAssigneeObj && (
+                    <div className="border border-[#b9c0cb]/40 rounded-xl px-2.5 py-1 text-xs bg-white text-[#333333] flex items-center gap-1 font-medium shadow-2xs truncate max-w-[160px]" title={`Assigned to: ${currentAssigneeObj.name}`}>
+                      <User className="w-3 h-3 text-[#51a8b1] shrink-0" />
+                      <span className="truncate text-[10.5px] font-bold text-[#3a7d84]">{currentAssigneeObj.name}</span>
+                    </div>
+                  )
+                )}
+              </div>
+
+            {/* Close Modal Button */}
+            <button
+              onClick={onClose}
+              className="w-9 h-9 rounded-xl flex items-center justify-center text-[#4a5462] hover:text-[#333333] hover:bg-[#f1f3f6] border border-transparent hover:border-[#b9c0cb]/40 transition cursor-pointer shrink-0 ml-1"
+              title="Close modal"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Modal Body Content */}
@@ -224,103 +342,19 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
           )}
 
           {/* Dependencies / Gate Check Warning */}
-          {node.dependencies && node.dependencies.length > 0 && (
-            <div className="p-3.5 bg-[#f0f8f9] border border-[#b6e0e4] rounded-2xl flex items-start gap-3 text-[#3a7d84] text-xs">
-              <Lock className="w-4 h-4 flex-shrink-0 mt-0.5 text-[#51a8b1]" />
+          {isGateLocked && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-3 text-amber-800 text-xs">
+              <Lock className="w-4 h-4 flex-shrink-0 mt-0.5 text-amber-600" />
               <div>
-                <p className="font-bold font-heading">Stage Gate Dependencies</p>
-                <p className="text-[11px] text-[#4a5462] mt-0.5">
-                  Requires completion of: {node.dependencies.join(', ')}
+                <p className="font-bold font-heading">Stage Gate Notice</p>
+                <p className="text-[11px] text-amber-700 mt-0.5">
+                  {isExecutionLockedByOrderReq
+                    ? 'Awaiting completion of Stage 03 (Order Requirement). Stage 04 Execution Phase will automatically start once Order Requirement is completed.'
+                    : `Requires completion of: ${node.dependencies?.join(', ')}`}
                 </p>
               </div>
             </div>
           )}
-
-          {/* Top Bar: Execution Status & Task Assignee */}
-          {(() => {
-            const showAssignment = !node.metadata?.noAssignment || node.key === 'PO_AND_PI';
-
-            return (
-              <div className={`p-4 bg-[#f8fafb] border border-[#b9c0cb]/40 rounded-2xl ${showAssignment ? 'grid grid-cols-1 md:grid-cols-2 gap-4' : ''
-                }`}>
-                {/* Status Segmented Controller */}
-                <div className="space-y-1.5">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] font-heading">
-                      Execution Status
-                    </label>
-                    {!allowStatusEdit && (
-                      <span className="text-[10px] text-[#4a5462] flex items-center gap-1 font-medium">
-                        <ShieldAlert className="w-3 h-3 text-amber-500" /> Read Only
-                      </span>
-                    )}
-                  </div>
-
-                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1 p-1 bg-white border border-[#b9c0cb]/40 rounded-xl">
-                    {statusOptions.map((opt) => {
-                      const Icon = opt.icon;
-                      const isSelected = node.status === opt.value;
-                      return (
-                        <button
-                          key={opt.value}
-                          disabled={isCurrentlyMutating || !allowStatusEdit}
-                          onClick={() => onStatusChange(opt.value)}
-                          className={`flex items-center justify-center gap-1 py-1.5 px-1.5 rounded-lg text-[11px] transition-all cursor-pointer select-none border ${isSelected ? opt.activeClass : opt.inactiveClass
-                            } ${!allowStatusEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
-                        >
-                          <Icon className="w-3 h-3 flex-shrink-0" />
-                          <span className="truncate">{opt.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Resource Assignment if applicable */}
-                {showAssignment && (
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
-                        <User className="w-3.5 h-3.5 text-[#a8cf45]" />
-                        {node.type === 'STAGE' || (node as any).isBranch ? 'Stage Assignee' : 'Task Assignee'}
-                      </label>
-                      <span className="text-[10px] text-[#4a5462]">
-                        {allowAssignEdit ? (node.key === 'PO_AND_PI' ? 'Applies to PO & PI' : 'Assigned Member') : 'Assignment Status'}
-                      </span>
-                    </div>
-
-                    {allowAssignEdit ? (
-                      <select
-                        disabled={isCurrentlyMutating}
-                        value={currentAssigneeId}
-                        onChange={(e) => handleAssign(e.target.value)}
-                        className="w-full border border-[#b9c0cb]/60 rounded-xl px-3 py-2 text-xs bg-white text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer font-medium"
-                      >
-                        <option value="">Unassigned (Select Member)</option>
-                        {empList.map((emp) => (
-                          <option key={emp._id} value={emp._id}>
-                            {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({emp.email})
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <div className="w-full border border-[#b9c0cb]/40 rounded-xl px-3 py-2 text-xs bg-[#f8fafb] text-[#333333] flex items-center justify-between font-medium">
-                        <span className="flex items-center gap-2">
-                          <User className={`w-3.5 h-3.5 ${currentAssigneeObj ? 'text-[#3a7d84]' : 'text-[#94a3b8]'}`} />
-                          {currentAssigneeObj ? (
-                            <span>Assigned to: <strong className="text-[#3a7d84] font-bold">{currentAssigneeObj.name}</strong> {currentAssigneeObj.employeeCode ? `[${currentAssigneeObj.employeeCode}]` : ''}</span>
-                          ) : (
-                            <span className="text-[#94a3b8]">Unassigned</span>
-                          )}
-                        </span>
-                        <span className="text-[10px] text-[#94a3b8] italic">Read-only</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })()}
 
           {/* Sub-Tasks & Stages Assignment Section */}
           {(() => {
@@ -345,8 +379,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             return (
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
-                    <Layers className="w-3.5 h-3.5 text-[#51a8b1]" />
+                  <label className={`text-xs font-bold uppercase tracking-wider ${stageTheme.badgeText} flex items-center gap-1.5 font-heading`}>
+                    <Layers className="w-3.5 h-3.5 opacity-80" />
                     Sub-Stages / Tasks &amp; Assigned Employees ({subTasksList.length})
                   </label>
                   <span className="text-[10px] text-[#4a5462] font-medium">
@@ -373,15 +407,15 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                     return (
                       <div
                         key={child._id || `subtask-${index}`}
-                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white border border-[#b9c0cb]/50 hover:border-[#51a8b1]/60 rounded-2xl shadow-2xs transition-all"
+                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white border ${stageTheme.taskCardBorder} rounded-2xl shadow-2xs transition-all`}
                       >
                         <div className="flex items-start gap-2.5 min-w-0">
-                          <span className="flex items-center justify-center w-5 h-5 rounded-lg bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] text-[10px] font-mono font-bold shrink-0 mt-0.5">
+                          <span className={`flex items-center justify-center w-5 h-5 rounded-lg text-[10px] font-mono font-bold shrink-0 mt-0.5 border ${stageTheme.numberBg} ${stageTheme.numberText} ${stageTheme.numberBorder}`}>
                             {index + 1}
                           </span>
                           <div className="flex flex-col min-w-0">
                             <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-bold text-[#333333] truncate">
+                              <span className="text-xs font-bold text-[#1f2937] truncate">
                                 {child.name}
                               </span>
                               <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${childStatus === 'COMPLETED'
@@ -393,7 +427,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                                 {childStatus}
                               </span>
                             </div>
-                            <span className="text-[10px] font-mono text-[#51a8b1] tracking-wider mt-0.5">
+                            <span className={`text-[10px] font-mono ${stageTheme.badgeText} tracking-wider mt-0.5`}>
                               {child.key || 'TASK'}
                             </span>
                           </div>

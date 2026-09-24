@@ -97,9 +97,15 @@ export function EmployeesTable({
                         <p className="font-bold text-[#333333] text-xs leading-tight">
                           {emp.name}
                         </p>
-                        <p className="text-[10px] text-[#4a5462] leading-tight">
-                          ID: {emp._id.substring(emp._id.length - 6)}
-                        </p>
+                        {emp.designation ? (
+                          <p className="text-[10.5px] font-semibold text-[#51a8b1] leading-tight">
+                            {emp.designation}
+                          </p>
+                        ) : (
+                          <p className="text-[10px] text-[#4a5462] leading-tight">
+                            ID: {emp._id.substring(emp._id.length - 6)}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </td>

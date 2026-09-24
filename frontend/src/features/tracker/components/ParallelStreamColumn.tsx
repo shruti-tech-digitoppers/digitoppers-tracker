@@ -3,7 +3,7 @@
 import React from 'react';
 import { ITimelineNode } from '../../../types/timeline';
 import { MindmapNode } from '../MindmapNode';
-
+import { getStreamTheme } from '../utils/stageColorThemes';
 import { IUser } from '../../../types/auth';
 
 interface ParallelStreamColumnProps {
@@ -36,6 +36,7 @@ export function ParallelStreamColumn({
   if (!streamNode) return null;
   const isExpanded = isNodeExpanded(streamNode._id);
   const subtasks = (streamNode.children || []).filter(matchesFilter);
+  const streamTheme = getStreamTheme(streamType);
 
   return (
     <div className="flex flex-col items-center">
@@ -43,6 +44,7 @@ export function ParallelStreamColumn({
       <MindmapNode
         node={streamNode}
         level={1}
+        stageIndex={4}
         streamType={streamType}
         isSelected={selectedNodeId === streamNode._id}
         isExpanded={isExpanded}
@@ -58,21 +60,24 @@ export function ParallelStreamColumn({
       {isExpanded && subtasks.length > 0 && (
         <div className="flex flex-col items-center mt-1 animate-in fade-in slide-in-from-top-2 duration-200">
           {/* Vertical connector stem */}
-          <div className="w-0.5 h-2.5 bg-[#51a8b1]/70 rounded-full" />
+          <div className={`w-0.5 h-2.5 rounded-full ${streamTheme.lineBg}`} />
 
-          {/* Subtasks list */}
-          <div className="flex flex-col gap-1.5 p-1.5 rounded-xl bg-[#f8fafb] border border-[#b9c0cb]/40 shadow-2xs">
+          {/* Subtasks list with distinct stream light theme */}
+          <div className={`flex flex-col gap-1.5 p-2 rounded-2xl border shadow-2xs ${streamTheme.containerBg} ${streamTheme.containerBorder}`}>
             {subtasks.map((task, tIdx) => (
               <div key={task._id} className="relative flex items-start gap-1">
                 <div className="flex flex-col items-center pt-2">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#b9c0cb]" />
+                  <span className={`w-1.5 h-1.5 rounded-full ${streamTheme.dotBg}`} />
                   {tIdx < subtasks.length - 1 && (
-                    <div className="w-0.5 h-full bg-[#b9c0cb]/30 my-0.5" />
+                    <div className={`w-0.5 h-full my-0.5 ${streamTheme.lineBg}`} />
                   )}
                 </div>
                 <MindmapNode
                   node={task}
                   level={2}
+                  stageIndex={4}
+                  streamType={streamType}
+                  orderNumber={tIdx + 1}
                   isSelected={selectedNodeId === task._id}
                   onSelect={onSelectNode}
                   isGateLocked={isGateLocked(task)}

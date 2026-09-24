@@ -3,7 +3,7 @@
 import React from 'react';
 import { usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Search, LogIn, LogOut, LayoutDashboard, X } from 'lucide-react';
+import { Search, LogIn, LogOut, LayoutDashboard, X, Menu } from 'lucide-react';
 import { IUser } from '../../types/auth';
 import { INotificationItem } from '../../lib/api/notifications.api';
 import { NotificationDropdown } from './NotificationDropdown';
@@ -19,6 +19,8 @@ interface AppHeaderProps {
   onSelectNotification?: (item: INotificationItem) => void;
   searchQuery?: string;
   onSearchChange?: (val: string) => void;
+  collapsed?: boolean;
+  onToggleSidebar?: () => void;
 }
 
 export function AppHeader({
@@ -31,6 +33,8 @@ export function AppHeader({
   onSelectNotification,
   searchQuery: propSearchQuery,
   onSearchChange: propOnSearchChange,
+  collapsed,
+  onToggleSidebar,
 }: AppHeaderProps) {
   const pathname = usePathname();
   const searchCtx = useSearch();
@@ -40,15 +44,22 @@ export function AppHeader({
   const setQuery = propOnSearchChange || searchCtx.setSearchQuery;
   const clearQuery = searchCtx.clearSearch || (() => setQuery(''));
 
-  const formattedDate = new Intl.DateTimeFormat('en-US', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-  }).format(new Date());
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const formattedDate = mounted
+    ? new Intl.DateTimeFormat('en-US', {
+        weekday: 'long',
+        year: 'numeric',
+        month: 'long',
+        day: 'numeric',
+      }).format(new Date())
+    : '';
 
   const getPageTitle = () => {
-    if (pathname.startsWith('/dashboard') || pathname === '/') return 'Executive Dashboard';
+    if (pathname.startsWith('/dashboard') || pathname === '/') return 'Dashboard';
     if (pathname.startsWith('/projects')) return 'Projects';
     if (pathname.startsWith('/tracker')) return 'Execution Tracker';
     if (pathname.startsWith('/employees')) return 'Employees';
@@ -63,23 +74,30 @@ export function AppHeader({
   };
 
   return (
-    <header className="mx-3 sm:mx-4 md:mx-6 mt-3 sm:mt-4 h-16 bg-white border border-slate-200 rounded-none sticky top-3 sm:top-4 z-20 px-4 sm:px-6 flex items-center justify-between gap-4 shadow-md shadow-slate-200/60 font-sans">
-      {/* Left: Page Title / Logo Breadcrumb */}
+    <header className="w-full h-16 bg-white border-b border-slate-200/90 sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between gap-4 shadow-2xs font-sans">
+      {/* Left: 3-line Menu Hamburger Toggle & Page Title */}
       <div className="flex items-center gap-3">
-        {!currentUser && (
+        {onToggleSidebar && (
+          <button
+            type="button"
+            onClick={onToggleSidebar}
+            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:text-[#2d6b73] hover:bg-[#f0f8f9] border border-slate-200 hover:border-[#b6e0e4] transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+            title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+          >
+            <Menu className="w-5 h-5 stroke-[2.2]" />
+          </button>
+        )}
+
+        {!currentUser && !onToggleSidebar && (
           <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#3a7d84] to-[#51a8b1] flex items-center justify-center text-white shadow-xs">
             <LayoutDashboard className="w-4 h-4" />
           </div>
         )}
+
         <div>
-          <h1 className="font-heading text-lg font-bold text-[#3a7d84] tracking-tight">
+          <h1 className="font-heading text-xl sm:text-2xl font-bold text-[#2d6b73] tracking-tight">
             {!currentUser ? 'DigiToppers Project Tracker' : getPageTitle()}
           </h1>
-          {!currentUser && (
-            <p className="text-[10.5px] text-[#556987] font-medium hidden sm:block">
-              Public Live Overview
-            </p>
-          )}
         </div>
       </div>
 
@@ -108,7 +126,7 @@ export function AppHeader({
         </div>
 
         {/* Date Display */}
-        <span className="hidden lg:inline text-xs text-[#4a5462] font-medium whitespace-nowrap">
+        <span suppressHydrationWarning className="hidden lg:inline text-xs text-[#4a5462] font-medium whitespace-nowrap">
           {formattedDate}
         </span>
 

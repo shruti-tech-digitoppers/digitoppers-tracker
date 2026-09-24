@@ -25,21 +25,24 @@ class EmployeeController {
 
   async update(req, res, next) {
     try {
-      const employee = await employeeService.updateEmployee(req.params.id, req.body);
+      const actorId = req.employee?._id || req.user?._id;
+      const employee = await employeeService.updateEmployee(req.params.id, req.body, actorId);
       res.status(200).json({ success: true, data: employee, message: 'Employee updated successfully' });
     } catch (err) { next(err); }
   }
 
   async updateStatus(req, res, next) {
     try {
-      const employee = await employeeService.updateStatus(req.params.id, req.body.isActive);
+      const actorId = req.employee?._id || req.user?._id;
+      const employee = await employeeService.updateStatus(req.params.id, req.body.isActive, actorId);
       res.status(200).json({ success: true, data: employee, message: 'Employee status updated successfully' });
     } catch (err) { next(err); }
   }
 
   async delete(req, res, next) {
     try {
-      const result = await employeeService.deleteEmployee(req.params.id);
+      const actorId = req.employee?._id || req.user?._id;
+      const result = await employeeService.deleteEmployee(req.params.id, actorId);
       res.status(200).json({ success: true, message: result.message });
     } catch (err) { next(err); }
   }

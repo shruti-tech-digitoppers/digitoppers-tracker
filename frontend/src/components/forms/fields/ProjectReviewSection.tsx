@@ -40,17 +40,17 @@ export function ProjectReviewSection({
 }: ProjectReviewSectionProps) {
   const [submittingAction, setSubmittingAction] = useState<string | null>(null);
 
-  // Derive initial values from project if not in value
-  const initialProjectName = value.projectName || project?.title || (project as any)?.projectName || value.organizationName || '';
-  const initialEmail = value.email !== undefined ? value.email : ((project as any)?.email || '');
-  const initialPhone = value.phone !== undefined ? value.phone : ((project as any)?.phone || '');
-  const initialCountry = value.country !== undefined ? value.country : ((project as any)?.countryName || (project as any)?.country || 'India');
-  const initialAddress = value.address !== undefined ? value.address : ((project as any)?.address || value.location || '');
+  // Derive initial values from value or project
+  const initialProjectName = value.projectName || value.organizationName || (project as any)?.projectName || project?.title || (project as any)?.organization || '';
+  const initialEmail = (value.email !== undefined && value.email !== '') ? value.email : ((project as any)?.email || '');
+  const initialPhone = (value.phone !== undefined && value.phone !== '') ? value.phone : ((project as any)?.phone || '');
+  const initialCountry = (value.country !== undefined && value.country !== '') ? value.country : ((project as any)?.countryName || (project as any)?.country || 'India');
+  const initialAddress = (value.address !== undefined && value.address !== '') ? value.address : (value.location || (project as any)?.address || '');
   const pmName = project?.projectManager && typeof project.projectManager === 'object'
     ? (project.projectManager as any).name || (project.projectManager as any).email
     : (project?.projectManager || currentUser?.name || value.reviewedBy || 'Project Manager');
 
-  // Sync initial values on mount
+  // Sync initial values on mount or when project loads
   useEffect(() => {
     const updates: Record<string, any> = {};
     let hasUpdates = false;
@@ -85,7 +85,7 @@ export function ProjectReviewSection({
     if (hasUpdates) {
       onChange({ ...value, ...updates });
     }
-  }, [project, currentUser]);
+  }, [project, initialProjectName, initialEmail, initialPhone, initialCountry, initialAddress]);
 
   const handleInputChange = (field: string, val: string) => {
     const updates: Record<string, any> = { [field]: val };
@@ -236,7 +236,7 @@ export function ProjectReviewSection({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-          {/* 1. Project Name */}
+          {/* 1. Project Name (Non-Editable) */}
           <div className="sm:col-span-2 md:col-span-3">
             <label className="block text-xs font-bold text-[#374151] mb-1">
               Project Name <span className="text-rose-500">*</span>
@@ -244,33 +244,33 @@ export function ProjectReviewSection({
             <div className="relative">
               <input
                 type="text"
-                disabled={disabled}
-                value={value.projectName !== undefined ? value.projectName : initialProjectName}
-                onChange={(e) => handleInputChange('projectName', e.target.value)}
-                placeholder="Enter Project Name..."
-                className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#51a8b1] bg-white text-[#1f2937]"
+                readOnly
+                disabled
+                value={value.projectName || value.organizationName || initialProjectName || 'N/A'}
+                placeholder="Project Name..."
+                className="w-full text-xs font-bold px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50/90 text-[#1f2937] cursor-not-allowed shadow-2xs select-text"
               />
             </div>
           </div>
 
-          {/* 2. Email Address */}
+          {/* 2. Email Address (Non-Editable) */}
           <div>
             <label className="block text-xs font-bold text-[#374151] mb-1">
               Email Address
             </label>
             <div className="relative">
               <input
-                type="email"
-                disabled={disabled}
-                value={value.email !== undefined ? value.email : initialEmail}
-                onChange={(e) => handleInputChange('email', e.target.value)}
-                placeholder="Enter email address..."
-                className="w-full text-xs px-3 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#51a8b1] bg-white text-[#1f2937]"
+                type="text"
+                readOnly
+                disabled
+                value={value.email || initialEmail || 'N/A'}
+                placeholder="Email address..."
+                className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50/90 text-[#1f2937] cursor-not-allowed shadow-2xs select-text"
               />
             </div>
           </div>
 
-          {/* 3. Country */}
+          {/* 3. Country (Non-Editable) */}
           <div>
             <label className="block text-xs font-bold text-[#374151] mb-1">
               Country
@@ -278,16 +278,16 @@ export function ProjectReviewSection({
             <div className="relative">
               <input
                 type="text"
-                disabled={disabled}
-                value={value.country !== undefined ? value.country : initialCountry}
-                onChange={(e) => handleInputChange('country', e.target.value)}
-                placeholder="e.g. India"
-                className="w-full text-xs px-3 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#51a8b1] bg-white text-[#1f2937]"
+                readOnly
+                disabled
+                value={value.country || initialCountry || 'India'}
+                placeholder="Country..."
+                className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50/90 text-[#1f2937] cursor-not-allowed shadow-2xs select-text"
               />
             </div>
           </div>
 
-          {/* 4. Phone Number */}
+          {/* 4. Phone Number (Non-Editable) */}
           <div>
             <label className="block text-xs font-bold text-[#374151] mb-1">
               Phone Number
@@ -295,27 +295,27 @@ export function ProjectReviewSection({
             <div className="relative">
               <input
                 type="text"
-                disabled={disabled}
-                value={value.phone !== undefined ? value.phone : initialPhone}
-                onChange={(e) => handleInputChange('phone', e.target.value)}
-                placeholder="Enter phone number..."
-                className="w-full text-xs px-3 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#51a8b1] bg-white text-[#1f2937]"
+                readOnly
+                disabled
+                value={value.phone || initialPhone || 'N/A'}
+                placeholder="Phone number..."
+                className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50/90 text-[#1f2937] cursor-not-allowed shadow-2xs select-text"
               />
             </div>
           </div>
 
-          {/* 5. Address */}
+          {/* 5. Address (Non-Editable) */}
           <div className="sm:col-span-2 md:col-span-3">
             <label className="block text-xs font-bold text-[#374151] mb-1">
               Address / Deployment Location
             </label>
             <input
               type="text"
-              disabled={disabled}
-              value={value.address !== undefined ? value.address : initialAddress}
-              onChange={(e) => handleInputChange('address', e.target.value)}
-              placeholder="Enter site / deployment address..."
-              className="w-full text-xs px-3 py-2.5 rounded-xl border border-gray-300 focus:outline-none focus:ring-2 focus:ring-[#51a8b1] bg-white text-[#1f2937]"
+              readOnly
+              disabled
+              value={value.address || value.location || initialAddress || 'N/A'}
+              placeholder="Site / deployment address..."
+              className="w-full text-xs font-semibold px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50/90 text-[#1f2937] cursor-not-allowed shadow-2xs select-text"
             />
           </div>
         </div>

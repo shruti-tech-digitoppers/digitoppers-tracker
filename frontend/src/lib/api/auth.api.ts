@@ -22,6 +22,9 @@ function formatUser(rawEmp: any, fallbackEmail = ''): IUser {
     role,
     globalRole: role,
     employeeCode: rawEmp.employeeCode || '',
+    designation: rawEmp.designation || '',
+    phone: rawEmp.phone || '',
+    reportingManager: rawEmp.reportingManager || '',
     isActive: rawEmp.isActive !== undefined ? rawEmp.isActive : true,
     canRequestNewProject: canRequest,
     permissions: {

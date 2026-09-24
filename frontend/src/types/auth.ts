@@ -8,6 +8,9 @@ export interface IUser {
   role: GlobalRole;
   globalRole?: GlobalRole;
   employeeCode?: string;
+  designation?: string;
+  phone?: string;
+  reportingManager?: string;
   isActive: boolean;
   canRequestNewProject?: boolean;
   permissions?: {

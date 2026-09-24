@@ -12,7 +12,8 @@ interface DashboardRoadmapListProps {
   projects: IProject[];
   loading: boolean;
   error: string | null;
-  statusFilter: StatusFilter;
+  statusFilter?: StatusFilter;
+  scopeFilter?: 'ALL' | 'ME';
   expandedMap: Record<string, boolean>;
   onToggleProject: (id: string) => void;
   onRetry: () => void;
@@ -26,7 +27,8 @@ export function DashboardRoadmapList({
   projects,
   loading,
   error,
-  statusFilter,
+  statusFilter = 'ALL',
+  scopeFilter = 'ALL',
   expandedMap,
   onToggleProject,
   onRetry,
@@ -88,9 +90,13 @@ export function DashboardRoadmapList({
         ) : (
           <>
             <Boxes className="w-10 h-10 text-[#b9c0cb] mx-auto" />
-            <h3 className="font-heading text-sm font-bold text-[#333333]">No projects found</h3>
-            <p className="text-xs text-[#4a5462]">
-              {statusFilter !== 'ALL'
+            <h3 className="font-heading text-sm font-bold text-[#333333]">
+              {scopeFilter === 'ME' ? 'No projects assigned to you' : 'No projects found'}
+            </h3>
+            <p className="text-xs text-[#4a5462] max-w-md mx-auto">
+              {scopeFilter === 'ME'
+                ? 'You do not have any projects assigned as Project Manager, Reviewer, or Contributor.'
+                : statusFilter && statusFilter !== 'ALL'
                 ? `No projects currently match the "${statusFilter}" status filter.`
                 : 'No projects exist in the system yet.'}
             </p>

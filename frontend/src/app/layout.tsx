@@ -4,13 +4,20 @@ import AppLayout from "@/components/shell/AppLayout";
 
 export const metadata: Metadata = {
   title: "DigiToppers Project Tracker",
-  description: "Enterprise Project Control Center"
+  description: "Enterprise Project Control Center",
+  icons: {
+    icon: "/digitoppers-icon.png",
+    shortcut: "/digitoppers-icon.png",
+    apple: "/digitoppers-icon.png",
+  },
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <head>
+        <link rel="icon" href="/digitoppers-icon.png" sizes="any" />
+        <link rel="apple-touch-icon" href="/digitoppers-icon.png" />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link
@@ -18,7 +25,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
           rel="stylesheet"
         />
       </head>
-      <body><AppLayout>{children}</AppLayout></body>
+      <body suppressHydrationWarning><AppLayout>{children}</AppLayout></body>
     </html>
   );
 }

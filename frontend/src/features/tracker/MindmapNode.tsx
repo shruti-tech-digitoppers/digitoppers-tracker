@@ -3,6 +3,7 @@
 import React from 'react';
 import { ITimelineNode, TimelineNodeStatus } from '../../types/timeline';
 import { IUser } from '../../types/auth';
+import { getStageTheme, getStreamTheme, StageColorTheme } from './utils/stageColorThemes';
 import { 
   CheckCircle2, 
   Clock, 
@@ -25,6 +26,7 @@ import {
 interface MindmapNodeProps {
   node: ITimelineNode;
   level?: number;
+  stageIndex?: number;
   isSelected?: boolean;
   isExpanded?: boolean;
   onSelect?: (node: ITimelineNode) => void;
@@ -44,6 +46,7 @@ interface MindmapNodeProps {
 export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
   node,
   level = 0,
+  stageIndex,
   isSelected = false,
   isExpanded = true,
   onSelect,
@@ -61,6 +64,9 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
   const totalChildren = node.children?.length || 0;
   const completedChildren = node.children?.filter(c => c.status === 'COMPLETED').length || 0;
   const childrenProgress = totalChildren > 0 ? Math.round((completedChildren / totalChildren) * 100) : 0;
+
+  const stageTheme = getStageTheme(stageIndex || orderNumber || node.order || node.key);
+  const streamTheme = streamType ? getStreamTheme(streamType) : null;
 
   const getStatusConfig = (status: TimelineNodeStatus) => {
     switch (status) {
@@ -126,24 +132,24 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
     switch (type) {
       case 'HARDWARE':
         return {
-          icon: <Cpu className="w-3.5 h-3.5 text-[#51a8b1]" />,
+          icon: <Cpu className="w-3.5 h-3.5 text-cyan-600" />,
           label: 'Hardware Stream',
-          badgeCls: 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4]',
-          accent: '#51a8b1'
+          badgeCls: 'bg-cyan-50 text-cyan-900 border-cyan-200/90',
+          accent: 'bg-cyan-500'
         };
       case 'TECH':
         return {
-          icon: <Code2 className="w-3.5 h-3.5 text-[#3a7d84]" />,
+          icon: <Code2 className="w-3.5 h-3.5 text-indigo-600" />,
           label: 'Tech Stream',
-          badgeCls: 'bg-[#f0f8f9] text-[#3a7d84] border-[#84ccd3]',
-          accent: '#3a7d84'
+          badgeCls: 'bg-indigo-50 text-indigo-900 border-indigo-200/90',
+          accent: 'bg-indigo-500'
         };
       case 'CONTENT':
         return {
-          icon: <BookOpen className="w-3.5 h-3.5 text-[#759724]" />,
+          icon: <BookOpen className="w-3.5 h-3.5 text-amber-700" />,
           label: 'Content Stream',
-          badgeCls: 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6]',
-          accent: '#a8cf45'
+          badgeCls: 'bg-amber-50 text-amber-900 border-amber-200/90',
+          accent: 'bg-amber-500'
         };
       default:
         return null;
@@ -167,17 +173,42 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
     (typeof node.assignedEmployee === 'string' ? node.assignedEmployee : '') ||
     (typeof node.assignedTo === 'string' ? node.assignedTo : '');
 
+  const matchedEmp = employees && employees.length > 0
+    ? employees.find(
+        (e) =>
+          (currentAssigneeId && (
+            e._id === currentAssigneeId ||
+            (e as any).id === currentAssigneeId ||
+            e.employeeCode === currentAssigneeId ||
+            e.phone === currentAssigneeId
+          )) ||
+          (assigneeObj?.email && e.email === assigneeObj.email) ||
+          (assigneeObj?.phone && e.phone === assigneeObj.phone)
+      )
+    : null;
+
   const currentAssigneeName =
     assigneeObj?.name ||
-    (currentAssigneeId && employees && employees.length > 0
-      ? employees.find((e) => e._id === currentAssigneeId)?.name
-      : null) ||
+    matchedEmp?.name ||
     null;
 
   // Avatar initial for the assignee badge
   const avatarInitial = currentAssigneeName
     ? currentAssigneeName.charAt(0).toUpperCase()
     : null;
+
+  // Card background & border matching stage/stream color family
+  const cardBgClass = isStageRoot
+    ? stageTheme.cardBg
+    : streamTheme
+    ? streamTheme.cardBg
+    : stageTheme.taskCardBg;
+
+  const cardBorderClass = isSelected
+    ? stageTheme.cardBorderSelected
+    : isStageRoot
+    ? `${stageTheme.cardBorder} ${stageTheme.cardHoverBorder}`
+    : `${stageTheme.taskCardBorder}`;
 
   return (
     <div className="relative group font-sans">
@@ -188,18 +219,18 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
         className={`
           relative w-52 rounded-xl transition-all duration-200 select-none text-left
           border shadow-xs overflow-hidden
-          ${statusCfg.cardBg}
-          ${isSelected ? statusCfg.borderSelected : statusCfg.border}
+          ${cardBgClass}
+          ${cardBorderClass}
           ${isClickable ? 'cursor-pointer' : 'cursor-default'}
           ${isGateLocked ? 'opacity-70 saturate-50' : isClickable ? 'hover:shadow-md hover:-translate-y-0.5' : ''}
         `}
       >
-        {/* Top subtle accent line */}
-        <div className={`h-1 w-full ${statusCfg.headerBg}`} />
+        {/* Top Status Indicator Stripe */}
+        <div className={`h-1.5 w-full ${statusCfg.headerBg} transition-colors duration-300`} title={`Status: ${statusCfg.label}`} />
 
         <div className="p-2.5 space-y-1.5">
           
-          {/* Header Row: Clean Order Tag / Stream Badge + Status Badge */}
+          {/* Header Row: Stage/Task Theme Badge + Status Badge */}
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1 min-w-0">
               {streamCfg ? (
@@ -208,12 +239,12 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
                   <span className="truncate">{streamType}</span>
                 </span>
               ) : isStageRoot ? (
-                <span className="font-heading font-extrabold text-[9px] text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-1.5 py-0.5 rounded">
-                  PHASE {orderNumber || node.order}
+                <span className={`font-heading font-black text-[9px] px-1.5 py-0.5 rounded border ${stageTheme.badgeBg} ${stageTheme.badgeText} ${stageTheme.badgeBorder}`}>
+                  PHASE {orderNumber || node.order || stageTheme.stageNumber}
                 </span>
               ) : (
-                <span className="font-mono text-[9px] font-bold text-[#4a5462] bg-[#f8fafb] border border-[#b9c0cb]/40 px-1.5 py-0.5 rounded">
-                  TASK #{orderNumber || node.order}
+                <span className={`font-mono text-[9px] font-bold px-1.5 py-0.5 rounded border ${stageTheme.taskBadgeBg} ${stageTheme.taskBadgeText} ${stageTheme.taskBadgeBorder}`}>
+                  TASK #{orderNumber || node.order || 1}
                 </span>
               )}
             </div>
@@ -226,7 +257,7 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
           </div>
 
           {/* Node Title */}
-          <h4 className="font-heading text-xs font-bold text-[#333333] leading-snug line-clamp-2" title={node.name}>
+          <h4 className="font-heading text-xs font-bold text-[#1f2937] leading-snug line-clamp-2" title={node.name}>
             {node.name}
           </h4>
 
@@ -256,84 +287,81 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
             </div>
           )}
 
-          {/* ── Footer Row ── */}
-          {!node.metadata?.noAssignment && (
-            <div className="pt-1 border-t border-[#f1f3f6]">
-
-              {/* ── STREAM ROOT: inline quick-assign dropdown ── */}
-              {showAssignDropdown && onAssign && isClickable ? (
-                <div
-                  className="space-y-1"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <div className="flex items-center gap-1 text-[9px] text-[#3a7d84] font-bold uppercase tracking-wide">
-                    <UserCheck className="w-2.5 h-2.5" />
-                    Assign Stream
-                  </div>
-                  <select
-                    value={currentAssigneeId}
-                    onChange={(e) => onAssign(node._id, e.target.value)}
-                    className="w-full text-[10px] border border-[#b9c0cb]/60 rounded-lg px-1.5 py-1 bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] cursor-pointer leading-tight"
-                    title="Assign this stream to a team member"
-                  >
-                    <option value="">👤 Unassigned</option>
-                    {employees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.name}{emp.employeeCode ? ` [${emp.employeeCode}]` : ''}
-                      </option>
-                    ))}
-                  </select>
+          {/* ── Footer Row: Always show Assignee Name or Unassigned ── */}
+          <div className="pt-1.5 border-t border-[#f1f3f6]">
+            {/* ── STREAM ROOT: inline quick-assign dropdown ── */}
+            {showAssignDropdown && onAssign && isClickable ? (
+              <div
+                className="space-y-1"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center gap-1 text-[9px] text-[#3a7d84] font-bold uppercase tracking-wide">
+                  <UserCheck className="w-2.5 h-2.5" />
+                  Assign Stream
                 </div>
-              ) : (
-                /* ── SUB-TASK / OTHER: read-only assignee display ── */
-                <div className="flex items-center justify-between text-[9px] text-[#4a5462]">
-                  <div className="flex items-center gap-1 truncate max-w-[130px]">
-                    {currentAssigneeName ? (
-                      <>
-                        {/* Avatar initial chip */}
-                        <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#51a8b1] text-white font-bold text-[8px] flex items-center justify-center">
-                          {avatarInitial}
-                        </span>
-                        <span className="truncate font-semibold text-[#3a7d84]">
-                          {currentAssigneeName}
-                        </span>
-                      </>
-                    ) : (
-                      <>
-                        <User className="w-2.5 h-2.5 text-[#b9c0cb] flex-shrink-0" />
-                        <span className="truncate font-medium text-[#b9c0cb]">Unassigned</span>
-                      </>
-                    )}
-                  </div>
-
-                  {hasChildren && onToggleExpand && (
-                    <button
-                      type="button"
-                      onClick={(e) => onToggleExpand(node._id, e)}
-                      className="p-0.5 hover:bg-[#f0f8f9] rounded text-[#51a8b1] transition cursor-pointer"
-                      title={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
-                    >
-                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                    </button>
+                <select
+                  value={currentAssigneeId}
+                  onChange={(e) => onAssign(node._id, e.target.value)}
+                  className="w-full text-[10px] border border-[#b9c0cb]/60 rounded-lg px-1.5 py-1 bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] cursor-pointer leading-tight"
+                  title="Assign this stream to a team member"
+                >
+                  <option value="">👤 Unassigned</option>
+                  {employees.map((emp) => (
+                    <option key={emp._id} value={emp._id}>
+                      {emp.name}{emp.employeeCode ? ` [${emp.employeeCode}]` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            ) : (
+              /* ── STAGE / SUB-TASK: read-only assignee display ── */
+              <div className="flex items-center justify-between text-[9.5px] text-[#4a5462]">
+                <div className="flex items-center gap-1.5 truncate max-w-[140px]">
+                  {currentAssigneeName ? (
+                    <>
+                      {/* Avatar initial chip */}
+                      <span className="flex-shrink-0 w-4 h-4 rounded-full bg-[#3a7d84] text-white font-bold text-[8.5px] flex items-center justify-center shadow-2xs">
+                        {avatarInitial}
+                      </span>
+                      <span className="truncate font-bold text-[#2d6b73]">
+                        {currentAssigneeName}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <User className="w-3 h-3 text-slate-400 flex-shrink-0" />
+                      <span className="truncate font-medium text-slate-400">Unassigned</span>
+                    </>
                   )}
                 </div>
-              )}
 
-              {/* When showAssignDropdown is true, still show collapse toggle if needed */}
-              {showAssignDropdown && hasChildren && onToggleExpand && (
-                <div className="flex justify-end mt-0.5">
+                {hasChildren && onToggleExpand && (
                   <button
                     type="button"
-                    onClick={(e) => { e.stopPropagation(); onToggleExpand(node._id, e); }}
-                    className="p-0.5 hover:bg-[#f0f8f9] rounded text-[#51a8b1] transition cursor-pointer"
+                    onClick={(e) => onToggleExpand(node._id, e)}
+                    className="p-0.5 hover:bg-[#f0f8f9] rounded text-[#51a8b1] transition cursor-pointer shrink-0"
                     title={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
                   >
-                    {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                   </button>
-                </div>
-              )}
-            </div>
-          )}
+                )}
+              </div>
+            )}
+
+            {/* When showAssignDropdown is true, still show collapse toggle if needed */}
+            {showAssignDropdown && hasChildren && onToggleExpand && (
+              <div className="flex justify-end mt-0.5">
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onToggleExpand(node._id, e); }}
+                  className="p-0.5 hover:bg-[#f0f8f9] rounded text-[#51a8b1] transition cursor-pointer"
+                  title={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+                >
+                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>

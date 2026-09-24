@@ -1,5 +1,7 @@
 const Requirement = require('./requirements.model');
 const notificationService = require('../notifications/notifications.service');
+const activityService = require('../activity/activity.service');
+const Project = require('../projects/project.model');
 
 async function getProjectRequirements(projectId) {
   const requirement = await Requirement.findOne({ project: projectId }).populate('updatedBy', 'name email');
@@ -22,6 +24,22 @@ async function upsertRequirements(projectId, updateData, employeeId) {
   }
 
   try {
+    const project = await Project.findById(projectId).select('projectName projectId');
+    const changedSections = Object.keys(updateData || {}).join(', ');
+
+    await activityService.log({
+      project: projectId,
+      actor: employeeId,
+      action: 'REQUIREMENTS_UPDATED',
+      description: `Project configuration and requirements updated (${changedSections || 'Master Form'})`,
+      resourceType: 'Requirement',
+      resourceId: requirement._id,
+      metadata: {
+        projectName: project ? (project.projectName || project.projectId) : undefined,
+        sections: Object.keys(updateData || {})
+      }
+    });
+
     await notificationService.notifyWithAdminsAndPMs({
       assignedTo: null,
       projectId: projectId,
@@ -30,7 +48,7 @@ async function upsertRequirements(projectId, updateData, employeeId) {
       type: 'STATUS_UPDATE'
     });
   } catch (err) {
-    console.log('Notification error:', err.message);
+    console.log('Activity/Notification error:', err.message);
   }
 
   return requirement;
@@ -39,4 +57,4 @@ async function upsertRequirements(projectId, updateData, employeeId) {
 module.exports = {
   getProjectRequirements,
   upsertRequirements
-};
+};

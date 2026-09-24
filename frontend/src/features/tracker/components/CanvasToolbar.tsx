@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { IProject } from '../../../types/project';
-import { Building2, Layers, ZoomIn, ZoomOut, RotateCcw } from 'lucide-react';
+import { Building2, Layers, ZoomIn, ZoomOut, RotateCcw, History } from 'lucide-react';
 
 interface CanvasToolbarProps {
   project?: IProject | null;
@@ -18,6 +18,7 @@ interface CanvasToolbarProps {
   onZoomIn: () => void;
   onZoomOut: () => void;
   onResetZoom: () => void;
+  onOpenActivity?: () => void;
 }
 
 export function CanvasToolbar({
@@ -34,6 +35,7 @@ export function CanvasToolbar({
   onZoomIn,
   onZoomOut,
   onResetZoom,
+  onOpenActivity,
 }: CanvasToolbarProps) {
   return (
     <div className="border-b border-[#b9c0cb]/40 bg-white px-5 py-3 flex flex-wrap items-center justify-between gap-3 shadow-xs">
@@ -81,8 +83,21 @@ export function CanvasToolbar({
         </div>
       </div>
 
-      {/* Toolbar Controls: Filter & Zoom */}
+      {/* Toolbar Controls: Filter, Activity & Zoom */}
       <div className="flex items-center gap-2">
+        {/* Project Activity Log Trigger */}
+        {onOpenActivity && (
+          <button
+            type="button"
+            onClick={onOpenActivity}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] hover:bg-[#e2f3f5] transition shadow-2xs cursor-pointer"
+            title="View Project Activity History"
+          >
+            <History className="w-3.5 h-3.5 text-[#3a7d84]" />
+            <span>Activity Log</span>
+          </button>
+        )}
+
         {/* Status Filter Pills */}
         <div className="flex items-center bg-[#f8fafb] border border-[#b9c0cb]/40 rounded-xl p-0.5 text-[11px]">
           {['ALL', 'IN_PROGRESS', 'COMPLETED', 'PENDING'].map((st) => (
@@ -135,3 +150,4 @@ export function CanvasToolbar({
     </div>
   );
 }
+

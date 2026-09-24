@@ -56,19 +56,32 @@ const requirementSchema = new mongoose.Schema(
       }
     },
 
-    // ─── 02 — PO & PI (PURCHASE ORDER & PROFORMA INVOICE) ────────────────
+    // ─── 02 — PO, PI & TAX INVOICE ──────────────────────────────────────
     poAndPi: {
+      // Multiple Purchase Orders
+      purchaseOrders: [
+        {
+          poNumber: String,
+          poDate: Date,
+          uploadDate: { type: Date, default: Date.now },
+          poDocumentUrl: String,
+          issuingOrganization: String,
+          remarks: String,
+          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
+          submittedAt: { type: Date, default: Date.now }
+        }
+      ],
       poUpload: {
-        projectName: String,
-        poDocumentUrl: String,
         poNumber: String,
         poDate: Date,
-        poAmount: Number,
+        uploadDate: { type: Date, default: Date.now },
+        poDocumentUrl: String,
         issuingOrganization: String,
         remarks: String,
         submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
         submittedAt: Date
       },
+      // PI Request
       piRequest: {
         requestedDate: Date,
         expectedPIDate: Date,
@@ -76,13 +89,48 @@ const requirementSchema = new mongoose.Schema(
         submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
         submittedAt: Date
       },
+      // Multiple Proforma Invoices
+      proformaInvoices: [
+        {
+          piNumber: String,
+          piDate: Date,
+          uploadDate: { type: Date, default: Date.now },
+          ewayBillNumber: String,
+          paymentStatus: { type: String, enum: ['PAID', 'PARTIALLY_PAID', 'PENDING', 'UNPAID', null], default: 'PENDING' },
+          piDocumentUrl: String,
+          paymentTerms: String,
+          remarks: String,
+          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
+          submittedAt: { type: Date, default: Date.now }
+        }
+      ],
+      // Multiple Tax Invoices
+      taxInvoices: [
+        {
+          invoiceNumber: String,
+          invoiceDate: Date,
+          uploadDate: { type: Date, default: Date.now },
+          ewayBillNumber: String,
+          paymentStatus: { type: String, enum: ['PAID', 'PARTIALLY_PAID', 'PENDING', 'UNPAID', null], default: 'PENDING' },
+          invoiceDocumentUrl: String,
+          paymentTerms: String,
+          remarks: String,
+          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
+          submittedAt: { type: Date, default: Date.now }
+        }
+      ],
       piUpload: {
-        piDocumentUrl: String,
         piNumber: String,
         piDate: Date,
-        amount: Number,
-        tax: Number,
-        totalAmount: Number,
+        piUploadDate: Date,
+        piDocumentUrl: String,
+        invoiceNumber: String,
+        invoiceDate: Date,
+        invoiceUploadDate: Date,
+        invoiceDocumentUrl: String,
+        ewayBillNumber: String,
+        paymentStatus: { type: String, enum: ['PAID', 'PARTIALLY_PAID', 'PENDING', 'UNPAID', null], default: 'PENDING' },
+        uploadDate: Date,
         paymentTerms: String,
         remarks: String,
         submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
@@ -93,26 +141,21 @@ const requirementSchema = new mongoose.Schema(
     // ─── 03 — ORDER REQUIREMENT ──────────────────────────────────────────
     orderRequirement: {
       schoolInformation: {
-        schoolName: String,
-        schoolCode: String,
-        address: String,
-        deploymentLocations: String,
-        principalName: String,
-        contactPerson: String,
-        phone: String,
-        email: String,
-        totalStudents: Number,
-        labAvailable: String,
-        internetAvailable: String,
-        remarks: String,
-        submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-        submittedAt: Date
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
       },
       solutionSelection: {
+        activeSolutionKeys: [String],
+        schoolWiseSolutions: {
+          type: mongoose.Schema.Types.Mixed,
+          default: {}
+        },
         solutions: {
           type: mongoose.Schema.Types.Mixed,
           default: {}
         },
+        assignedTechLead: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
+        assignedContentLead: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
         overallNotes: String,
         remarks: String,
         submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },

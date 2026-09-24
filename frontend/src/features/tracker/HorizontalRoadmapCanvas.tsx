@@ -22,6 +22,7 @@ interface HorizontalRoadmapCanvasProps {
   employees?: IUser[];
   onAssign?: (nodeId: string, empId: string) => void;
   isClickable?: boolean;
+  onOpenActivity?: () => void;
 }
 
 export function HorizontalRoadmapCanvas({
@@ -36,6 +37,7 @@ export function HorizontalRoadmapCanvas({
   employees = [],
   onAssign,
   isClickable = true,
+  onOpenActivity,
 }: HorizontalRoadmapCanvasProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [zoom, setZoom] = useState<number>(1);
@@ -92,6 +94,31 @@ export function HorizontalRoadmapCanvas({
   }, [nodes]);
 
   const isGateLocked = (node: ITimelineNode) => {
+    // 1. Check if node belongs to Execution phase (or its sub-streams/tasks)
+    const execKeys = [
+      'EXECUTION',
+      'HARDWARE_STREAM',
+      'TECH_STREAM',
+      'CONTENT_STREAM',
+      'REQ_AND_STOCK_CHECK',
+      'PURCHASE_IF_NEEDED',
+      'CONSIGNMENT_TRACKING',
+      'HARDWARE_READY',
+      'PROJECT_CONFIG_AND_IMPLEMENTATION',
+      'TECH_TESTING',
+      'CONTENT_CONFIGURATION',
+      'CONTENT_REVIEW_QA',
+      'SHEET_READINESS',
+      'DUMP_READINESS',
+      'CONTENT_READY'
+    ];
+    if (node.key && execKeys.includes(node.key.toUpperCase())) {
+      const orderReqStatus = nodeStatusMap.get('ORDER_REQUIREMENT');
+      if (orderReqStatus && orderReqStatus !== 'COMPLETED') {
+        return true;
+      }
+    }
+
     if (!node.dependencies || node.dependencies.length === 0) return false;
     return node.dependencies.some((depKey) => {
       const depStatus = nodeStatusMap.get(depKey.toUpperCase());
@@ -184,6 +211,7 @@ export function HorizontalRoadmapCanvas({
         onZoomIn={() => setZoom((prev) => Math.min(1.4, prev + 0.1))}
         onZoomOut={() => setZoom((prev) => Math.max(0.6, prev - 0.1))}
         onResetZoom={() => setZoom(1)}
+        onOpenActivity={onOpenActivity}
       />
 
       {/* ── Main Mindmap Canvas Area ───────────────────────── */}
