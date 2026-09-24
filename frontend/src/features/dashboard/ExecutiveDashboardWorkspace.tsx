@@ -13,8 +13,9 @@ import { CreateProjectRequestModal } from '../requests/components/CreateProjectR
 import { NotificationDetailModal } from '../../components/shell/NotificationDetailModal';
 import { requestsApi } from '../../lib/api/requests.api';
 import { ICreateProjectRequestPayload } from '../../types/request';
-import { RefreshCw, Send, Search, X, PanelRightOpen, Bell, Layers, UserCheck } from 'lucide-react';
+import { RefreshCw, Send, Search, X, PanelRightOpen, Bell, Layers, UserCheck, Sparkles } from 'lucide-react';
 import { useSearch } from '../../context/SearchContext';
+import { useLoading } from '../../context/LoadingContext';
 
 interface ExecutiveDashboardWorkspaceProps {
   hideSidePanel?: boolean;
@@ -22,6 +23,7 @@ interface ExecutiveDashboardWorkspaceProps {
 
 export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: ExecutiveDashboardWorkspaceProps = {}) {
   const { searchQuery, clearSearch } = useSearch();
+  const { showLoading, hideLoading } = useLoading();
   const [currentUser, setCurrentUser] = useState<IUser | null>(null);
 
   const [projects, setProjects] = useState<IProject[]>([]);
@@ -297,7 +299,26 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           </p>
         </div>
 
-        <div className="flex items-center gap-3 self-end sm:self-auto">
+        <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
+          {/* Test Loader Overlay Button */}
+          <button
+            type="button"
+            onClick={() => {
+              showLoading({
+                message: 'DigiToppers Animation Test',
+                subtext: 'Testing the full-screen Lottie animated loader overlay...',
+              });
+              setTimeout(() => {
+                hideLoading();
+              }, 4000);
+            }}
+            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 border border-amber-400/40"
+            title="Preview the DigiToppers Lottie animated loading overlay"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Test Animated Loader</span>
+          </button>
+
           {canRequestProject && (
             <button
               type="button"
@@ -310,7 +331,15 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           )}
           <button
             type="button"
-            onClick={() => fetchDashboardData(true)}
+            onClick={() => {
+              showLoading({
+                message: 'Refreshing DigiToppers Dashboard...',
+                subtext: 'Syncing project roadmaps and real-time activities',
+              });
+              fetchDashboardData(true).finally(() => {
+                setTimeout(hideLoading, 600);
+              });
+            }}
             className="border border-[#b6e0e4] bg-white px-4 py-2.5 rounded-xl text-xs font-bold text-[#2d6b73] hover:bg-[#f0f8f9] transition flex items-center gap-2 shadow-xs cursor-pointer"
           >
             <RefreshCw className={`w-3.5 h-3.5 text-[#51a8b1] ${loading ? 'animate-spin' : ''}`} />

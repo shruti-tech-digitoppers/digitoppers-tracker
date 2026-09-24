@@ -8,6 +8,7 @@ import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { NotificationDetailModal } from './NotificationDetailModal';
 import { SearchProvider } from '../../context/SearchContext';
+import { LoadingProvider } from '../../context/LoadingContext';
 import { useFaviconBadge } from '../../hooks/useFaviconBadge';
 
 interface AppLayoutProps {
@@ -139,52 +140,56 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Full Screen Viewport for Login Page (NO sidebar, NO header)
   if (isLoginPage) {
     return (
-      <main className="min-h-screen w-full bg-[#2f4154] overflow-x-hidden">
-        {children}
-      </main>
+      <LoadingProvider>
+        <main className="min-h-screen w-full bg-[#2f4154] overflow-x-hidden">
+          {children}
+        </main>
+      </LoadingProvider>
     );
   }
 
   // Consistent Shell Layout across SSR and Client Hydration
   return (
-    <SearchProvider>
-      <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
-        {/* ── Left Sidebar Navigation Panel ───────────────────── */}
-        <AppSidebar
-          collapsed={collapsed}
-          onToggleCollapse={handleToggleCollapse}
-          currentUser={currentUser}
-          onLogout={handleLogout}
-          unreadCount={unreadNotificationsCount}
-        />
-
-        {/* ── Main App Container with Top Header ──────────────── */}
-        <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-          <AppHeader
-            currentUser={currentUser}
-            notifications={notifications}
-            isNotifOpen={isNotifOpen}
-            onToggleNotif={handleToggleNotif}
-            onMarkAsRead={handleMarkAsRead}
-            onMarkAllAsRead={handleMarkAllAsRead}
-            onSelectNotification={handleSelectNotification}
+    <LoadingProvider>
+      <SearchProvider>
+        <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
+          {/* ── Left Sidebar Navigation Panel ───────────────────── */}
+          <AppSidebar
             collapsed={collapsed}
-            onToggleSidebar={handleToggleCollapse}
+            onToggleCollapse={handleToggleCollapse}
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            unreadCount={unreadNotificationsCount}
           />
 
-          {/* Page Content */}
-          <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-            {children}
-          </main>
-        </div>
+          {/* ── Main App Container with Top Header ──────────────── */}
+          <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+            <AppHeader
+              currentUser={currentUser}
+              notifications={notifications}
+              isNotifOpen={isNotifOpen}
+              onToggleNotif={handleToggleNotif}
+              onMarkAsRead={handleMarkAsRead}
+              onMarkAllAsRead={handleMarkAllAsRead}
+              onSelectNotification={handleSelectNotification}
+              collapsed={collapsed}
+              onToggleSidebar={handleToggleCollapse}
+            />
 
-        {/* ── Notification Full Detail & Direct Routing Modal ── */}
-        <NotificationDetailModal
-          notification={selectedNotification}
-          isOpen={Boolean(selectedNotification)}
-          onClose={() => setSelectedNotification(null)}
-        />
-      </div>
-    </SearchProvider>
+            {/* Page Content */}
+            <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+              {children}
+            </main>
+          </div>
+
+          {/* ── Notification Full Detail & Direct Routing Modal ── */}
+          <NotificationDetailModal
+            notification={selectedNotification}
+            isOpen={Boolean(selectedNotification)}
+            onClose={() => setSelectedNotification(null)}
+          />
+        </div>
+      </SearchProvider>
+    </LoadingProvider>
   );
 }
