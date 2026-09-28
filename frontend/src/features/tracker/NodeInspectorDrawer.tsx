@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { usePermissionContext } from '../../context/PermissionContext';
 import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
 import { IUser } from '../../types/auth';
 import { IProject } from '../../types/project';
@@ -85,6 +86,19 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   const allowStatusEdit = canModifyStatus !== undefined ? canModifyStatus : (canEditStatus !== undefined ? canEditStatus : true);
   const allowAssignEdit = canModifyAssignment !== undefined ? canModifyAssignment : (canAssign !== undefined ? canAssign : true);
   const handleAssign = onAssignmentChange || onAssigneeChange || (async (employeeId: string, targetNodeId?: string) => { });
+
+  // Read-only permission guard
+  const { isReadOnly } = usePermissionContext();
+
+  // Animated one-liner banner state
+  const [showReadOnlyBanner, setShowReadOnlyBanner] = useState(false);
+  const [bannerKey, setBannerKey] = useState(0);
+
+  const triggerReadOnlyBanner = () => {
+    setBannerKey(k => k + 1); // re-trigger animation each time
+    setShowReadOnlyBanner(true);
+    setTimeout(() => setShowReadOnlyBanner(false), 2800);
+  };
 
   const nodeStatusMap = React.useMemo(() => {
     const map = new Map<string, TimelineNodeStatus>();
@@ -315,13 +329,13 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               </button>
             </div>
 
-            {/* Bottom Row: Shifted Assign / Project Manager Component directly under Status */}
+                      {/* Bottom Row: Shifted Assign / Project Manager Component directly under Status */}
             <div className="flex items-center gap-2 justify-end">
               <span className="text-[11px] font-bold text-[#556987] flex items-center gap-1.5 shrink-0">
                 <User className="w-3.5 h-3.5 text-[#51a8b1]" />
                 {isStage1 ? 'Project Manager:' : 'Assigned To:'}
               </span>
-              {allowAssignEdit ? (
+              {(allowAssignEdit && !isReadOnly) ? (
                 <select
                   disabled={isCurrentlyMutating}
                   value={currentAssigneeId}
@@ -336,21 +350,26 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   ))}
                 </select>
               ) : (
-                currentAssigneeObj ? (
-                  <div
-                    className="border border-[#b6e0e4] bg-[#f0f8f9] rounded-xl px-2.5 py-1 text-xs text-[#3a7d84] flex items-center gap-1 font-bold shadow-2xs truncate max-w-[220px]"
-                    title={`${isStage1 ? 'Project Manager' : 'Assigned to'}: ${currentAssigneeObj.name}`}
-                  >
-                    <span className="truncate">{currentAssigneeObj.name}</span>
-                    {currentAssigneeObj.employeeCode && (
-                      <span className="text-[10px] opacity-75 font-mono">[{currentAssigneeObj.employeeCode}]</span>
-                    )}
-                  </div>
-                ) : (
-                  <span className="text-xs text-slate-400 italic">
-                    {isStage1 ? 'No Project Manager Assigned' : 'Unassigned'}
-                  </span>
-                )
+                /* Read-only pill — click triggers animated banner */
+                <button
+                  type="button"
+                  onClick={isReadOnly ? triggerReadOnlyBanner : undefined}
+                  className="border border-[#b6e0e4] bg-[#f0f8f9] rounded-xl px-2.5 py-1 text-xs text-[#3a7d84] flex items-center gap-1 font-bold shadow-2xs truncate max-w-[220px] cursor-default select-none"
+                  title={isReadOnly ? 'You have read-only access' : `${isStage1 ? 'Project Manager' : 'Assigned to'}: ${currentAssigneeObj?.name || 'Unassigned'}`}
+                >
+                  {currentAssigneeObj ? (
+                    <>
+                      <span className="truncate">{currentAssigneeObj.name}</span>
+                      {currentAssigneeObj.employeeCode && (
+                        <span className="text-[10px] opacity-75 font-mono">[{currentAssigneeObj.employeeCode}]</span>
+                      )}
+                    </>
+                  ) : (
+                    <span className="text-slate-400 italic">
+                      {isStage1 ? 'No Project Manager Assigned' : 'Unassigned'}
+                    </span>
+                  )}
+                </button>
               )}
             </div>
           </div>
@@ -384,7 +403,22 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             </div>
           )}
 
-          {/* Sub-Tasks & Stages Assignment Section */}
+                    {/* Sub-Tasks & Stages Assignment Section */}
+          {/* Animated Read-Only Banner — slides in from left below header */}
+          {isReadOnly && (
+            <div
+              key={bannerKey}
+              className={`overflow-hidden transition-all duration-300 ${showReadOnlyBanner ? 'max-h-14 opacity-100' : 'max-h-0 opacity-0'}`}
+            >
+              <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl shadow-xs">
+                <ShieldAlert className="w-4 h-4 text-amber-500 flex-shrink-0 animate-pulse" />
+                <p className="text-xs font-semibold text-amber-700 tracking-wide">
+                  🔒 You have <strong>read-only access</strong> — contact an Admin to assign employees.
+                </p>
+              </div>
+            </div>
+          )}
+
           {(() => {
             const getChildrenList = (): ITimelineNode[] => {
               if (node.children && node.children.length > 0) return node.children;
@@ -409,7 +443,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
                     <Layers className="w-3.5 h-3.5 text-[#51a8b1]" />
-                    Sub-Stages / Tasks &amp; Assigned Employees ({subTasksList.length})
+                    Sub-Stages / Tasks & Assigned Employees ({subTasksList.length})
                   </label>
                   <span className="text-[10px] text-[#556987] font-medium">
                     Assigned employees will be rendered in the timeline
@@ -464,7 +498,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                         </div>
 
                         <div className="w-full sm:w-64 shrink-0">
-                          {allowAssignEdit ? (
+                          {(allowAssignEdit && !isReadOnly) ? (
                             <div className="flex items-center gap-1.5">
                               <User className={`w-3.5 h-3.5 shrink-0 ${childAssigneeId ? 'text-[#3a7d84]' : 'text-[#b9c0cb]'}`} />
                               <select
@@ -483,7 +517,13 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                               </select>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5 text-xs bg-[#f0f8f9] border border-[#b6e0e4] px-3 py-1.5 rounded-xl text-[#3a7d84] font-bold justify-between shadow-2xs">
+                            /* Read-only: clickable pill that triggers the banner */
+                            <button
+                              type="button"
+                              onClick={isReadOnly ? triggerReadOnlyBanner : undefined}
+                              className="flex items-center gap-1.5 w-full text-xs bg-[#f0f8f9] border border-[#b6e0e4] px-3 py-1.5 rounded-xl text-[#3a7d84] font-bold justify-between shadow-2xs cursor-default select-none"
+                              title={isReadOnly ? '🔒 Read-only — contact Admin to assign' : 'Assigned employee'}
+                            >
                               <span className="flex items-center gap-1.5 truncate">
                                 <User className={`w-3.5 h-3.5 shrink-0 ${assignedEmp || childAssigneeObj ? 'text-[#3a7d84]' : 'text-[#94a3b8]'}`} />
                                 {assignedEmp || childAssigneeObj ? (
@@ -492,7 +532,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                                   <span className="text-[#94a3b8] font-medium">Unassigned</span>
                                 )}
                               </span>
-                            </div>
+                            </button>
                           )}
                         </div>
                       </div>
