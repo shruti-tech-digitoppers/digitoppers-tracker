@@ -45,7 +45,30 @@ class TimelineService {
       return null;
     }
 
-    const pmId = project.projectManager;
+    let pmId = project.projectManager;
+    if (pmId && typeof pmId === 'object' && pmId._id) {
+      pmId = pmId._id;
+    }
+    if (!pmId) {
+      const ProjectMember = require('../projects/project-member.model');
+      const pmMember = await ProjectMember.findOne({ project: project._id, designation: 'PROJECT_MANAGER', isActive: true });
+      if (pmMember && pmMember.employee) {
+        pmId = (typeof pmMember.employee === 'object' && pmMember.employee._id) ? pmMember.employee._id : pmMember.employee;
+      } else {
+        const ProjectRequest = require('../requests/project-request.model');
+        const reqDoc = await ProjectRequest.findOne({
+          $or: [{ confirmedProjectId: project._id }, { projectId: project.projectId }, { title: project.projectName }]
+        });
+        if (reqDoc && reqDoc.projectManager) {
+          pmId = (typeof reqDoc.projectManager === 'object' && reqDoc.projectManager._id) ? reqDoc.projectManager._id : reqDoc.projectManager;
+        }
+      }
+    }
+
+    if (pmId && !project.projectManager) {
+      project.projectManager = pmId;
+      await project.save();
+    }
 
     let timeline = await Timeline.findOne({ project: project._id });
     if (!timeline) {
@@ -104,6 +127,7 @@ class TimelineService {
           order: stageDef.order,
           status: NODE_STATUSES.PENDING,
           assignedTo: stageAssignedTo,
+          formSchema: stageDef.formSchema || null,
           dependencies: stageDef.dependencies || [],
           metadata: stageDef.metadata || {}
         });
@@ -188,32 +212,40 @@ class TimelineService {
 
     // Robust PM resolution: Project -> ProjectMember -> ProjectRequest -> Default PM
     let effectivePmId = project.projectManager;
+    if (effectivePmId && typeof effectivePmId === 'object' && effectivePmId._id) {
+      effectivePmId = effectivePmId._id;
+    }
     if (!effectivePmId) {
       const ProjectMember = require('../projects/project-member.model');
       const pmMember = await ProjectMember.findOne({ project: project._id, designation: 'PROJECT_MANAGER', isActive: true });
       if (pmMember && pmMember.employee) {
-        effectivePmId = pmMember.employee;
+        effectivePmId = (typeof pmMember.employee === 'object' && pmMember.employee._id) ? pmMember.employee._id : pmMember.employee;
       } else {
         const ProjectRequest = require('../requests/project-request.model');
         const reqDoc = await ProjectRequest.findOne({
           $or: [{ confirmedProjectId: project._id }, { projectId: project.projectId }, { title: project.projectName }]
         });
         if (reqDoc && reqDoc.projectManager) {
-          effectivePmId = reqDoc.projectManager;
+          effectivePmId = (typeof reqDoc.projectManager === 'object' && reqDoc.projectManager._id) ? reqDoc.projectManager._id : reqDoc.projectManager;
         }
       }
     }
 
-    let timeline = await Timeline.findOne({ project: project._id }).populate('projectManager', 'name email employeeCode globalRole');
+    if (effectivePmId && !project.projectManager) {
+      project.projectManager = effectivePmId;
+      await project.save();
+    }
+
+    let timeline = await Timeline.findOne({ project: project._id }).populate('projectManager', 'name email employeeCode globalRole designation');
     if (!timeline) {
       timeline = await this.initializeTimelineForProject(project._id);
       if (timeline) {
-        timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole');
+        timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole designation');
       }
-    } else if (!timeline.projectManager && effectivePmId) {
+    } else if (effectivePmId && (!timeline.projectManager || (typeof timeline.projectManager === 'object' && timeline.projectManager._id.toString() !== effectivePmId.toString()) || timeline.projectManager.toString() !== effectivePmId.toString())) {
       timeline.projectManager = effectivePmId;
       await timeline.save();
-      timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole');
+      timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole designation');
     }
 
     if (!timeline) {
@@ -313,6 +345,35 @@ class TimelineService {
       }
     }
 
+    // Auto-migrate Stage 02 (PO_AND_PI) tasks
+    const poAndPiStageNode = nodes.find(n => n.key === 'PO_AND_PI');
+    if (poAndPiStageNode) {
+      const poPiTasks = [
+        { key: 'PO_UPLOAD', name: 'PO Upload', order: 1 },
+        { key: 'PI_REQUEST', name: 'PI Request', order: 2 },
+        { key: 'PI_UPLOAD', name: 'PI & Tax Invoice Upload', order: 3 }
+      ];
+
+      for (const t of poPiTasks) {
+        let nodeFound = nodes.find(n => n.key === t.key);
+        if (!nodeFound) {
+          nodeFound = await TimelineNode.findOne({ timeline: timeline._id, key: t.key });
+          if (!nodeFound) {
+            nodeFound = await TimelineNode.create({
+              timeline: timeline._id,
+              parentNode: poAndPiStageNode._id,
+              key: t.key,
+              name: t.name,
+              type: 'TASK',
+              order: t.order,
+              status: 'PENDING'
+            });
+          }
+          nodes.push(nodeFound);
+        }
+      }
+    }
+
     // Auto-migrate Stage 05 (TECH_AND_CONTENT_TESTING) to 2 tasks
     const testingStageNode = nodes.find(n => n.key === 'TECH_AND_CONTENT_TESTING');
     if (testingStageNode) {
@@ -351,7 +412,20 @@ class TimelineService {
         .sort({ order: 1 });
     }
 
+    const prNode = nodes.find(n => n.key === 'PROJECT_REVIEWER');
+    const pcNode = nodes.find(n => n.key === 'PROJECT_CREATED');
+    if (prNode && pcNode) {
+      if (Object.keys(pcNode.formData || {}).length > 0 && Object.keys(prNode.formData || {}).length === 0) {
+        prNode.formData = pcNode.formData;
+      }
+      if (pcNode.status === 'COMPLETED' && prNode.status !== 'COMPLETED') {
+        prNode.status = 'COMPLETED';
+      }
+    }
+
     const DISABLED_KEYS = new Set([
+      'PROJECT_CREATED',
+      'PI_REQUEST',
       'ADDRESS_CONFIRMATION',
       'DELIVERY_AND_TRACKING',
       'TECHNICAL_SETUP',
@@ -881,12 +955,20 @@ class TimelineService {
           }
         }
       } else if (key === 'SOLUTION_SELECTION') {
+        const schoolWiseSolutions = formData.schoolWiseSolutions || {};
+        const derivedSolutionKeys = Array.from(
+          new Set([
+            ...(Array.isArray(formData.activeSolutionKeys) ? formData.activeSolutionKeys : []),
+            ...Object.values(schoolWiseSolutions).flatMap(sMap => (sMap && typeof sMap === 'object' ? Object.keys(sMap) : []))
+          ])
+        );
+
         reqDoc.orderRequirement = {
           ...(reqDoc.orderRequirement || {}),
           solutionSelection: { 
             ...formData, 
-            activeSolutionKeys: formData.activeSolutionKeys || [],
-            schoolWiseSolutions: formData.schoolWiseSolutions || {},
+            activeSolutionKeys: derivedSolutionKeys,
+            schoolWiseSolutions,
             solutions: formData.solutions || {},
             submittedBy: employee._id, 
             submittedAt: new Date() 
@@ -894,7 +976,7 @@ class TimelineService {
         };
         reqDoc.markModified('orderRequirement');
 
-        if (formData.activeSolutionKeys?.length > 0 || (formData.schoolWiseSolutions && Object.keys(formData.schoolWiseSolutions).length > 0) || (formData.solutions && Object.keys(formData.solutions).length > 0) || formData.autoComplete === true) {
+        if (derivedSolutionKeys.length > 0 || (formData.schoolWiseSolutions && Object.keys(formData.schoolWiseSolutions).length > 0) || (formData.solutions && Object.keys(formData.solutions).length > 0) || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
           if (node.parentNode) {
@@ -963,11 +1045,35 @@ class TimelineService {
           console.error('Tech/Content lead assignment error:', leadAssignErr.message);
         }
       } else if (key === 'HARDWARE_REQUIREMENT') {
+        const schoolWiseHardware = formData.schoolWiseHardware || {};
+        const derivedHardwareKeys = Array.from(
+          new Set([
+            ...(Array.isArray(formData.activeHardwareKeys) ? formData.activeHardwareKeys : []),
+            ...Object.values(schoolWiseHardware).flatMap(sMap => (sMap && typeof sMap === 'object' ? Object.keys(sMap) : []))
+          ])
+        );
+
         reqDoc.orderRequirement = {
           ...(reqDoc.orderRequirement || {}),
-          hardwareRequirement: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
+          hardwareRequirement: { 
+            ...formData, 
+            activeHardwareKeys: derivedHardwareKeys,
+            schoolWiseHardware,
+            items: formData.items || {},
+            hardware: formData.hardware || formData.items || {},
+            submittedBy: employee._id, 
+            submittedAt: new Date() 
+          }
         };
         reqDoc.markModified('orderRequirement');
+
+        if (derivedHardwareKeys.length > 0 || (formData.schoolWiseHardware && Object.keys(formData.schoolWiseHardware).length > 0) || (formData.items && Object.keys(formData.items).length > 0) || formData.autoComplete === true) {
+          node.status = NODE_STATUSES.COMPLETED;
+          await node.save();
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        }
 
         // If Hardware Manager is assigned, auto-assign REQ_AND_STOCK_CHECK node & notify them
         try {

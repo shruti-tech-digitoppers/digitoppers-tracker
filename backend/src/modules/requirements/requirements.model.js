@@ -162,10 +162,20 @@ const requirementSchema = new mongoose.Schema(
         submittedAt: Date
       },
       hardwareRequirement: {
+        activeHardwareKeys: [String],
+        schoolWiseHardware: {
+          type: mongoose.Schema.Types.Mixed,
+          default: {}
+        },
+        items: {
+          type: mongoose.Schema.Types.Mixed,
+          default: {}
+        },
         hardware: {
           type: mongoose.Schema.Types.Mixed,
           default: {}
         },
+        assignedHardwareManager: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
         overallHardwareNotes: String,
         remarks: String,
         submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
@@ -438,7 +448,8 @@ const requirementSchema = new mongoose.Schema(
     }
   },
   {
-    timestamps: true
+    timestamps: true,
+    strict: false
   }
 );
 

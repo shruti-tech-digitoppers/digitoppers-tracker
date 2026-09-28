@@ -11,7 +11,6 @@ import {
   LogOut, 
   ChevronLeft, 
   ChevronRight, 
-  LogIn,
   ShieldCheck,
   UserCheck,
   History
@@ -64,34 +63,24 @@ export const AppSidebar = React.memo(function AppSidebar({
           }`}
         >
           {!collapsed ? (
-            <Link href="/dashboard" className="relative flex items-center gap-1.5 group min-w-0">
+            <Link href="/dashboard" className="flex items-center gap-1.5 group min-w-0">
               <img
                 src="/digitoppers-logo.png"
                 alt="Digitoppers"
                 className="h-11 w-auto object-contain max-w-[155px]"
               />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1.5 -right-2 bg-rose-500 text-white text-xs font-black min-w-[22px] h-[22px] px-1.5 flex items-center justify-center rounded-full shadow-md ring-2 ring-white animate-pulse">
-                  {unreadCount > 99 ? '99+' : unreadCount}
-                </span>
-              )}
             </Link>
           ) : (
             <Link
               href="/dashboard"
-              className="relative w-12 h-12 rounded-2xl flex items-center justify-center hover:bg-teal-50/60 transition cursor-pointer"
-              title={`Digitoppers Dashboard ${unreadCount > 0 ? `(${unreadCount} Notifications)` : ''}`}
+              className="w-12 h-12 rounded-2xl flex items-center justify-center hover:bg-teal-50/60 transition cursor-pointer"
+              title="Digitoppers Dashboard"
             >
               <img
                 src="/digitoppers-icon.png"
                 alt="Digitoppers"
                 className="w-10 h-10 object-contain drop-shadow-xs"
               />
-              {unreadCount > 0 && (
-                <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[11px] font-black w-6 h-6 flex items-center justify-center rounded-full shadow-md ring-2 ring-white animate-pulse">
-                  {unreadCount > 9 ? '9+' : unreadCount}
-                </span>
-              )}
             </Link>
           )}
         </div>
@@ -145,8 +134,8 @@ export const AppSidebar = React.memo(function AppSidebar({
       </div>
 
       {/* Bottom: User Profile / Auth Area */}
-      <div className={`border-t border-[#f1f3f6] ${collapsed ? 'p-2' : 'p-3'}`}>
-        {currentUser ? (
+      {currentUser && (
+        <div className={`border-t border-[#f1f3f6] ${collapsed ? 'p-2' : 'p-3'}`}>
           <div className={collapsed ? 'flex flex-col items-center gap-1.5' : 'space-y-2'}>
             {!collapsed ? (
               <div className="flex items-center justify-between p-2 rounded-xl bg-[#f8fafb] border border-[#b9c0cb]/30">
@@ -188,20 +177,8 @@ export const AppSidebar = React.memo(function AppSidebar({
               </>
             )}
           </div>
-        ) : (
-          <Link
-            href="/login"
-            className={`
-              w-full flex items-center gap-2 rounded-xl text-xs font-semibold bg-[#51a8b1] text-white hover:bg-[#3a7d84] transition shadow-xs
-              ${collapsed ? 'h-10 justify-center p-0' : 'px-3 py-2.5 justify-center'}
-            `}
-            title="Sign In"
-          >
-            <LogIn className="w-5 h-5 stroke-[2]" />
-            {!collapsed && <span>Sign In</span>}
-          </Link>
-        )}
-      </div>
+        </div>
+      )}
     </aside>
   );
 });

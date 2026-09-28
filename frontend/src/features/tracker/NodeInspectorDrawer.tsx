@@ -128,6 +128,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     })
   );
 
+  const isStage1 = node.key === 'PROJECT_REVIEWER' || node.key === 'PROJECT_CREATED' || node.order === 1;
+
   const statusOptions: { value: TimelineNodeStatus; label: string; icon: any; activeClass: string; inactiveClass: string }[] = [
     {
       value: 'PENDING',
@@ -201,25 +203,35 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   };
 
   const stage3SchoolNode = findNodeRecursive(allNodes, 'SCHOOL_ONBOARDING_INFORMATION');
+  const stage3SolNode = findNodeRecursive(allNodes, 'SOLUTION_SELECTION');
   const stage3HwNode = findNodeRecursive(allNodes, 'HARDWARE_REQUIREMENT');
   const stage4StockNode = findNodeRecursive(allNodes, 'REQ_AND_STOCK_CHECK');
   const stage4TechNode = findNodeRecursive(allNodes, 'PROJECT_CONFIG_AND_IMPLEMENTATION');
 
-  const combinedAllFormData: Record<string, any> = {
-    ...(formData || {}),
-    stage3Schools: stage3SchoolNode?.formData?.schools || (stage3SchoolNode?.formData?.schoolName ? [{
+  const resolvedSchools = 
+    stage3SchoolNode?.formData?.schools || 
+    (project as any)?.orderRequirement?.schoolInformation?.schools || 
+    (project as any)?.schools || 
+    (stage3SchoolNode?.formData?.schoolName ? [{
+      id: 'school-1',
       schoolName: stage3SchoolNode.formData.schoolName,
-      schoolCode: stage3SchoolNode.formData.schoolCode || '',
       address: stage3SchoolNode.formData.address || '',
-      principalName: stage3SchoolNode.formData.principalName || '',
-      contactPerson: stage3SchoolNode.formData.contactPerson || '',
+      classes: stage3SchoolNode.formData.classes || [],
+      pocName: stage3SchoolNode.formData.pocName || stage3SchoolNode.formData.contactPerson || '',
       phone: stage3SchoolNode.formData.phone || '',
       email: stage3SchoolNode.formData.email || ''
-    }] : []),
-    stage3HardwareData: stage3HwNode?.formData || {},
-    stage3HardwareKeys: stage3HwNode?.formData?.activeHardwareKeys || stage3HwNode?.formData?.hardwareRequirements?.activeHardwareKeys || [],
-    stage3SchoolWiseHardware: stage3HwNode?.formData?.schoolWiseHardware || stage3HwNode?.formData?.hardwareRequirements?.schoolWiseHardware || {},
-    stage3HardwareItems: stage3HwNode?.formData?.hardwareRequirements?.items || stage3HwNode?.formData?.hardware?.items || stage3HwNode?.formData?.items || {},
+    }] : []);
+
+  const combinedAllFormData: Record<string, any> = {
+    ...(formData || {}),
+    schools: resolvedSchools,
+    stage3Schools: resolvedSchools,
+    stage3SolutionsData: stage3SolNode?.formData || (project as any)?.orderRequirement?.solutionSelection || {},
+    stage3SchoolWiseSolutions: stage3SolNode?.formData?.schoolWiseSolutions || (project as any)?.orderRequirement?.solutionSelection?.schoolWiseSolutions || {},
+    stage3HardwareData: stage3HwNode?.formData || (project as any)?.orderRequirement?.hardwareRequirement || {},
+    stage3HardwareKeys: stage3HwNode?.formData?.activeHardwareKeys || stage3HwNode?.formData?.hardwareRequirements?.activeHardwareKeys || (project as any)?.orderRequirement?.hardwareRequirement?.activeHardwareKeys || [],
+    stage3SchoolWiseHardware: stage3HwNode?.formData?.schoolWiseHardware || stage3HwNode?.formData?.hardwareRequirements?.schoolWiseHardware || (project as any)?.orderRequirement?.hardwareRequirement?.schoolWiseHardware || {},
+    stage3HardwareItems: stage3HwNode?.formData?.hardwareRequirements?.items || stage3HwNode?.formData?.hardware?.items || stage3HwNode?.formData?.items || (project as any)?.orderRequirement?.hardwareRequirement?.items || {},
     stage4StockItems: stage4StockNode?.formData?.stockCheck?.items || stage4StockNode?.formData?.items || {},
     techApkFileUrl: stage4TechNode?.formData?.apkFileUrl || stage4TechNode?.formData?.appFileUrl || stage4TechNode?.formData?.fileUrl || '',
     techFormData: stage4TechNode?.formData || {},
@@ -267,64 +279,80 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             </div>
           </div>
 
-          {/* Right: Compact Status Selector + Assignee + Close Button */}
-          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap justify-end shrink-0">
-            {/* Status Segmented Buttons */}
-            <div className="flex items-center gap-1 p-1 bg-white border border-[#b9c0cb]/40 rounded-xl shadow-2xs">
-              {statusOptions.map((opt) => {
-                const Icon = opt.icon;
-                const isSelected = node.status === opt.value;
-                return (
-                  <button
-                    key={opt.value}
-                    disabled={isCurrentlyMutating || !allowStatusEdit}
-                    onClick={() => onStatusChange(opt.value)}
-                    title={`Set status to ${opt.label}`}
-                    className={`inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer select-none border ${
-                      isSelected ? opt.activeClass : opt.inactiveClass
-                    } ${!allowStatusEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
-                  >
-                    <Icon className="w-3 h-3 flex-shrink-0" />
-                    <span>{opt.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Task Assignee Selector if applicable */}
-            <div className="hidden lg:flex items-center gap-1.5 shrink-0">
-                {allowAssignEdit ? (
-                  <select
-                    disabled={isCurrentlyMutating}
-                    value={currentAssigneeId}
-                    onChange={(e) => handleAssign(e.target.value)}
-                    className="border border-[#b9c0cb]/60 rounded-xl px-2.5 py-1 text-xs bg-white text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer font-medium max-w-[160px] truncate shadow-2xs"
-                  >
-                    <option value="">Unassigned</option>
-                    {empList.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  currentAssigneeObj && (
-                    <div className="border border-[#b9c0cb]/40 rounded-xl px-2.5 py-1 text-xs bg-white text-[#333333] flex items-center gap-1 font-medium shadow-2xs truncate max-w-[160px]" title={`Assigned to: ${currentAssigneeObj.name}`}>
-                      <User className="w-3 h-3 text-[#51a8b1] shrink-0" />
-                      <span className="truncate text-[10.5px] font-bold text-[#3a7d84]">{currentAssigneeObj.name}</span>
-                    </div>
-                  )
-                )}
+          {/* Right Column: Status Selector (Top) + Assignee / Project Manager Selector (Bottom) + Close Button */}
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            {/* Top Row: Status Segmented Buttons + Close Modal Button */}
+            <div className="flex items-center gap-2 justify-end">
+              {/* Status Segmented Buttons */}
+              <div className="flex items-center gap-1 p-1 bg-white border border-[#b9c0cb]/40 rounded-xl shadow-2xs">
+                {statusOptions.map((opt) => {
+                  const Icon = opt.icon;
+                  const isSelected = node.status === opt.value;
+                  return (
+                    <button
+                      key={opt.value}
+                      disabled={isCurrentlyMutating || !allowStatusEdit}
+                      onClick={() => onStatusChange(opt.value)}
+                      title={`Set status to ${opt.label}`}
+                      className={`inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer select-none border ${
+                        isSelected ? opt.activeClass : opt.inactiveClass
+                      } ${!allowStatusEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      <Icon className="w-3 h-3 flex-shrink-0" />
+                      <span>{opt.label}</span>
+                    </button>
+                  );
+                })}
               </div>
 
-            {/* Close Modal Button */}
-            <button
-              onClick={onClose}
-              className="w-9 h-9 rounded-xl flex items-center justify-center text-[#4a5462] hover:text-[#333333] hover:bg-[#f1f3f6] border border-transparent hover:border-[#b9c0cb]/40 transition cursor-pointer shrink-0 ml-1"
-              title="Close modal"
-            >
-              <X className="w-5 h-5" />
-            </button>
+              {/* Close Modal Button */}
+              <button
+                onClick={onClose}
+                className="w-9 h-9 rounded-xl flex items-center justify-center text-[#4a5462] hover:text-[#333333] hover:bg-[#f1f3f6] border border-[#b9c0cb]/40 hover:border-[#51a8b1]/50 bg-white transition cursor-pointer shrink-0 shadow-2xs"
+                title="Close modal"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Bottom Row: Shifted Assign / Project Manager Component directly under Status */}
+            <div className="flex items-center gap-2 justify-end">
+              <span className="text-[11px] font-bold text-[#556987] flex items-center gap-1.5 shrink-0">
+                <User className="w-3.5 h-3.5 text-[#51a8b1]" />
+                {isStage1 ? 'Project Manager:' : 'Assigned To:'}
+              </span>
+              {allowAssignEdit ? (
+                <select
+                  disabled={isCurrentlyMutating}
+                  value={currentAssigneeId}
+                  onChange={(e) => handleAssign(e.target.value)}
+                  className="border border-[#b6e0e4] bg-[#f0f8f9] text-[#3a7d84] rounded-xl px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer max-w-[220px] truncate shadow-2xs hover:border-[#51a8b1]"
+                >
+                  <option value="">{isStage1 ? 'Select Project Manager' : 'Unassigned'}</option>
+                  {empList.map((emp) => (
+                    <option key={emp._id} value={emp._id}>
+                      {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                currentAssigneeObj ? (
+                  <div
+                    className="border border-[#b6e0e4] bg-[#f0f8f9] rounded-xl px-2.5 py-1 text-xs text-[#3a7d84] flex items-center gap-1 font-bold shadow-2xs truncate max-w-[220px]"
+                    title={`${isStage1 ? 'Project Manager' : 'Assigned to'}: ${currentAssigneeObj.name}`}
+                  >
+                    <span className="truncate">{currentAssigneeObj.name}</span>
+                    {currentAssigneeObj.employeeCode && (
+                      <span className="text-[10px] opacity-75 font-mono">[{currentAssigneeObj.employeeCode}]</span>
+                    )}
+                  </div>
+                ) : (
+                  <span className="text-xs text-slate-400 italic">
+                    {isStage1 ? 'No Project Manager Assigned' : 'Unassigned'}
+                  </span>
+                )
+              )}
+            </div>
           </div>
         </div>
 
@@ -373,17 +401,17 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               return findInTree(allNodes);
             };
 
-            const subTasksList = getChildrenList();
+            const subTasksList = (getChildrenList() || []).filter(c => c.key !== 'PI_REQUEST');
             if (!subTasksList || subTasksList.length === 0) return null;
 
             return (
               <div className="space-y-3 pt-2">
                 <div className="flex items-center justify-between">
-                  <label className={`text-xs font-bold uppercase tracking-wider ${stageTheme.badgeText} flex items-center gap-1.5 font-heading`}>
-                    <Layers className="w-3.5 h-3.5 opacity-80" />
+                  <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
+                    <Layers className="w-3.5 h-3.5 text-[#51a8b1]" />
                     Sub-Stages / Tasks &amp; Assigned Employees ({subTasksList.length})
                   </label>
-                  <span className="text-[10px] text-[#4a5462] font-medium">
+                  <span className="text-[10px] text-[#556987] font-medium">
                     Assigned employees will be rendered in the timeline
                   </span>
                 </div>
@@ -407,29 +435,31 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                     return (
                       <div
                         key={child._id || `subtask-${index}`}
-                        className={`flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-white border ${stageTheme.taskCardBorder} rounded-2xl shadow-2xs transition-all`}
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 bg-white border border-[#b6e0e4] hover:border-[#51a8b1] rounded-2xl shadow-2xs hover:shadow-xs transition-all"
                       >
-                        <div className="flex items-start gap-2.5 min-w-0">
-                          <span className={`flex items-center justify-center w-5 h-5 rounded-lg text-[10px] font-mono font-bold shrink-0 mt-0.5 border ${stageTheme.numberBg} ${stageTheme.numberText} ${stageTheme.numberBorder}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <span className="flex items-center justify-center w-6 h-6 rounded-xl text-[11px] font-mono font-black shrink-0 bg-[#f0f8f9] border border-[#b6e0e4] text-[#3a7d84] shadow-2xs">
                             {index + 1}
                           </span>
                           <div className="flex flex-col min-w-0">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <span className="text-xs font-bold text-[#1f2937] truncate">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-xs sm:text-sm font-bold text-[#1f2937] font-heading truncate">
                                 {child.name}
                               </span>
-                              <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${childStatus === 'COMPLETED'
+                              <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border ${childStatus === 'COMPLETED'
                                   ? 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6]'
                                   : childStatus === 'IN_PROGRESS'
                                     ? 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4]'
-                                    : 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40'
+                                    : 'bg-[#f8fafb] text-[#556987] border-[#b9c0cb]/40'
                                 }`}>
                                 {childStatus}
                               </span>
                             </div>
-                            <span className={`text-[10px] font-mono ${stageTheme.badgeText} tracking-wider mt-0.5`}>
-                              {child.key || 'TASK'}
-                            </span>
+                            <div className="mt-0.5">
+                              <span className="text-[10px] font-mono font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-1.5 py-0.5 rounded-md">
+                                {child.key || 'TASK'}
+                              </span>
+                            </div>
                           </div>
                         </div>
 
@@ -441,7 +471,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                                 disabled={isCurrentlyMutating}
                                 value={childAssigneeId}
                                 onChange={(e) => handleAssign(e.target.value, child._id)}
-                                className="w-full border border-[#b9c0cb]/60 rounded-xl px-2.5 py-1.5 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer font-medium"
+                                className="w-full border border-[#b6e0e4] bg-[#f0f8f9] text-[#3a7d84] rounded-xl px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer shadow-2xs hover:border-[#51a8b1]"
                                 title="Assign employee for this task"
                               >
                                 <option value="">👤 Unassigned</option>
@@ -453,13 +483,13 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                               </select>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/40 px-2.5 py-1.5 rounded-xl text-[#333333] font-medium justify-between">
+                            <div className="flex items-center gap-1.5 text-xs bg-[#f0f8f9] border border-[#b6e0e4] px-3 py-1.5 rounded-xl text-[#3a7d84] font-bold justify-between shadow-2xs">
                               <span className="flex items-center gap-1.5 truncate">
                                 <User className={`w-3.5 h-3.5 shrink-0 ${assignedEmp || childAssigneeObj ? 'text-[#3a7d84]' : 'text-[#94a3b8]'}`} />
                                 {assignedEmp || childAssigneeObj ? (
                                   <span className="truncate">Assigned to: <strong className="text-[#3a7d84]">{(assignedEmp || childAssigneeObj).name}</strong></span>
                                 ) : (
-                                  <span className="text-[#94a3b8]">Unassigned</span>
+                                  <span className="text-[#94a3b8] font-medium">Unassigned</span>
                                 )}
                               </span>
                             </div>
@@ -473,15 +503,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             );
           })()}
 
-          {/* Dynamic Stage / Task Form (Now with full width breathing space!) */}
-          <div className="space-y-3 pt-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
-                <FileText className="w-3.5 h-3.5 text-[#51a8b1]" />
-                Stage Data &amp; Form Fields
-              </label>
-            </div>
-
+          {/* Dynamic Stage / Task Form */}
+          <div className="space-y-3">
             <DynamicFormRenderer
               schema={formSchema || (node.formSchema as any)}
               initialData={formData || (node.formData as any) || {}}

@@ -12,12 +12,15 @@ import {
   ArrowUpRight, 
   Layers, 
   CheckCheck, 
+  Check,
   Inbox, 
   Briefcase, 
   ListTodo,
   Activity,
   Sparkles,
-  PanelRightClose
+  PanelRightClose,
+  ChevronUp,
+  ChevronDown
 } from 'lucide-react';
 
 type MainCategory = 'ASSIGNMENT' | 'REQUESTS' | 'UPDATES';
@@ -280,65 +283,41 @@ export function RecentTimelineNotificationsBox({
   };
 
   return (
-    <div className="bg-white rounded-3xl border border-slate-200/90 shadow-lg shadow-slate-100/80 overflow-hidden font-sans flex flex-col h-[calc(100vh-180px)] min-h-[620px] max-h-[850px] transition-all">
+    <div className="bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs hover:shadow-sm overflow-hidden font-sans flex flex-col h-[calc(100vh-180px)] min-h-[620px] max-h-[850px] transition-all duration-200">
       {/* ── Header Section ─────────────────────────────────── */}
-      <div className="p-4 sm:p-5 border-b border-slate-100 bg-gradient-to-br from-slate-50 via-white to-slate-50/60 space-y-3.5">
+      <div className="p-4 sm:p-4.5 border-b border-[#b6e0e4]/50 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] space-y-3">
         <div className="flex items-center justify-between gap-2">
-          {/* Title & Badge */}
+          {/* Title & Icon */}
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-[#3a7d84] to-[#51a8b1] text-white flex items-center justify-center shadow-md shadow-[#51a8b1]/30 shrink-0">
-              <Bell className="w-5 h-5" />
+            <div className="w-8 h-8 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-[#3a7d84] flex items-center justify-center shadow-2xs shrink-0">
+              <Bell className="w-4 h-4" />
             </div>
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <h2 className="font-heading font-black text-sm sm:text-base text-[#111827] tracking-tight truncate">
-                  Assignments &amp; Notifications
-                </h2>
-                {unreadCount > 0 && (
-                  <span className="inline-flex items-center justify-center text-[10.5px] font-black bg-rose-500 text-white min-w-[22px] h-5 px-1.5 rounded-full shadow-xs shrink-0 animate-pulse">
-                    {unreadCount}
-                  </span>
-                )}
-              </div>
-              <p className="text-[11px] text-slate-500 font-medium truncate">
-                Interactive project assignments, requests, and timeline feeds
-              </p>
-            </div>
+            <h2 className="font-heading font-bold text-sm text-[#2d6b73] tracking-tight truncate">
+              Assignments &amp; Notifications
+            </h2>
           </div>
 
-          {/* Header Action Buttons (Mark all read & Shrink toggle) */}
+          {/* Header Action Buttons (Shrink toggle) */}
           <div className="flex items-center gap-1.5 shrink-0">
-            {unreadCount > 0 && (
-              <button
-                type="button"
-                onClick={onMarkAllAsRead}
-                className="text-[11px] font-extrabold text-[#0d9488] hover:text-[#0f766e] flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 border border-teal-200 shadow-2xs transition cursor-pointer"
-                title="Mark all notifications as read"
-              >
-                <CheckCheck className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">Mark all read</span>
-              </button>
-            )}
-
             {onToggleShrink && (
               <button
                 type="button"
                 onClick={onToggleShrink}
-                className="p-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition cursor-pointer flex items-center justify-center shadow-2xs"
-                title="Hide notifications to expand timeline (Full Width)"
+                className="w-7 h-7 rounded-lg bg-[#f0f8f9] hover:bg-[#3a7d84] text-[#3a7d84] hover:text-white border border-[#b6e0e4] shadow-2xs transition-all duration-200 flex items-center justify-center cursor-pointer group/btn"
+                title="Collapse Notifications"
               >
-                <PanelRightClose className="w-4 h-4 text-slate-700" />
+                <ChevronUp className="w-3.5 h-3.5 transition-transform duration-200 group-hover/btn:-translate-y-0.5" />
               </button>
             )}
           </div>
         </div>
 
         {/* ── Main Filter Tabs (Assignments / Requests / Updates) ── */}
-        <div className="flex items-center p-1 bg-slate-100/90 rounded-2xl border border-slate-200/80 text-[11px] sm:text-xs shadow-inner gap-1">
+        <div className="flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-[11px] sm:text-xs shadow-inner gap-1">
           <button
             type="button"
             onClick={() => setCategory('ASSIGNMENT')}
-            className={`flex-1 py-2.5 rounded-xl font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 rounded-xl font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               category === 'ASSIGNMENT'
                 ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/90 font-black'
                 : 'text-slate-600 hover:text-slate-900'
@@ -356,7 +335,7 @@ export function RecentTimelineNotificationsBox({
           <button
             type="button"
             onClick={() => setCategory('REQUESTS')}
-            className={`flex-1 py-2.5 rounded-xl font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 rounded-xl font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               category === 'REQUESTS'
                 ? 'bg-white text-purple-700 shadow-sm border border-slate-200/90 font-black'
                 : 'text-slate-600 hover:text-slate-900'
@@ -374,7 +353,7 @@ export function RecentTimelineNotificationsBox({
           <button
             type="button"
             onClick={() => setCategory('UPDATES')}
-            className={`flex-1 py-2.5 rounded-xl font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-2 rounded-xl font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               category === 'UPDATES'
                 ? 'bg-white text-amber-700 shadow-sm border border-slate-200/90 font-black'
                 : 'text-slate-600 hover:text-slate-900'
@@ -396,7 +375,7 @@ export function RecentTimelineNotificationsBox({
             <button
               type="button"
               onClick={() => setAssignmentSub('PROJECT')}
-              className={`flex-1 py-2 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 assignmentSub === 'PROJECT'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 font-black'
                   : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
@@ -409,7 +388,7 @@ export function RecentTimelineNotificationsBox({
             <button
               type="button"
               onClick={() => setAssignmentSub('TASK')}
-              className={`flex-1 py-2 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
                 assignmentSub === 'TASK'
                   ? 'bg-[#0d9488] text-white shadow-md shadow-teal-200 font-black'
                   : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
@@ -420,6 +399,31 @@ export function RecentTimelineNotificationsBox({
             </button>
           </div>
         )}
+
+        {/* ── Dedicated Action Bar (Mark all read button) ──────────── */}
+        <div className="flex items-center justify-between pt-0.5 px-0.5 text-xs">
+          <span className="text-[11px] text-slate-500 font-medium">
+            {unreadCount > 0 ? (
+              <span className="text-amber-700 font-semibold">{unreadCount} unread update{unreadCount > 1 ? 's' : ''}</span>
+            ) : (
+              <span className="text-emerald-700 font-semibold flex items-center gap-1">
+                <Check className="w-3.5 h-3.5 text-emerald-600" /> All caught up
+              </span>
+            )}
+          </span>
+
+          {unreadCount > 0 && (
+            <button
+              type="button"
+              onClick={onMarkAllAsRead}
+              className="text-[11px] font-bold text-[#0d9488] hover:text-[#0f766e] flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-200 shadow-2xs transition-all cursor-pointer active:scale-95"
+              title="Mark all notifications as read"
+            >
+              <CheckCheck className="w-3.5 h-3.5" />
+              <span>Mark all as read</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* ── Scrollable Notifications Cards Feed ────────────── */}
@@ -541,19 +545,6 @@ export function RecentTimelineNotificationsBox({
                   <p className="text-[12px] text-slate-700 leading-relaxed line-clamp-2 font-normal">
                     {item.message}
                   </p>
-                </div>
-
-                {/* 4. Action Footer */}
-                <div className="pt-2.5 border-t border-slate-200/70 flex items-center justify-end">
-                  <button
-                    type="button"
-                    onClick={(e) => handleOpenAction(item, e)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer active:scale-95 ${visual.actionBtn}`}
-                  >
-                    {visual.actionIcon && <visual.actionIcon className="w-4 h-4" />}
-                    <span>{visual.actionLabel}</span>
-                    {!visual.actionIcon && <ArrowUpRight className="w-3.5 h-3.5" />}
-                  </button>
                 </div>
               </div>
             );

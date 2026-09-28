@@ -15,16 +15,18 @@ import {
 } from '../utils/formHelpers';
 import {
   Check,
-  AlertCircle,
-  Sparkles,
   School,
   BookOpen,
   ChevronDown,
   Search,
   X,
-  CheckSquare,
-  Square,
-  GraduationCap
+  GraduationCap,
+  Copy,
+  Layers,
+  Trash2,
+  CheckCircle2,
+  Sparkles,
+  Hash
 } from 'lucide-react';
 
 export {
@@ -36,7 +38,7 @@ export {
   BOARD_OPTIONS
 };
 
-interface SchoolSolutionItem {
+export interface SchoolSolutionItem {
   solutionKey: string;
   solutionName: string;
   quantity: number;
@@ -122,38 +124,38 @@ function ClassesMultiSelectDropdown({
 
   return (
     <div className="relative font-sans" ref={dropdownRef}>
-      <label className="block text-[10.5px] font-bold text-[#4b5563] mb-1 flex items-center justify-between">
+      <label className="block text-[10.5px] font-bold text-slate-700 mb-1 flex items-center justify-between">
         <span className="flex items-center gap-1">
           <GraduationCap className="w-3.5 h-3.5 text-[#51a8b1]" />
-          <span>Target Classes (Multi-Select Dropdown)</span>
+          <span>Target Classes</span>
         </span>
         <span className="text-[10px] font-semibold text-[#3a7d84] bg-[#51a8b1]/10 px-2 py-0.5 rounded-md">
-          {selectedClasses.length} Classes Selected
+          {selectedClasses.length} Selected
         </span>
       </label>
 
       {/* Trigger Button */}
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full min-h-[40px] px-3 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${
+        className={`w-full min-h-[38px] px-3 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${
           isOpen
-            ? 'border-[#51a8b1] ring-2 ring-[#51a8b1]/25 shadow-sm'
-            : 'border-gray-300 hover:border-[#51a8b1]/70'
-        } ${disabled ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''}`}
+            ? 'border-[#51a8b1] ring-2 ring-[#51a8b1]/25 shadow-xs'
+            : 'border-slate-200 hover:border-[#51a8b1]/70'
+        } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : ''}`}
       >
         <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0 py-0.5">
           {selectedClasses.length === 0 ? (
-            <span className="text-xs text-gray-400 italic">
-              Click to select target classes for {solutionLabel}...
+            <span className="text-xs text-slate-400">
+              Select classes for {solutionLabel}...
             </span>
           ) : (
             <>
-              {selectedClasses.slice(0, 6).map((cls) => (
+              {selectedClasses.slice(0, 5).map((cls) => (
                 <span
                   key={cls}
                   className="inline-flex items-center gap-1 text-[11px] font-medium bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] px-2 py-0.5 rounded-md shadow-2xs"
                 >
-                  <span className="truncate max-w-[130px]">{cls}</span>
+                  <span className="truncate max-w-[120px]">{cls}</span>
                   {!disabled && (
                     <button
                       type="button"
@@ -168,16 +170,16 @@ function ClassesMultiSelectDropdown({
                   )}
                 </span>
               ))}
-              {selectedClasses.length > 6 && (
+              {selectedClasses.length > 5 && (
                 <span className="text-[11px] font-bold bg-[#3a7d84] text-white px-2 py-0.5 rounded-md shadow-2xs">
-                  +{selectedClasses.length - 6} more
+                  +{selectedClasses.length - 5} more
                 </span>
               )}
             </>
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 shrink-0 text-gray-400">
+        <div className="flex items-center gap-1.5 shrink-0 text-slate-400">
           {selectedClasses.length > 0 && !disabled && (
             <button
               type="button"
@@ -186,7 +188,7 @@ function ClassesMultiSelectDropdown({
                 e.stopPropagation();
                 onChange([]);
               }}
-              className="text-gray-400 hover:text-rose-600 p-1 rounded-md transition"
+              className="text-slate-400 hover:text-rose-600 p-1 rounded-md transition"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -205,20 +207,20 @@ function ClassesMultiSelectDropdown({
           {/* Search Bar & Quick Presets */}
           <div className="space-y-2">
             <div className="relative">
-              <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search classes or streams (e.g., PCM, Class 9)..."
-                className="w-full text-xs pl-8 pr-7 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1.5 focus:ring-[#51a8b1] bg-gray-50/70"
+                placeholder="Search classes or streams..."
+                className="w-full text-xs pl-8 pr-7 py-1.5 rounded-lg border border-slate-200 focus:outline-none focus:ring-1.5 focus:ring-[#51a8b1] bg-slate-50/70"
                 autoFocus
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -227,199 +229,186 @@ function ClassesMultiSelectDropdown({
 
             {/* Quick Presets Bar */}
             <div className="flex items-center gap-1 flex-wrap pt-0.5">
-              <span className="text-[9.5px] font-bold text-gray-400 mr-0.5">Presets:</span>
+              <span className="text-[9.5px] font-bold text-slate-400 mr-0.5">Presets:</span>
               <button
                 type="button"
                 onClick={() => applyPreset('PRIMARY')}
-                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-gray-100 hover:bg-[#51a8b1]/20 hover:text-[#3a7d84] text-gray-700 transition cursor-pointer"
+                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-slate-100 hover:bg-[#51a8b1]/20 hover:text-[#3a7d84] text-slate-700 transition cursor-pointer"
               >
                 Primary (1-5)
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('MIDDLE')}
-                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-gray-100 hover:bg-[#51a8b1]/20 hover:text-[#3a7d84] text-gray-700 transition cursor-pointer"
+                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-slate-100 hover:bg-[#51a8b1]/20 hover:text-[#3a7d84] text-slate-700 transition cursor-pointer"
               >
                 Middle (6-8)
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('SECONDARY')}
-                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-gray-100 hover:bg-[#51a8b1]/20 hover:text-[#3a7d84] text-gray-700 transition cursor-pointer"
+                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-slate-100 hover:bg-[#51a8b1]/20 hover:text-[#3a7d84] text-slate-700 transition cursor-pointer"
               >
                 High (9-10)
               </button>
               <button
                 type="button"
-                onClick={() => applyPreset('SCIENCE_11_12')}
-                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-emerald-50 hover:bg-emerald-100 text-emerald-700 transition cursor-pointer border border-emerald-200"
-              >
-                11-12 Science
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset('COMMERCE_11_12')}
-                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-amber-50 hover:bg-amber-100 text-amber-700 transition cursor-pointer border border-amber-200"
-              >
-                11-12 Commerce
-              </button>
-              <button
-                type="button"
-                onClick={() => applyPreset('HUMANITIES_11_12')}
-                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-purple-50 hover:bg-purple-100 text-purple-700 transition cursor-pointer border border-purple-200"
-              >
-                11-12 Arts
-              </button>
-              <button
-                type="button"
                 onClick={() => applyPreset('SR_SECONDARY')}
-                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 transition cursor-pointer border border-blue-200"
+                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-slate-100 hover:bg-[#51a8b1]/20 hover:text-[#3a7d84] text-slate-700 transition cursor-pointer"
               >
-                Sr. Sec All
+                11 &amp; 12 All
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('ALL')}
-                className="text-[9.5px] font-bold px-2 py-0.5 rounded bg-[#51a8b1]/15 text-[#3a7d84] hover:bg-[#51a8b1]/30 transition cursor-pointer"
+                className="text-[9.5px] font-bold px-2 py-0.5 rounded bg-[#3a7d84] text-white hover:bg-[#2d6268] transition cursor-pointer"
               >
-                All
+                All (1-12)
               </button>
               <button
                 type="button"
                 onClick={() => applyPreset('CLEAR')}
-                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 transition cursor-pointer"
+                className="text-[9.5px] font-semibold px-2 py-0.5 rounded bg-rose-50 text-rose-600 hover:bg-rose-100 transition cursor-pointer ml-auto"
               >
                 Clear
               </button>
             </div>
           </div>
 
-          {/* Categorized Options List */}
-          <div className="overflow-y-auto space-y-2.5 pr-1 flex-1 max-h-[220px]">
+          {/* Classes Category Sections */}
+          <div className="overflow-y-auto space-y-3 pr-1 flex-1 max-h-[220px]">
             {totalFilteredCount === 0 ? (
-              <div className="py-4 text-center text-xs text-gray-400">
+              <div className="py-6 text-center text-xs text-slate-400">
                 No classes match &quot;{searchQuery}&quot;
               </div>
             ) : (
               <>
+                {/* 1. Foundational & Primary */}
                 {filteredFoundational.length > 0 && (
-                  <div>
-                    <span className="block text-[9.5px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
                       Foundational &amp; Primary
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                       {filteredFoundational.map((cls) => {
-                        const isChecked = selectedClasses.includes(cls);
+                        const isSelected = selectedClasses.includes(cls);
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={cls}
                             onClick={() => toggleClass(cls)}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition flex items-center gap-1.5 select-none ${
-                              isChecked
-                                ? 'bg-[#51a8b1] text-white border-[#3a7d84] shadow-2xs'
-                                : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#51a8b1]/60 hover:bg-white'
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${
+                              isSelected
+                                ? 'bg-[#3a7d84] text-white border-[#3a7d84]'
+                                : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
                             }`}
                           >
-                            {isChecked ? (
-                              <CheckSquare className="w-3.5 h-3.5 shrink-0" />
-                            ) : (
-                              <Square className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            )}
                             <span className="truncate">{cls}</span>
-                          </div>
+                            {isSelected ? (
+                              <Check className="w-3 h-3 text-white shrink-0 ml-1" />
+                            ) : (
+                              <div className="w-3 h-3 rounded-xs border border-slate-300 shrink-0 ml-1" />
+                            )}
+                          </button>
                         );
                       })}
                     </div>
                   </div>
                 )}
 
+                {/* 2. Middle & Secondary */}
                 {filteredMiddle.length > 0 && (
-                  <div className="pt-1.5 border-t border-gray-100">
-                    <span className="block text-[9.5px] font-bold uppercase tracking-wider text-gray-500 mb-1">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
                       Middle &amp; Secondary (Class 6 - 10)
-                    </span>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                       {filteredMiddle.map((cls) => {
-                        const isChecked = selectedClasses.includes(cls);
+                        const isSelected = selectedClasses.includes(cls);
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={cls}
                             onClick={() => toggleClass(cls)}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition flex items-center gap-1.5 select-none ${
-                              isChecked
-                                ? 'bg-[#51a8b1] text-white border-[#3a7d84] shadow-2xs'
-                                : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#51a8b1]/60 hover:bg-white'
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${
+                              isSelected
+                                ? 'bg-[#3a7d84] text-white border-[#3a7d84]'
+                                : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
                             }`}
                           >
-                            {isChecked ? (
-                              <CheckSquare className="w-3.5 h-3.5 shrink-0" />
-                            ) : (
-                              <Square className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            )}
                             <span className="truncate">{cls}</span>
-                          </div>
+                            {isSelected ? (
+                              <Check className="w-3 h-3 text-white shrink-0 ml-1" />
+                            ) : (
+                              <div className="w-3 h-3 rounded-xs border border-slate-300 shrink-0 ml-1" />
+                            )}
+                          </button>
                         );
                       })}
                     </div>
                   </div>
                 )}
 
+                {/* 3. Class 11 Streams */}
                 {filtered11.length > 0 && (
-                  <div className="pt-1.5 border-t border-gray-100">
-                    <span className="block text-[9.5px] font-bold uppercase tracking-wider text-[#3a7d84] mb-1">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
                       Class 11 Streams
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                       {filtered11.map((cls) => {
-                        const isChecked = selectedClasses.includes(cls);
+                        const isSelected = selectedClasses.includes(cls);
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={cls}
                             onClick={() => toggleClass(cls)}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition flex items-center gap-1.5 select-none ${
-                              isChecked
-                                ? 'bg-[#3a7d84] text-white border-[#275a5f] shadow-2xs'
-                                : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#3a7d84]/60 hover:bg-white'
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${
+                              isSelected
+                                ? 'bg-[#3a7d84] text-white border-[#3a7d84]'
+                                : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
                             }`}
                           >
-                            {isChecked ? (
-                              <CheckSquare className="w-3.5 h-3.5 shrink-0" />
-                            ) : (
-                              <Square className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            )}
                             <span className="truncate">{cls}</span>
-                          </div>
+                            {isSelected ? (
+                              <Check className="w-3 h-3 text-white shrink-0 ml-1" />
+                            ) : (
+                              <div className="w-3 h-3 rounded-xs border border-slate-300 shrink-0 ml-1" />
+                            )}
+                          </button>
                         );
                       })}
                     </div>
                   </div>
                 )}
 
+                {/* 4. Class 12 Streams */}
                 {filtered12.length > 0 && (
-                  <div className="pt-1.5 border-t border-gray-100">
-                    <span className="block text-[9.5px] font-bold uppercase tracking-wider text-[#3a7d84] mb-1">
+                  <div className="space-y-1">
+                    <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
                       Class 12 Streams
-                    </span>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                       {filtered12.map((cls) => {
-                        const isChecked = selectedClasses.includes(cls);
+                        const isSelected = selectedClasses.includes(cls);
                         return (
-                          <div
+                          <button
+                            type="button"
                             key={cls}
                             onClick={() => toggleClass(cls)}
-                            className={`px-2.5 py-1.5 rounded-lg border text-xs font-medium cursor-pointer transition flex items-center gap-1.5 select-none ${
-                              isChecked
-                                ? 'bg-[#3a7d84] text-white border-[#275a5f] shadow-2xs'
-                                : 'bg-gray-50 text-gray-700 border-gray-200 hover:border-[#3a7d84]/60 hover:bg-white'
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${
+                              isSelected
+                                ? 'bg-[#3a7d84] text-white border-[#3a7d84]'
+                                : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
                             }`}
                           >
-                            {isChecked ? (
-                              <CheckSquare className="w-3.5 h-3.5 shrink-0" />
-                            ) : (
-                              <Square className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                            )}
                             <span className="truncate">{cls}</span>
-                          </div>
+                            {isSelected ? (
+                              <Check className="w-3 h-3 text-white shrink-0 ml-1" />
+                            ) : (
+                              <div className="w-3 h-3 rounded-xs border border-slate-300 shrink-0 ml-1" />
+                            )}
+                          </button>
                         );
                       })}
                     </div>
@@ -429,15 +418,15 @@ function ClassesMultiSelectDropdown({
             )}
           </div>
 
-          {/* Footer Action */}
-          <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-[11px] text-gray-500">
-              {selectedClasses.length} of {ALL_CLASSES.length} classes selected
+          {/* Popover Footer */}
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[11px] text-slate-500 font-medium">
+              {selectedClasses.length} classes mapped
             </span>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="text-xs font-bold px-3 py-1 bg-[#51a8b1] hover:bg-[#3a7d84] text-white rounded-lg shadow-2xs transition cursor-pointer"
+              className="text-xs font-bold px-3 py-1 bg-[#3a7d84] hover:bg-[#2d6268] text-white rounded-lg shadow-2xs transition cursor-pointer"
             >
               Done
             </button>
@@ -448,22 +437,24 @@ function ClassesMultiSelectDropdown({
   );
 }
 
-// ─── SOLUTIONS MULTI-SELECT DROPDOWN COMPONENT ───
-interface SolutionsDropdownProps {
+// ─── SCHOOL-WISE SOLUTIONS MULTI-SELECT DROPDOWN COMPONENT ───
+interface SchoolSolutionsDropdownProps {
   selectedKeys: string[];
+  schoolName: string;
   onToggleSolution: (key: string) => void;
   onSelectAll: () => void;
   onClearAll: () => void;
   disabled?: boolean;
 }
 
-function SolutionsMultiSelectDropdown({
+function SchoolSolutionsMultiSelectDropdown({
   selectedKeys,
+  schoolName,
   onToggleSolution,
   onSelectAll,
   onClearAll,
   disabled = false,
-}: SolutionsDropdownProps) {
+}: SchoolSolutionsDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -484,38 +475,29 @@ function SolutionsMultiSelectDropdown({
 
   const filteredSolutions = useMemo(() =>
     DEFAULT_SOLUTIONS.filter(
-      (sol) =>
-        sol.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        sol.key.toLowerCase().includes(searchQuery.toLowerCase())
+      (item) =>
+        item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.desc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        item.key.toLowerCase().includes(searchQuery.toLowerCase())
     ),
     [searchQuery]
   );
 
   return (
     <div className="relative font-sans" ref={dropdownRef}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
-        <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
-          <Sparkles className="w-4 h-4 text-[#51a8b1]" />
-          <span>Select Project Solutions (Multi-Select Dropdown)</span>
-        </label>
-        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#51a8b1]/15 text-[#3a7d84] border border-[#b6e0e4]">
-          {selectedKeys.length} of {DEFAULT_SOLUTIONS.length} Solutions Selected
-        </span>
-      </div>
-
       {/* Main Trigger Dropdown Field */}
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full min-h-[46px] px-3.5 py-2 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${
+        className={`w-full min-h-[46px] px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${
           isOpen
-            ? 'border-[#51a8b1] ring-2 ring-[#51a8b1]/30 shadow-md'
-            : 'border-[#51a8b1]/40 hover:border-[#51a8b1] shadow-2xs'
-        } ${disabled ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''}`}
+            ? 'border-[#51a8b1] ring-2 ring-[#51a8b1]/20 shadow-xs'
+            : 'border-slate-300 hover:border-[#51a8b1] shadow-2xs'
+        } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : ''}`}
       >
-        <div className="flex-1 flex flex-wrap items-center gap-2 min-w-0 py-0.5">
+        <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0 py-0.5">
           {selectedKeys.length === 0 ? (
-            <span className="text-xs text-gray-400 italic">
-              Click to select solutions (e.g., STEM Lab, Robotics, ePathshala, Astronomy)...
+            <span className="text-xs text-slate-400 font-medium pl-0.5">
+              Click to select solutions for {schoolName} (e.g. STEM Lab, Robotics, ePathshala)...
             </span>
           ) : (
             selectedKeys.map((key) => {
@@ -523,9 +505,8 @@ function SolutionsMultiSelectDropdown({
               return (
                 <span
                   key={key}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-[#f0f8f9] to-[#e4f4f6] text-[#275a5f] border border-[#b6e0e4] px-2.5 py-1 rounded-lg shadow-2xs"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] px-2.5 py-1 rounded-lg shadow-2xs"
                 >
-                  <span>{sol?.icon || '🔬'}</span>
                   <span>{sol?.label || key}</span>
                   {!disabled && (
                     <button
@@ -549,18 +530,18 @@ function SolutionsMultiSelectDropdown({
           {selectedKeys.length > 0 && !disabled && (
             <button
               type="button"
-              title="Clear all solutions"
+              title="Clear all solutions for this school"
               onClick={(e) => {
                 e.stopPropagation();
                 onClearAll();
               }}
-              className="text-gray-400 hover:text-rose-600 text-xs px-2 py-0.5 rounded hover:bg-rose-50 transition"
+              className="text-slate-400 hover:text-rose-600 text-xs px-2 py-0.5 rounded hover:bg-rose-50 transition"
             >
               Clear
             </button>
           )}
           <ChevronDown
-            className={`w-5 h-5 transition-transform duration-200 ${
+            className={`w-4 h-4 transition-transform duration-200 ${
               isOpen ? 'rotate-180' : ''
             }`}
           />
@@ -569,24 +550,24 @@ function SolutionsMultiSelectDropdown({
 
       {/* Solutions Popover Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1.5 bg-white border border-[#51a8b1]/50 rounded-2xl shadow-2xl p-3.5 space-y-3 max-h-[380px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+        <div className="absolute z-50 left-0 right-0 top-full mt-1.5 bg-white border border-[#b6e0e4] rounded-2xl shadow-xl p-3 space-y-2.5 max-h-[380px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
           {/* Header with Search and Quick Actions */}
           <div className="space-y-2">
             <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search solutions (e.g., Robotics, Astronomy, STEM)..."
-                className="w-full text-xs pl-9 pr-8 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1] bg-gray-50/70 text-gray-800"
+                placeholder="Search solutions (e.g. Robotics, Astronomy, STEM)..."
+                className="w-full text-xs pl-9 pr-8 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-slate-50 text-slate-900 font-medium"
                 autoFocus
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -599,28 +580,28 @@ function SolutionsMultiSelectDropdown({
                 <button
                   type="button"
                   onClick={onSelectAll}
-                  className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#51a8b1]/15 hover:bg-[#51a8b1]/30 text-[#3a7d84] transition cursor-pointer"
+                  className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#f0f8f9] hover:bg-[#e0f3f5] text-[#3a7d84] border border-[#b6e0e4] transition cursor-pointer"
                 >
                   Select All
                 </button>
                 <button
                   type="button"
                   onClick={onClearAll}
-                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition cursor-pointer"
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
                 >
                   Clear All
                 </button>
               </div>
-              <span className="text-[11px] text-gray-500 font-medium">
-                {selectedKeys.length} selected
+              <span className="text-[11px] text-slate-500 font-medium">
+                {selectedKeys.length} selected for {schoolName}
               </span>
             </div>
           </div>
 
-          {/* Solutions List (Clean without long descriptions) */}
-          <div className="overflow-y-auto space-y-1.5 pr-1 flex-1 max-h-[240px]">
+          {/* Solutions List */}
+          <div className="overflow-y-auto space-y-1.5 pr-1 flex-1 max-h-[220px]">
             {filteredSolutions.length === 0 ? (
-              <div className="py-6 text-center text-xs text-gray-400">
+              <div className="py-6 text-center text-xs text-slate-400">
                 No solutions found matching &quot;{searchQuery}&quot;
               </div>
             ) : (
@@ -632,13 +613,12 @@ function SolutionsMultiSelectDropdown({
                     onClick={() => onToggleSolution(sol.key)}
                     className={`px-3 py-2 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
                       isSelected
-                        ? 'bg-gradient-to-r from-[#f0f8f9] to-white border-[#51a8b1] ring-1 ring-[#51a8b1] shadow-2xs'
-                        : 'bg-white border-gray-200 hover:border-[#51a8b1]/60 hover:bg-gray-50'
+                        ? 'bg-[#f0f8f9] border-[#51a8b1] ring-1 ring-[#51a8b1] shadow-2xs'
+                        : 'bg-white border-slate-200 hover:border-[#51a8b1] hover:bg-slate-50'
                     }`}
                   >
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <span className="text-lg">{sol.icon}</span>
-                      <h5 className="text-xs font-bold text-[#1f2937] truncate font-heading">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <h5 className="text-xs font-bold text-slate-800 truncate font-heading">
                         {sol.label}
                       </h5>
                     </div>
@@ -646,8 +626,8 @@ function SolutionsMultiSelectDropdown({
                     <div
                       className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] transition-colors shrink-0 ${
                         isSelected
-                          ? 'bg-[#51a8b1] border-[#51a8b1] text-white'
-                          : 'border-gray-300 bg-white'
+                          ? 'bg-[#3a7d84] border-[#3a7d84] text-white'
+                          : 'border-slate-300 bg-white'
                       }`}
                     >
                       {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
@@ -659,14 +639,14 @@ function SolutionsMultiSelectDropdown({
           </div>
 
           {/* Footer Action */}
-          <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-[11px] text-gray-500">
-              Select all solutions required for this project
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[11px] text-slate-500">
+              Solutions configured specifically for {schoolName}
             </span>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="text-xs font-bold px-4 py-1.5 bg-[#51a8b1] hover:bg-[#3a7d84] text-white rounded-xl shadow-2xs transition cursor-pointer"
+              className="text-xs font-bold px-4 py-1.5 bg-[#3a7d84] hover:bg-[#2d6268] text-white rounded-xl shadow-2xs transition cursor-pointer"
             >
               Done
             </button>
@@ -685,46 +665,48 @@ export function SolutionsConfigTable({
   schools = [],
   allFormData = {},
 }: SolutionsConfigTableProps) {
-  // 1. Determine active schools list with centralized helper
+  // 1. Determine effective schools list
   const effectiveSchools = useMemo<EffectiveSchoolItem[]>(() => {
     return extractEffectiveSchools(schools, allFormData, value);
   }, [schools, allFormData, value]);
 
   const [activeSchoolIndex, setActiveSchoolIndex] = useState<number>(0);
+  const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState<boolean>(false);
+  const [schoolSearchQuery, setSchoolSearchQuery] = useState<string>('');
+  const schoolDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close school dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target as Node)) {
+        setIsSchoolDropdownOpen(false);
+      }
+    }
+    if (isSchoolDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSchoolDropdownOpen]);
+
   const currentSchool =
     effectiveSchools[Math.min(activeSchoolIndex, effectiveSchools.length - 1)] ||
-    effectiveSchools[0];
+    effectiveSchools[0] || { id: 'school-1', name: 'Primary School' };
 
-  // 2. Global Catalog Selection
-  const selectedGlobalKeys = useMemo<string[]>(() => {
-    if (value && Array.isArray(value.activeSolutionKeys)) {
-      return value.activeSolutionKeys;
-    }
-    if (value && typeof value === 'object') {
-      const keys = Object.keys(value).filter(
-        (k) =>
-          k !== 'activeSolutionKeys' &&
-          k !== 'schoolWiseSolutions' &&
-          k !== 'schools' &&
-          k !== 'schoolName' &&
-          k !== 'schoolCode' &&
-          value[k]?.selected !== false &&
-          DEFAULT_SOLUTIONS.some((d) => d.key === k)
-      );
-      if (keys.length > 0) return keys;
-    }
-    return ['STEM_LAB', 'ROBOTICS'];
-  }, [value]);
-
-  // 3. School-wise allocations state
+  // 2. School-wise allocations state (CLEAN 0 DEFAULT - no hardcoded solutions!)
   const schoolAllocations = useMemo<Record<string, Record<string, SchoolSolutionItem>>>(() => {
     if (value?.schoolWiseSolutions && typeof value.schoolWiseSolutions === 'object') {
       return value.schoolWiseSolutions;
     }
     const initialMap: Record<string, Record<string, SchoolSolutionItem>> = {};
+    const fallbackKeys = Array.isArray(value?.activeSolutionKeys)
+      ? value.activeSolutionKeys
+      : [];
+
     effectiveSchools.forEach((sch: EffectiveSchoolItem) => {
       initialMap[sch.id] = {};
-      selectedGlobalKeys.forEach((solKey) => {
+      fallbackKeys.forEach((solKey: string) => {
         const legacy = value?.[solKey] || {};
         const classesArr = Array.isArray(legacy.targetClasses)
           ? legacy.targetClasses
@@ -744,14 +726,22 @@ export function SolutionsConfigTable({
       });
     });
     return initialMap;
-  }, [value, effectiveSchools, selectedGlobalKeys]);
+  }, [value, effectiveSchools]);
 
+  // Synchronize changes up to parent
   const emitUpdate = useCallback((
-    updatedGlobalKeys: string[],
     updatedSchoolMap: Record<string, Record<string, SchoolSolutionItem>>
   ) => {
+    const allActiveKeys = Array.from(
+      new Set(
+        Object.values(updatedSchoolMap).flatMap((sMap) =>
+          sMap && typeof sMap === 'object' ? Object.keys(sMap) : []
+        )
+      )
+    );
+
     const legacyTopLevel: Record<string, any> = {};
-    updatedGlobalKeys.forEach((solKey) => {
+    allActiveKeys.forEach((solKey) => {
       const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
       let aggregatedQty = 0;
       const allClassesSet = new Set<string>();
@@ -774,32 +764,45 @@ export function SolutionsConfigTable({
 
     onChange({
       ...(typeof value === 'object' && value !== null ? value : {}),
-      activeSolutionKeys: updatedGlobalKeys,
+      activeSolutionKeys: allActiveKeys,
       schoolWiseSolutions: updatedSchoolMap,
       ...legacyTopLevel,
     });
   }, [value, onChange]);
 
-  // --- Handlers ---
-  const handleToggleGlobalSolution = useCallback((solKey: string) => {
-    let nextKeys: string[];
-    const isCurrentlySelected = selectedGlobalKeys.includes(solKey);
-    if (isCurrentlySelected) {
-      nextKeys = selectedGlobalKeys.filter((k) => k !== solKey);
+  // Toggle solution for the ACTIVE school
+  const handleToggleSchoolSolution = useCallback((solKey: string) => {
+    const schoolId = currentSchool.id;
+    const nextSchoolMap = { ...schoolAllocations };
+    nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
+
+    if (nextSchoolMap[schoolId][solKey]) {
+      delete nextSchoolMap[schoolId][solKey];
     } else {
-      nextKeys = [...selectedGlobalKeys, solKey];
+      const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+      nextSchoolMap[schoolId][solKey] = {
+        solutionKey: solKey,
+        solutionName: defObj?.label || solKey,
+        quantity: 1,
+        targetClasses: ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'],
+        board: 'CBSE',
+        notes: '',
+      };
     }
 
+    emitUpdate(nextSchoolMap);
+  }, [currentSchool.id, schoolAllocations, emitUpdate]);
+
+  const handleSelectAllForSchool = useCallback(() => {
+    const schoolId = currentSchool.id;
     const nextSchoolMap = { ...schoolAllocations };
-    effectiveSchools.forEach((sch: EffectiveSchoolItem) => {
-      nextSchoolMap[sch.id] = { ...(nextSchoolMap[sch.id] || {}) };
-      if (isCurrentlySelected) {
-        delete nextSchoolMap[sch.id][solKey];
-      } else {
-        const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
-        nextSchoolMap[sch.id][solKey] = {
-          solutionKey: solKey,
-          solutionName: defObj?.label || solKey,
+    nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
+
+    DEFAULT_SOLUTIONS.forEach((sol) => {
+      if (!nextSchoolMap[schoolId][sol.key]) {
+        nextSchoolMap[schoolId][sol.key] = {
+          solutionKey: sol.key,
+          solutionName: sol.label,
           quantity: 1,
           targetClasses: ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'],
           board: 'CBSE',
@@ -808,42 +811,17 @@ export function SolutionsConfigTable({
       }
     });
 
-    emitUpdate(nextKeys, nextSchoolMap);
-  }, [selectedGlobalKeys, schoolAllocations, effectiveSchools, emitUpdate]);
+    emitUpdate(nextSchoolMap);
+  }, [currentSchool.id, schoolAllocations, emitUpdate]);
 
-  const handleSelectAllSolutions = useCallback(() => {
-    const allKeys = DEFAULT_SOLUTIONS.map((s) => s.key);
+  const handleClearAllForSchool = useCallback(() => {
+    const schoolId = currentSchool.id;
     const nextSchoolMap = { ...schoolAllocations };
+    nextSchoolMap[schoolId] = {};
+    emitUpdate(nextSchoolMap);
+  }, [currentSchool.id, schoolAllocations, emitUpdate]);
 
-    effectiveSchools.forEach((sch: EffectiveSchoolItem) => {
-      nextSchoolMap[sch.id] = { ...(nextSchoolMap[sch.id] || {}) };
-      allKeys.forEach((solKey) => {
-        if (!nextSchoolMap[sch.id][solKey]) {
-          const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
-          nextSchoolMap[sch.id][solKey] = {
-            solutionKey: solKey,
-            solutionName: defObj?.label || solKey,
-            quantity: 1,
-            targetClasses: ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'],
-            board: 'CBSE',
-            notes: '',
-          };
-        }
-      });
-    });
-
-    emitUpdate(allKeys, nextSchoolMap);
-  }, [schoolAllocations, effectiveSchools, emitUpdate]);
-
-  const handleClearAllSolutions = useCallback(() => {
-    const nextSchoolMap: Record<string, Record<string, SchoolSolutionItem>> = {};
-    effectiveSchools.forEach((sch: EffectiveSchoolItem) => {
-      nextSchoolMap[sch.id] = {};
-    });
-    emitUpdate([], nextSchoolMap);
-  }, [effectiveSchools, emitUpdate]);
-
-  const handleUpdateSchoolSolution = useCallback((
+  const handleUpdateSchoolSolutionField = useCallback((
     schoolId: string,
     solKey: string,
     field: keyof SchoolSolutionItem,
@@ -867,14 +845,52 @@ export function SolutionsConfigTable({
       [field]: val,
     };
 
-    emitUpdate(selectedGlobalKeys, nextSchoolMap);
-  }, [schoolAllocations, selectedGlobalKeys, emitUpdate]);
+    emitUpdate(nextSchoolMap);
+  }, [schoolAllocations, emitUpdate]);
 
-  // Calculate Aggregated Metrics
+  const handleRemoveSolutionFromSchool = useCallback((schoolId: string, solKey: string) => {
+    const nextSchoolMap = { ...schoolAllocations };
+    nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
+    delete nextSchoolMap[schoolId][solKey];
+    emitUpdate(nextSchoolMap);
+  }, [schoolAllocations, emitUpdate]);
+
+  // Copy current school config to all other schools
+  const handleApplyToAllSchools = useCallback(() => {
+    const sourceSolutions = schoolAllocations[currentSchool.id] || {};
+    const nextSchoolMap = { ...schoolAllocations };
+
+    effectiveSchools.forEach((sch) => {
+      if (sch.id !== currentSchool.id) {
+        nextSchoolMap[sch.id] = JSON.parse(JSON.stringify(sourceSolutions));
+      }
+    });
+
+    emitUpdate(nextSchoolMap);
+  }, [currentSchool.id, effectiveSchools, schoolAllocations, emitUpdate]);
+
+  // Active school's selected solution keys
+  const activeSchoolSolutions = useMemo(() => {
+    return schoolAllocations[currentSchool.id] || {};
+  }, [schoolAllocations, currentSchool.id]);
+
+  const activeSchoolKeys = useMemo(() => {
+    return Object.keys(activeSchoolSolutions);
+  }, [activeSchoolSolutions]);
+
+  // Filter schools for the dropdown search
+  const filteredSchoolsList = useMemo(() => {
+    return effectiveSchools.map((sch, idx) => ({ sch, originalIndex: idx })).filter(({ sch }) =>
+      sch.name.toLowerCase().includes(schoolSearchQuery.toLowerCase()) ||
+      (sch.address && sch.address.toLowerCase().includes(schoolSearchQuery.toLowerCase()))
+    );
+  }, [effectiveSchools, schoolSearchQuery]);
+
+  // Total summary across all schools
   const totalUnitsAcrossSchools = useMemo(() => {
     let total = 0;
     Object.values(schoolAllocations).forEach((schMap) => {
-      Object.values(schMap).forEach((item) => {
+      Object.values(schMap || {}).forEach((item) => {
         total += Number(item.quantity) || 1;
       });
     });
@@ -883,110 +899,236 @@ export function SolutionsConfigTable({
 
   return (
     <div className="space-y-4 font-sans">
-      {/* ── STEP 1: SOLUTIONS MULTI-SELECT DROPDOWN ── */}
-      <div className="bg-gradient-to-r from-[#f8fafb] via-white to-[#f8fafb] border border-[#51a8b1]/40 rounded-2xl p-4 shadow-2xs space-y-3">
-        <SolutionsMultiSelectDropdown
-          selectedKeys={selectedGlobalKeys}
-          onToggleSolution={handleToggleGlobalSolution}
-          onSelectAll={handleSelectAllSolutions}
-          onClearAll={handleClearAllSolutions}
+      {/* ── STEP 1: SELECT SCHOOL CAMPUS ── */}
+      <div className="bg-white p-4 rounded-2xl border border-[#b6e0e4] shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          {/* Step 1 Title */}
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
+              1
+            </span>
+            <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900">
+              Step 1: Select School Campus
+            </h4>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-1 rounded-xl">
+              Total Across Schools: <strong>{totalUnitsAcrossSchools} Labs</strong>
+            </span>
+            {effectiveSchools.length > 1 && !disabled && (
+              <button
+                type="button"
+                onClick={handleApplyToAllSchools}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white hover:bg-[#e0f3f5] text-[#3a7d84] border border-[#b6e0e4] text-xs font-bold transition shadow-2xs cursor-pointer"
+                title="Copy current school's solutions to all other campuses"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Apply to All</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Searchable School Dropdown Component */}
+        <div className="relative" ref={schoolDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsSchoolDropdownOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-[#f0f8f9] hover:bg-[#e4f3f5] border border-[#b6e0e4] text-[#2d6b73] text-xs font-bold transition shadow-2xs cursor-pointer text-left select-none"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <School className="w-4 h-4 text-[#3a7d84] shrink-0" />
+              <span className="truncate font-heading text-slate-800 text-sm">
+                {currentSchool.name || `School Branch #${activeSchoolIndex + 1}`}
+              </span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-white border border-[#b6e0e4] text-[#3a7d84] shrink-0">
+                #{activeSchoolIndex + 1} of {effectiveSchools.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 text-[#3a7d84]">
+              <span className="text-[10.5px] font-bold bg-white px-2 py-0.5 rounded-md border border-[#b6e0e4]">
+                {activeSchoolKeys.length} solutions configured
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSchoolDropdownOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {/* School Dropdown Popover */}
+          {isSchoolDropdownOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-[#b6e0e4] shadow-xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={schoolSearchQuery}
+                  onChange={(e) => setSchoolSearchQuery(e.target.value)}
+                  placeholder="Search school by name or address..."
+                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] font-medium"
+                />
+                {schoolSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSchoolSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* School Items List */}
+              <div className="max-h-56 overflow-y-auto space-y-1 scrollbar-thin">
+                {filteredSchoolsList.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                    No schools match &ldquo;{schoolSearchQuery}&rdquo;
+                  </div>
+                ) : (
+                  filteredSchoolsList.map(({ sch, originalIndex }) => {
+                    const isSelected = originalIndex === activeSchoolIndex;
+                    const solCount = Object.keys(schoolAllocations[sch.id] || {}).length;
+
+                    return (
+                      <div
+                        key={sch.id || originalIndex}
+                        onClick={() => {
+                          setActiveSchoolIndex(originalIndex);
+                          setIsSchoolDropdownOpen(false);
+                        }}
+                        className={`flex items-center justify-between gap-2 p-2 rounded-xl text-xs transition cursor-pointer select-none ${
+                          isSelected
+                            ? 'bg-[#f0f8f9] text-[#2d6b73] font-bold border border-[#b6e0e4]'
+                            : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-5 h-5 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center shrink-0 ${
+                            isSelected ? 'bg-[#3a7d84] text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {originalIndex + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-slate-900">
+                              {sch.name || `School Branch #${originalIndex + 1}`}
+                            </p>
+                            {sch.address && (
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {sch.address}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-white border border-[#b6e0e4] text-[#3a7d84]">
+                            {solCount} sol.
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#3a7d84]" />}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Horizontal School Pills */}
+        {effectiveSchools.length > 1 && (
+          <div className="bg-slate-50/80 p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-thin border border-slate-200/80">
+            {effectiveSchools.map((school, idx) => {
+              const isActive = idx === activeSchoolIndex;
+              const schSolCount = Object.keys(schoolAllocations[school.id] || {}).length;
+
+              return (
+                <button
+                  type="button"
+                  key={school.id || idx}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs transition-all duration-200 cursor-pointer shrink-0 select-none border ${
+                    isActive
+                      ? 'bg-white text-[#2d6b73] border-[#51a8b1]/60 shadow-sm ring-2 ring-[#51a8b1]/20 font-bold'
+                      : 'bg-transparent hover:bg-white/80 text-slate-600 border-transparent hover:border-slate-200 font-medium'
+                  }`}
+                  onClick={() => setActiveSchoolIndex(idx)}
+                >
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                    isActive ? 'bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]' : 'bg-slate-200/70 text-slate-500'
+                  }`}>
+                    #{idx + 1}
+                  </span>
+                  <span className="max-w-[280px] sm:max-w-[380px] truncate text-slate-800" title={school.name || `School #${idx + 1}`}>
+                    {school.name || `School #${idx + 1}`}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isActive ? 'bg-[#3a7d84] text-white shadow-2xs' : 'bg-slate-200/80 text-slate-600'
+                  }`}>
+                    {schSolCount} sol.
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── STEP 2: SELECT SOLUTIONS FOR THE ACTIVE SCHOOL ── */}
+      <div 
+        key={currentSchool.id || `school-solutions-${activeSchoolIndex}`}
+        className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 animate-in fade-in-50 duration-200"
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
+            2
+          </span>
+          <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900 truncate">
+            Step 2: Select Solutions for {currentSchool.name}
+          </h4>
+        </div>
+
+        {/* Dropdown to pick solutions */}
+        <SchoolSolutionsMultiSelectDropdown
+          selectedKeys={activeSchoolKeys}
+          schoolName={currentSchool.name}
+          onToggleSolution={handleToggleSchoolSolution}
+          onSelectAll={handleSelectAllForSchool}
+          onClearAll={handleClearAllForSchool}
           disabled={disabled}
         />
       </div>
 
-      {/* ── STEP 2: SCHOOL-WISE SOLUTION CONFIGURATION & MULTI-CLASS DROPDOWN ── */}
-      <div className="bg-white border border-[#b9c0cb]/50 rounded-2xl p-4 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2.5">
+      {/* ── STEP 3: CONFIGURE QUANTITIES (NO.) & DETAILS FOR SELECTED SOLUTIONS ── */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#3a7d84] to-[#51a8b1] text-white flex items-center justify-center text-xs shadow-xs">
-              <School className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#1f2937] font-heading">
-                Step 2: School Allocation, Quantities &amp; Target Classes
-              </h4>
-              <p className="text-[10.5px] text-[#6b7280]">
-                Configure lab quantities, boards, and target classes per school branch.
-              </p>
-            </div>
+            <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
+              3
+            </span>
+            <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900">
+              Step 3: Solution Quantity (No.) &amp; Class Details
+            </h4>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold px-3 py-1 rounded-lg bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
-              Total Units: <strong>{totalUnitsAcrossSchools} Labs</strong>
-            </span>
-          </div>
+          <span className="text-xs font-bold text-[#3a7d84] bg-[#f0f8f9] px-2.5 py-1 rounded-lg border border-[#b6e0e4]">
+            {activeSchoolKeys.length} Solutions Active
+          </span>
         </div>
 
-        {/* ── Prominent School Selection Dropdown & Info Card ── */}
-        <div className="bg-gradient-to-r from-[#f0f8f9] via-white to-[#f0f8f9] border-2 border-[#51a8b1]/40 rounded-2xl p-4 shadow-sm space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex-1">
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#3a7d84] mb-1.5 flex items-center gap-1.5">
-                <School className="w-4 h-4 text-[#51a8b1]" />
-                <span>Select School / Campus:</span>
-                <span className="text-[11px] font-normal normal-case text-[#4a5462]">
-                  (Solutions &amp; Classes will configure for the selected school)
-                </span>
-              </label>
-
-              <div className="relative">
-                <select
-                  value={activeSchoolIndex}
-                  onChange={(e) => setActiveSchoolIndex(Number(e.target.value))}
-                  className="w-full bg-white border-2 border-[#51a8b1] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-[#1f2937] shadow-xs focus:outline-none focus:ring-2 focus:ring-[#3a7d84] cursor-pointer appearance-none pr-10"
-                >
-                  {effectiveSchools.map((sch, idx) => {
-                    const schSolutions = schoolAllocations[sch.id] || {};
-                    const activeCount = Object.keys(schSolutions).length;
-                    return (
-                      <option key={sch.id || idx} value={idx}>
-                        🏫 {idx + 1}. {sch.name}{' '}
-                        {sch.address ? `— [${sch.address.slice(0, 40)}...]` : ''} ({activeCount}{' '}
-                        solutions configured)
-                      </option>
-                    );
-                  })}
-                </select>
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#51a8b1]">
-                  ▼
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Active School Summary Context Banner */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#51a8b1]/20 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="px-2 py-0.5 rounded-md bg-[#51a8b1] text-white font-bold text-[11px]">
-                Active School: {currentSchool.name}
-              </span>
-              {currentSchool.address && (
-                <span className="text-[11px] text-[#4a5462]">
-                  [{currentSchool.address.slice(0, 50)}...]
-                </span>
-              )}
-            </div>
-
-            <span className="text-[11px] font-semibold text-[#3a7d84]">
-              Showing {selectedGlobalKeys.length} solutions for this campus
-            </span>
-          </div>
-        </div>
-
-        {/* Selected School's Solutions Breakdown */}
-        {selectedGlobalKeys.length === 0 ? (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              Please select at least one solution from the solutions dropdown above to configure school-wise quantities and classes.
-            </span>
+        {/* If no solutions selected yet */}
+        {activeSchoolKeys.length === 0 ? (
+          <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+            <Layers className="w-8 h-8 text-slate-300 mx-auto" />
+            <p className="text-xs font-bold text-slate-700">
+              No solutions selected for {currentSchool.name}
+            </p>
           </div>
         ) : (
-          <div className="space-y-3.5">
-            {selectedGlobalKeys.map((solKey) => {
+          <div className="space-y-3 pt-1">
+            {activeSchoolKeys.map((solKey) => {
               const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
-              const item = schoolAllocations[currentSchool.id]?.[solKey] || {
+              const item = activeSchoolSolutions[solKey] || {
                 solutionKey: solKey,
                 solutionName: defObj?.label || solKey,
                 quantity: 1,
@@ -1000,30 +1142,40 @@ export function SolutionsConfigTable({
               return (
                 <div
                   key={solKey}
-                  className="bg-[#fcfdfd] border border-[#b9c0cb]/40 hover:border-[#51a8b1]/50 rounded-2xl p-3.5 shadow-2xs space-y-3 transition-all"
+                  className="bg-slate-50/70 border border-slate-200 hover:border-[#51a8b1]/60 rounded-2xl p-4 shadow-2xs space-y-3 transition-all"
                 >
-                  {/* Header without subtitle description */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2">
+                  {/* Solution Card Header */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200/70 pb-2">
                     <div className="flex items-center gap-2">
-                      <span className="text-lg">{defObj?.icon || '🔬'}</span>
-                      <h5 className="text-xs font-bold text-[#1f2937] font-heading">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#51a8b1]" />
+                      <h5 className="text-xs font-bold text-slate-800 font-heading">
                         {defObj?.label || solKey}
                       </h5>
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-[#51a8b1]/15 text-[#3a7d84]">
-                        Units: {item.quantity || 1}
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
+                        {item.quantity || 1} Unit(s)
                       </span>
+                      {!disabled && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveSolutionFromSchool(currentSchool.id, solKey)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          title="Remove solution from this school"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </div>
 
-                  {/* 2-Column Inputs Row: Quantity & Board */}
+                  {/* Quantity (No.) & Board Row */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Quantity */}
+                    {/* Quantity / Number Input */}
                     <div>
-                      <label className="block text-[10px] font-bold text-[#4b5563] mb-1">
-                        Quantity / Labs Count <span className="text-rose-500">*</span>
+                      <label className="block text-[10.5px] font-bold text-slate-700 mb-1">
+                        Quantity / Labs Count (Number) <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="number"
@@ -1031,20 +1183,20 @@ export function SolutionsConfigTable({
                         disabled={disabled}
                         value={item.quantity || 1}
                         onChange={(e) =>
-                          handleUpdateSchoolSolution(
+                          handleUpdateSchoolSolutionField(
                             currentSchool.id,
                             solKey,
                             'quantity',
                             Math.max(1, Number(e.target.value) || 1)
                           )
                         }
-                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-1.5 focus:ring-[#51a8b1] bg-white text-[#1f2937]"
+                        className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-bold"
                       />
                     </div>
 
                     {/* Board / Curriculum */}
                     <div>
-                      <label className="block text-[10px] font-bold text-[#4b5563] mb-1 flex items-center gap-1">
+                      <label className="block text-[10.5px] font-bold text-slate-700 mb-1 flex items-center gap-1">
                         <BookOpen className="w-3 h-3 text-[#51a8b1]" />
                         <span>Curriculum / Board</span>
                       </label>
@@ -1052,14 +1204,14 @@ export function SolutionsConfigTable({
                         disabled={disabled}
                         value={item.board || 'CBSE'}
                         onChange={(e) =>
-                          handleUpdateSchoolSolution(
+                          handleUpdateSchoolSolutionField(
                             currentSchool.id,
                             solKey,
                             'board',
                             e.target.value
                           )
                         }
-                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-1.5 focus:ring-[#51a8b1] bg-white text-[#1f2937]"
+                        className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-medium"
                       >
                         {BOARD_OPTIONS.map((b) => (
                           <option key={b} value={b}>
@@ -1070,12 +1222,12 @@ export function SolutionsConfigTable({
                     </div>
                   </div>
 
-                  {/* Target Classes — MULTI-SELECT DROPDOWN */}
+                  {/* Target Classes Dropdown */}
                   <div>
                     <ClassesMultiSelectDropdown
                       selectedClasses={currentClasses}
                       onChange={(updated) =>
-                        handleUpdateSchoolSolution(
+                        handleUpdateSchoolSolutionField(
                           currentSchool.id,
                           solKey,
                           'targetClasses',
@@ -1087,22 +1239,22 @@ export function SolutionsConfigTable({
                     />
                   </div>
 
-                  {/* Notes / Remarks */}
+                  {/* Room / Implementation Notes */}
                   <div>
                     <input
                       type="text"
                       disabled={disabled}
                       value={item.notes || ''}
                       onChange={(e) =>
-                        handleUpdateSchoolSolution(
+                        handleUpdateSchoolSolutionField(
                           currentSchool.id,
                           solKey,
                           'notes',
                           e.target.value
                         )
                       }
-                      placeholder="Special customization / notes for this solution in this branch..."
-                      className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1.5 focus:ring-[#51a8b1] bg-white text-gray-700 placeholder:text-gray-400"
+                      placeholder="Special customization / room allocation notes for this campus..."
+                      className="w-full text-xs px-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-medium placeholder:text-slate-400"
                     />
                   </div>
                 </div>

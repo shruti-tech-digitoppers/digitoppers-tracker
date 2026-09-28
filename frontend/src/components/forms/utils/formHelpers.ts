@@ -2,6 +2,8 @@ export interface EffectiveSchoolItem {
   id: string;
   name: string;
   address?: string;
+  classes?: string[];
+  pocName?: string;
 }
 
 export const DEFAULT_SOLUTIONS = [
@@ -125,39 +127,68 @@ export function extractEffectiveSchools(
   value?: any,
   fallbackTitle = 'Primary School / Institution'
 ): EffectiveSchoolItem[] {
+  // 1. Direct schools array prop
   if (Array.isArray(schools) && schools.length > 0) {
     return schools.map((s, idx) => ({
       id: s.id || `school-${idx + 1}`,
       name: s.schoolName || s.name || `School Branch #${idx + 1}`,
-      address: s.address || '',
+      address: s.address || s.addressContact || '',
+      classes: s.classes || [],
+      pocName: s.pocName || s.contactPerson || '',
     }));
   }
 
+  // 2. allFormData?.stage3Schools
+  if (Array.isArray(allFormData?.stage3Schools) && allFormData.stage3Schools.length > 0) {
+    return allFormData.stage3Schools.map((s: any, idx: number) => ({
+      id: s.id || `school-${idx + 1}`,
+      name: s.schoolName || s.name || `School Branch #${idx + 1}`,
+      address: s.address || s.addressContact || '',
+      classes: s.classes || [],
+      pocName: s.pocName || s.contactPerson || '',
+    }));
+  }
+
+  // 3. allFormData?.schools or orderRequirement.schoolInformation.schools
   const fromAllForm =
-    allFormData?.orderRequirement?.schoolInformation?.schools || allFormData?.schools;
+    allFormData?.schools ||
+    allFormData?.orderRequirement?.schoolInformation?.schools ||
+    allFormData?.project?.orderRequirement?.schoolInformation?.schools;
   if (Array.isArray(fromAllForm) && fromAllForm.length > 0) {
     return fromAllForm.map((s: any, idx: number) => ({
       id: s.id || `school-${idx + 1}`,
       name: s.schoolName || s.name || `School Branch #${idx + 1}`,
-      address: s.address || '',
+      address: s.address || s.addressContact || '',
+      classes: s.classes || [],
+      pocName: s.pocName || s.contactPerson || '',
     }));
   }
 
+  // 4. value?.schools
   if (Array.isArray(value?.schools) && value.schools.length > 0) {
     return value.schools.map((s: any, idx: number) => ({
       id: s.id || `school-${idx + 1}`,
       name: s.schoolName || s.name || `School Branch #${idx + 1}`,
-      address: s.address || '',
+      address: s.address || s.addressContact || '',
+      classes: s.classes || [],
+      pocName: s.pocName || s.contactPerson || '',
     }));
   }
 
   const fallbackName =
     allFormData?.schoolName ||
     allFormData?.orderRequirement?.schoolInformation?.schoolName ||
+    allFormData?.project?.orderRequirement?.schoolInformation?.schoolName ||
     value?.schoolName ||
     fallbackTitle;
 
-  return [{ id: 'school-1', name: fallbackName, address: allFormData?.address || '' }];
+  return [{ 
+    id: 'school-1', 
+    name: fallbackName, 
+    address: allFormData?.address || allFormData?.addressContact || '',
+    classes: allFormData?.classes || [],
+    pocName: allFormData?.pocName || allFormData?.contactPerson || '',
+  }];
 }
 
 export function normalizeOption(opt: any): { value: string; label: string } {

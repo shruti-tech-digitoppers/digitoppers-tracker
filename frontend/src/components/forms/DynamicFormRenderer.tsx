@@ -76,7 +76,14 @@ export function DynamicFormRenderer({
       if (Array.isArray((schema as any).fields)) list = (schema as any).fields;
       else list = Object.values(schema);
     }
-    return list;
+    return list.filter(
+      (f) =>
+        f &&
+        f.key !== 'assignedTechLead' &&
+        f.key !== 'assignedContentLead' &&
+        f.name !== 'assignedTechLead' &&
+        f.name !== 'assignedContentLead'
+    );
   }, [schema]);
 
   const isProjectReviewForm = useMemo(() => {
@@ -363,7 +370,14 @@ export function DynamicFormRenderer({
                       value={value}
                       onChange={(val) => handleChange(fieldKey, val)}
                       disabled={disabled || submitting}
-                      schools={formData.schools || allFormData.schools || allFormData.orderRequirement?.schoolInformation?.schools || []}
+                      schools={
+                        allFormData.stage3Schools ||
+                        allFormData.schools ||
+                        formData.schools ||
+                        (project as any)?.orderRequirement?.schoolInformation?.schools ||
+                        allFormData.orderRequirement?.schoolInformation?.schools ||
+                        []
+                      }
                       allFormData={allFormData}
                     />
                   </div>
@@ -376,7 +390,14 @@ export function DynamicFormRenderer({
                       value={value}
                       onChange={(val) => handleChange(fieldKey, val)}
                       disabled={disabled || submitting}
-                      schools={formData.schools || allFormData.schools || allFormData.orderRequirement?.schoolInformation?.schools || []}
+                      schools={
+                        allFormData.stage3Schools ||
+                        allFormData.schools ||
+                        formData.schools ||
+                        (project as any)?.orderRequirement?.schoolInformation?.schools ||
+                        allFormData.orderRequirement?.schoolInformation?.schools ||
+                        []
+                      }
                       allFormData={allFormData}
                     />
                   </div>

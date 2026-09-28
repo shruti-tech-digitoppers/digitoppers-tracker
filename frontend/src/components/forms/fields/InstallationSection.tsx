@@ -433,6 +433,12 @@ export function InstallationSection({
 
   // File / Image upload handler
   const handleUploadImage = async (file: File, imageKey: 'image1Url' | 'image2Url' | 'image3Url') => {
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`File exceeds 2MB limit (selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB).`);
+      return;
+    }
+
     try {
       setUploadingSlot(imageKey);
       const token = typeof window !== 'undefined' ? localStorage.getItem('token') : null;
@@ -751,7 +757,7 @@ export function InstallationSection({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Installation area ki 3 photos upload karein.
+              Installation area ki 3 photos upload karein (PNG, JPG, WebP • Max 2MB each).
             </p>
           </div>
         </div>
@@ -810,7 +816,7 @@ export function InstallationSection({
               `}>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.png,.jpg,.jpeg,.webp"
                   disabled={disabled || uploadingSlot === 'image1Url'}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -885,7 +891,7 @@ export function InstallationSection({
               `}>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.png,.jpg,.jpeg,.webp"
                   disabled={disabled || uploadingSlot === 'image2Url'}
                   onChange={(e) => {
                     const f = e.target.files?.[0];
@@ -960,7 +966,7 @@ export function InstallationSection({
               `}>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/*,.png,.jpg,.jpeg,.webp"
                   disabled={disabled || uploadingSlot === 'image3Url'}
                   onChange={(e) => {
                     const f = e.target.files?.[0];

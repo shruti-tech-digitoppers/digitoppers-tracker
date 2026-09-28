@@ -3,31 +3,24 @@ module.exports = {
   stages: [
     {
       key: 'PROJECT_REVIEWER',
-      name: '01 — PROJECT REVIEWER',
+      name: '01 — PROJECT CREATED & REVIEW',
       order: 1,
       metadata: { noAssignment: true },
-      substages: [
-        {
-          key: 'PROJECT_CREATED',
-          name: 'Project Created',
-          order: 1,
-          metadata: { noAssignment: true },
-          formSchema: {
-            fields: [
-              { key: 'projectName', label: 'Project Name / Title', type: 'text', required: true },
-              { key: 'email', label: 'Email Address', type: 'text' },
-              { key: 'country', label: 'Country', type: 'text' },
-              { key: 'phone', label: 'Phone Number', type: 'text' },
-              { key: 'address', label: 'Address / Location', type: 'text' },
-              { key: 'projectReviewed', label: 'Project Reviewed?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
-              { key: 'projectCreated', label: 'Project Created?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
-              { key: 'confirmed', label: 'Negotiation Confirmed?', type: 'select', options: ['YES', 'NO', 'PENDING'] },
-              { key: 'confirmationDate', label: 'Confirmation Date', type: 'date' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
-            ]
-          }
-        }
-      ]
+      formSchema: {
+        fields: [
+          { key: 'projectName', label: 'Project Name / Title', type: 'text', required: true },
+          { key: 'email', label: 'Email Address', type: 'text' },
+          { key: 'country', label: 'Country', type: 'text' },
+          { key: 'phone', label: 'Phone Number', type: 'text' },
+          { key: 'address', label: 'Address / Location', type: 'text' },
+          { key: 'projectReviewed', label: 'Project Reviewed?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
+          { key: 'projectCreated', label: 'Project Created?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
+          { key: 'projectPlanUrl', label: 'Project Plan Document', type: 'file', required: false, hint: 'Upload project plan document (PDF / Images • Max 2MB)' },
+          { key: 'confirmed', label: 'Negotiation Confirmed?', type: 'select', options: ['YES', 'NO', 'PENDING'] },
+          { key: 'confirmationDate', label: 'Confirmation Date', type: 'date' },
+          { key: 'remarks', label: 'Remarks', type: 'textarea' }
+        ]
+      }
     },
     {
       key: 'PO_AND_PI',
@@ -38,11 +31,10 @@ module.exports = {
           key: 'PO_UPLOAD',
           name: 'PO Upload',
           order: 1,
-          metadata: { noAssignment: true },
           formSchema: {
             fields: [
               { key: 'multiPoSection', label: 'Purchase Orders (Multiple)', type: 'multiPoSection' },
-              { key: 'poDocumentUrl', label: 'Primary PO Document (PDF)', type: 'file', required: false, hint: 'Upload official Purchase Order document (PDF / Images)' },
+              { key: 'poDocumentUrl', label: 'Primary PO Document', type: 'file', required: false, hint: 'Upload official Purchase Order document (PDF / Images • Max 2MB)' },
               { key: 'poNumber', label: 'PO Number', type: 'text' },
               { key: 'poDate', label: 'PO Date', type: 'date' },
               { key: 'uploadDate', label: 'PO Upload Date', type: 'date' },
@@ -55,7 +47,6 @@ module.exports = {
           key: 'PI_REQUEST',
           name: 'PI Request',
           order: 2,
-          metadata: { noAssignment: true },
           formSchema: {
             fields: [
               { key: 'requestedDate', label: 'PI Request Date', type: 'date' },
@@ -68,15 +59,14 @@ module.exports = {
           key: 'PI_UPLOAD',
           name: 'PI & Tax Invoice Upload',
           order: 3,
-          metadata: { noAssignment: true },
           formSchema: {
             fields: [
               { key: 'multiPiInvoiceSection', label: 'Proforma & Tax Invoices (Multiple)', type: 'multiPiInvoiceSection' },
-              { key: 'piDocumentUrl', label: 'Primary PI Document (PDF)', type: 'file', required: false, hint: 'Upload Proforma Invoice document (PDF / Images)' },
+              { key: 'piDocumentUrl', label: 'Primary PI Document', type: 'file', required: false, hint: 'Upload Proforma Invoice document (PDF / Images • Max 2MB)' },
               { key: 'piNumber', label: 'PI Number', type: 'text' },
               { key: 'piDate', label: 'PI Date', type: 'date' },
               { key: 'piUploadDate', label: 'PI Upload Date', type: 'date' },
-              { key: 'invoiceDocumentUrl', label: 'Primary Tax Invoice Document (PDF)', type: 'file', required: false, hint: 'Upload Tax Invoice document (PDF / Images)' },
+              { key: 'invoiceDocumentUrl', label: 'Primary Tax Invoice Document', type: 'file', required: false, hint: 'Upload Tax Invoice document (PDF / Images • Max 2MB)' },
               { key: 'invoiceNumber', label: 'Tax Invoice Number', type: 'text' },
               { key: 'invoiceDate', label: 'Tax Invoice Date', type: 'date' },
               { key: 'invoiceUploadDate', label: 'Tax Invoice Upload Date', type: 'date' },
@@ -189,8 +179,6 @@ module.exports = {
                 label: 'Solutions & Quantity Breakdown',
                 type: 'solutionsConfig'
               },
-              { key: 'assignedTechLead', label: 'Assigned Tech In-charge / Specialist', type: 'employeeSelect', hint: 'Assign employee responsible for Tech Stream tasks in Stage 04' },
-              { key: 'assignedContentLead', label: 'Assigned Content In-charge / Specialist', type: 'employeeSelect', hint: 'Assign employee responsible for Content Stream tasks in Stage 04' },
               { key: 'overallNotes', label: 'Overall Scope & Implementation Notes', type: 'textarea' },
               { key: 'remarks', label: 'Remarks / Special Customization', type: 'textarea' }
             ]

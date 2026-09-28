@@ -80,6 +80,20 @@ export function HardwarePurchaseSection({
   };
 
   const handleFileUpload = async (itemKey: string, docType: 'po' | 'pi', file: File, itemInfo: any) => {
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.doc', '.docx'];
+    const isAllowed = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext)) || file.type.startsWith('image/') || file.type === 'application/pdf';
+
+    if (!isAllowed) {
+      alert('Only PDF (.pdf) or Image (.jpg, .png, .webp) formats are allowed.');
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      alert(`File exceeds 2MB limit (selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB).`);
+      return;
+    }
+
     const uploadKey = `${itemKey}_${docType}`;
     try {
       setUploadingState((prev) => ({ ...prev, [uploadKey]: true }));
@@ -248,7 +262,7 @@ export function HardwarePurchaseSection({
                         ) : (
                           <div className="flex items-center gap-1.5 text-xs text-[#3a7d84] font-medium">
                             <Upload className="w-3.5 h-3.5 text-[#51a8b1]" />
-                            <span>Upload Vendor PO (PDF)</span>
+                            <span>Upload Vendor PO (PDF / Img • Max 2MB)</span>
                           </div>
                         )}
                       </label>
@@ -323,7 +337,7 @@ export function HardwarePurchaseSection({
                       `}>
                         <input
                           type="file"
-                          accept=".pdf,.png,.jpg,.jpeg,.doc,.docx"
+                          accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,image/*,application/pdf"
                           disabled={disabled || isPiUploading}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
@@ -338,7 +352,7 @@ export function HardwarePurchaseSection({
                         ) : (
                           <div className="flex items-center gap-1.5 text-xs text-purple-700 font-medium">
                             <Upload className="w-3.5 h-3.5 text-purple-600" />
-                            <span>Upload Vendor PI (PDF)</span>
+                            <span>Upload Vendor PI (PDF / Img • Max 2MB)</span>
                           </div>
                         )}
                       </label>

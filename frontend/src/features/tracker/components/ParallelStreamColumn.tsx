@@ -35,7 +35,9 @@ export function ParallelStreamColumn({
 }: ParallelStreamColumnProps) {
   if (!streamNode) return null;
   const isExpanded = isNodeExpanded(streamNode._id);
-  const subtasks = (streamNode.children || []).filter(matchesFilter);
+  const subtasks = (streamNode.children || [])
+    .filter(c => c.key !== 'PI_REQUEST')
+    .filter(matchesFilter);
   const streamTheme = getStreamTheme(streamType);
 
   return (

@@ -18,7 +18,18 @@ async function upsertRequirements(projectId, updateData, employeeId) {
       updatedBy: employeeId
     });
   } else {
-    Object.assign(requirement, updateData);
+    for (const key of Object.keys(updateData || {})) {
+      if (typeof updateData[key] === 'object' && updateData[key] !== null && !Array.isArray(updateData[key])) {
+        const existingVal = requirement[key] ? (requirement[key].toObject ? requirement[key].toObject() : requirement[key]) : {};
+        requirement[key] = {
+          ...existingVal,
+          ...updateData[key]
+        };
+      } else {
+        requirement[key] = updateData[key];
+      }
+      requirement.markModified(key);
+    }
     requirement.updatedBy = employeeId;
     await requirement.save();
   }

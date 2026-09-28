@@ -42,8 +42,8 @@ class ProjectService {
           projectManager: projectData.projectManager || undefined,
           requestedBy: creatorEmployeeId,
           assignedReviewer: assignedReviewerId,
-          status: PROJECT_STATUSES.PENDING_REVIEW,
-          reviewStatus: 'PENDING',
+          status: projectData.status || (projectData.assignedReviewer ? PROJECT_STATUSES.PENDING_REVIEW : PROJECT_STATUSES.ACTIVE),
+          reviewStatus: projectData.reviewStatus || (projectData.assignedReviewer ? 'PENDING' : 'APPROVED'),
           createdBy: creatorEmployeeId
         }], { session });
 
@@ -102,9 +102,10 @@ class ProjectService {
       }
 
       // Direct Creation without Reviewer
+      const directPm = projectData.projectManager || creatorEmployeeId;
       const project = await Project.create([{
         ...normalizedData,
-        projectManager: creatorEmployeeId,
+        projectManager: directPm,
         createdBy: creatorEmployeeId,
         status: PROJECT_STATUSES.ACTIVE,
         reviewStatus: 'APPROVED',
@@ -115,7 +116,7 @@ class ProjectService {
 
       await ProjectMember.create([{
         project: createdProject._id,
-        employee: creatorEmployeeId,
+        employee: directPm,
         designation: DESIGNATIONS.PROJECT_MANAGER,
         assignedBy: creatorEmployeeId
       }], { session });
@@ -436,7 +437,9 @@ class ProjectService {
       }
     }
 
-    const projects = await Project.find(filter).sort({ createdAt: -1 }).lean();
+    const projects = await Project.find(filter)
+      .sort({ createdAt: -1 })
+      .lean();
     if (!projects || projects.length === 0) return [];
 
     const projectIds = projects.map(p => p._id);
@@ -486,17 +489,29 @@ class ProjectService {
   }
 
   async getProjectById(projectId) {
-    const project = await Project.findById(projectId).lean();
+    const project = await Project.findById(projectId)
+      .lean();
     if (!project) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
 
     const pmMember = await ProjectMember.findOne({
       project: projectId,
       designation: DESIGNATIONS.PROJECT_MANAGER,
       isActive: true
-    }).populate('employee', 'name email employeeCode globalRole');
+    }).populate('employee', 'name email employeeCode globalRole designation');
+
+    let pm = (pmMember && pmMember.employee) ? pmMember.employee : (project.projectManager || null);
+    if (!pm) {
+      const ProjectRequest = require('../requests/project-request.model');
+      const reqDoc = await ProjectRequest.findOne({
+        $or: [{ confirmedProjectId: project._id }, { projectId: project.projectId }, { title: project.projectName }]
+      }).populate('projectManager', 'name email employeeCode globalRole designation');
+      if (reqDoc && reqDoc.projectManager) {
+        pm = reqDoc.projectManager;
+      }
+    }
 
     project.title = project.projectName || project.title;
-    project.projectManager = pmMember && pmMember.employee ? pmMember.employee : null;
+    project.projectManager = pm || null;
     return project;
   }
 

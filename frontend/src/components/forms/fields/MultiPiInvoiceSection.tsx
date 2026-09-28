@@ -16,7 +16,11 @@ import {
   Truck,
   Building2,
   X,
-  CreditCard
+  CreditCard,
+  Send,
+  CalendarClock,
+  Sparkles,
+  FileCheck2
 } from 'lucide-react';
 
 export interface IInvoiceItem {
@@ -152,6 +156,33 @@ export function MultiPiInvoiceSection({
     }];
   }, [value, today]);
 
+  // 3. PI Request Data
+  const piRequestData = useMemo(() => {
+    return {
+      requestedDate: value?.piRequest?.requestedDate ? String(value.piRequest.requestedDate).split('T')[0] : (value?.requestedDate ? String(value.requestedDate).split('T')[0] : ''),
+      expectedPIDate: value?.piRequest?.expectedPIDate ? String(value.piRequest.expectedPIDate).split('T')[0] : (value?.expectedPIDate ? String(value.expectedPIDate).split('T')[0] : ''),
+      requestStatus: value?.piRequest?.requestStatus || value?.requestStatus || (value?.piRequest?.requestedDate || value?.requestedDate ? 'REQUESTED' : 'PENDING'),
+      requestRemarks: value?.piRequest?.requestRemarks || value?.requestRemarks || value?.piRequestRemarks || '',
+      requestedAmount: value?.piRequest?.requestedAmount || value?.requestedAmount || ''
+    };
+  }, [value]);
+
+  const handlePiRequestChange = (field: string, val: any) => {
+    const updatedRequest = {
+      ...piRequestData,
+      [field]: val
+    };
+    onChange({
+      ...(typeof value === 'object' && !Array.isArray(value) ? value : {}),
+      piRequest: updatedRequest,
+      requestedDate: updatedRequest.requestedDate,
+      expectedPIDate: updatedRequest.expectedPIDate,
+      requestRemarks: updatedRequest.requestRemarks,
+      requestStatus: updatedRequest.requestStatus,
+      requestedAmount: updatedRequest.requestedAmount
+    });
+  };
+
   const updateState = (updatedPis: IInvoiceItem[], updatedTaxes: IInvoiceItem[], customOrg?: string) => {
     const firstPi = updatedPis[0] || { number: '', date: '', uploadDate: '', ewayBillNumber: '', paymentStatus: 'PENDING', documentUrl: '', paymentTerms: '', remarks: '' };
     const firstTax = updatedTaxes[0] || { number: '', date: '', uploadDate: '', ewayBillNumber: '', paymentStatus: 'PENDING', documentUrl: '', paymentTerms: '', remarks: '' };
@@ -185,6 +216,7 @@ export function MultiPiInvoiceSection({
       organizationName: customOrg !== undefined ? customOrg : (value?.organizationName || organizationName),
       proformaInvoices: formattedPis,
       taxInvoices: formattedTaxes,
+      piRequest: value?.piRequest || piRequestData,
       // Top-level fallbacks
       piNumber: firstPi.number,
       piDate: firstPi.date,
@@ -234,8 +266,17 @@ export function MultiPiInvoiceSection({
 
   const handlePiPdfUpload = async (index: number, file: File) => {
     setPiErrorIndex(null);
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      setPiErrorIndex({ index, msg: 'Only PDF format (.pdf) is allowed.' });
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.doc', '.docx'];
+    const isAllowed = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext)) || file.type.startsWith('image/') || file.type === 'application/pdf';
+
+    if (!isAllowed) {
+      setPiErrorIndex({ index, msg: 'Only PDF (.pdf) or Image (.jpg, .png, .webp) formats are allowed.' });
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setPiErrorIndex({ index, msg: `File exceeds 2MB limit (selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB).` });
       return;
     }
 
@@ -262,7 +303,7 @@ export function MultiPiInvoiceSection({
       const uploadedUrl = data.data?.url || data.url;
       handlePiChange(index, 'documentUrl', uploadedUrl);
     } catch (err: any) {
-      setPiErrorIndex({ index, msg: err.message || 'Failed to upload PI PDF.' });
+      setPiErrorIndex({ index, msg: err.message || 'Failed to upload document.' });
     } finally {
       setUploadingPiIndex(null);
     }
@@ -300,8 +341,17 @@ export function MultiPiInvoiceSection({
 
   const handleTaxPdfUpload = async (index: number, file: File) => {
     setTaxErrorIndex(null);
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      setTaxErrorIndex({ index, msg: 'Only PDF format (.pdf) is allowed.' });
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.doc', '.docx'];
+    const isAllowed = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext)) || file.type.startsWith('image/') || file.type === 'application/pdf';
+
+    if (!isAllowed) {
+      setTaxErrorIndex({ index, msg: 'Only PDF (.pdf) or Image (.jpg, .png, .webp) formats are allowed.' });
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setTaxErrorIndex({ index, msg: `File exceeds 2MB limit (selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB).` });
       return;
     }
 
@@ -328,7 +378,7 @@ export function MultiPiInvoiceSection({
       const uploadedUrl = data.data?.url || data.url;
       handleTaxChange(index, 'documentUrl', uploadedUrl);
     } catch (err: any) {
-      setTaxErrorIndex({ index, msg: err.message || 'Failed to upload Tax Invoice PDF.' });
+      setTaxErrorIndex({ index, msg: err.message || 'Failed to upload document.' });
     } finally {
       setUploadingTaxIndex(null);
     }
@@ -397,8 +447,8 @@ export function MultiPiInvoiceSection({
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] font-heading">
                 1. Proforma Invoices ({piList.length})
               </h4>
-              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
-                .pdf
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
+                PDF / Image • Max 2MB
               </span>
             </div>
             {!disabled && (
@@ -593,7 +643,7 @@ export function MultiPiInvoiceSection({
                       `}>
                         <input
                           type="file"
-                          accept="application/pdf,.pdf"
+                          accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf"
                           disabled={disabled || uploadingPiIndex === index}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
@@ -609,7 +659,7 @@ export function MultiPiInvoiceSection({
                         ) : (
                           <>
                             <UploadCloud className="w-3 h-3 text-[#51a8b1]" />
-                            <span>Upload PDF</span>
+                            <span>Upload (PDF / Img)</span>
                           </>
                         )}
                       </label>
@@ -675,8 +725,8 @@ export function MultiPiInvoiceSection({
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#b45309] font-heading">
                 2. Tax Invoices & E-Way ({taxInvoiceList.length})
               </h4>
-              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
-                .pdf
+              <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#fdfaf6] text-[#b45309] border border-[#fed7aa]">
+                PDF / Image • Max 2MB
               </span>
             </div>
             {!disabled && (
@@ -871,7 +921,7 @@ export function MultiPiInvoiceSection({
                       `}>
                         <input
                           type="file"
-                          accept="application/pdf,.pdf"
+                          accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf"
                           disabled={disabled || uploadingTaxIndex === index}
                           onChange={(e) => {
                             const file = e.target.files?.[0];
@@ -887,7 +937,7 @@ export function MultiPiInvoiceSection({
                         ) : (
                           <>
                             <UploadCloud className="w-3 h-3 text-[#d97706]" />
-                            <span>Upload PDF</span>
+                            <span>Upload (PDF / Img)</span>
                           </>
                         )}
                       </label>

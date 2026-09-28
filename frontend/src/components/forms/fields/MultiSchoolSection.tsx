@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef, useEffect } from 'react';
 import { 
   Building2, 
   Plus, 
@@ -24,7 +24,15 @@ import {
   DollarSign,
   HeartHandshake,
   Lock,
-  Cpu
+  Cpu,
+  Search,
+  AlertTriangle,
+  X,
+  Check,
+  Sparkles,
+  Layers,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 
 export interface ISchoolSurveyData {
@@ -33,6 +41,8 @@ export interface ISchoolSurveyData {
   schoolName: string;
   addressContact?: string;
   schoolCategory?: string[] | string; // Multi-select support
+  classes?: string[]; // Classes 1 to 12
+  streams?: string[]; // Science, Commerce, Arts, etc.
   principalName?: string;
   principalDetails?: string;
   pocName?: string;
@@ -117,13 +127,81 @@ interface MultiSchoolSectionProps {
   disabled?: boolean;
 }
 
-const SCHOOL_CATEGORIES = [
-  'Primary only with grade 1 to 5',
-  'Upper Primary with grade 1 to 8',
-  'Higher secondary with grade 1 to 12',
-  'Middle School only with grade 6 to 8',
-  'Higher secondary with grade 6 to 12',
+
+// Exact LMS Backend Grade Schema Definition
+export interface ILmsGrade {
+  name: string; // 'Nursery', 'LKG', 'UKG', '1', '2', ... '12'
+  id: string; // 'nursery', 'lkg', 'ukg', 'c1', ... 'c12'
+  label: string;
+  category: 'PRE_PRIMARY' | 'PRIMARY' | 'MIDDLE' | 'SECONDARY' | 'SR_SECONDARY';
+}
+
+export const LMS_GRADES: ILmsGrade[] = [
+  { name: 'Nursery', id: 'nursery', label: 'Nursery', category: 'PRE_PRIMARY' },
+  { name: 'LKG', id: 'lkg', label: 'LKG', category: 'PRE_PRIMARY' },
+  { name: 'UKG', id: 'ukg', label: 'UKG', category: 'PRE_PRIMARY' },
+  { name: '1', id: 'c1', label: 'Grade 1', category: 'PRIMARY' },
+  { name: '2', id: 'c2', label: 'Grade 2', category: 'PRIMARY' },
+  { name: '3', id: 'c3', label: 'Grade 3', category: 'PRIMARY' },
+  { name: '4', id: 'c4', label: 'Grade 4', category: 'PRIMARY' },
+  { name: '5', id: 'c5', label: 'Grade 5', category: 'PRIMARY' },
+  { name: '6', id: 'c6', label: 'Grade 6', category: 'MIDDLE' },
+  { name: '7', id: 'c7', label: 'Grade 7', category: 'MIDDLE' },
+  { name: '8', id: 'c8', label: 'Grade 8', category: 'MIDDLE' },
+  { name: '9', id: 'c9', label: 'Grade 9', category: 'SECONDARY' },
+  { name: '10', id: 'c10', label: 'Grade 10', category: 'SECONDARY' },
+  { name: '11', id: 'c11', label: 'Grade 11', category: 'SR_SECONDARY' },
+  { name: '12', id: 'c12', label: 'Grade 12', category: 'SR_SECONDARY' }
 ];
+
+// Exact LMS Backend GradeStream Schema Definition
+export const LMS_GRADE_STREAMS = [
+  { name: 'Science', id: 'science', label: 'Science', icon: '🧪', color: '#0ea5e9' },
+  { name: 'Commerce', id: 'commerce', label: 'Commerce', icon: '💼', color: '#10b981' },
+  { name: 'Arts and Humanities', id: 'arts', label: 'Arts & Humanities', icon: '🎨', color: '#ec4899' }
+];
+
+export interface ILmsClassOption {
+  id: string;
+  name: string; // The saved value, e.g. 'Nursery', '1', '11 Science', '11 Commerce', '11 Arts', etc.
+  label: string; // Display label
+  pillColor?: string;
+}
+
+export const LMS_CLASS_OPTIONS: ILmsClassOption[] = [
+  { id: 'nursery', name: 'Nursery', label: 'Nursery', pillColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  { id: 'lkg', name: 'LKG', label: 'LKG', pillColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  { id: 'ukg', name: 'UKG', label: 'UKG', pillColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
+  { id: 'c1', name: '1', label: 'Class 1', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
+  { id: 'c2', name: '2', label: 'Class 2', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
+  { id: 'c3', name: '3', label: 'Class 3', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
+  { id: 'c4', name: '4', label: 'Class 4', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
+  { id: 'c5', name: '5', label: 'Class 5', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
+  { id: 'c6', name: '6', label: 'Class 6', pillColor: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { id: 'c7', name: '7', label: 'Class 7', pillColor: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { id: 'c8', name: '8', label: 'Class 8', pillColor: 'bg-amber-50 text-amber-800 border-amber-200' },
+  { id: 'c9', name: '9', label: 'Class 9', pillColor: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+  { id: 'c10', name: '10', label: 'Class 10', pillColor: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
+  { id: 'c11-sci', name: '11 Science', label: '11 Science', pillColor: 'bg-teal-50 text-teal-900 border-teal-300' },
+  { id: 'c11-comm', name: '11 Commerce', label: '11 Commerce', pillColor: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+  { id: 'c11-arts', name: '11 Arts', label: '11 Arts', pillColor: 'bg-fuchsia-50 text-fuchsia-900 border-fuchsia-300' },
+  { id: 'c12-sci', name: '12 Science', label: '12 Science', pillColor: 'bg-teal-50 text-teal-900 border-teal-300' },
+  { id: 'c12-comm', name: '12 Commerce', label: '12 Commerce', pillColor: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
+  { id: 'c12-arts', name: '12 Arts', label: '12 Arts', pillColor: 'bg-fuchsia-50 text-fuchsia-900 border-fuchsia-300' },
+];
+
+export function isClassOptionSelected(selectedClasses: string[] | string | undefined, option: ILmsClassOption): boolean {
+  const arr = toArray(selectedClasses);
+  return arr.some(item => {
+    const itemLow = String(item).toLowerCase().trim();
+    const nameLow = option.name.toLowerCase().trim();
+    const labelLow = option.label.toLowerCase().trim();
+    return itemLow === nameLow || 
+           itemLow === labelLow || 
+           itemLow === `class ${nameLow}` || 
+           itemLow === `grade ${nameLow}`;
+  });
+}
 
 const CLASSROOM_CONDITIONS = [
   'Pucca (पक्का)',
@@ -232,6 +310,33 @@ export function MultiSchoolSection({
   }, [value]);
 
   const [activeSchoolIndex, setActiveSchoolIndex] = useState<number>(0);
+  const [schoolSearchQuery, setSchoolSearchQuery] = useState<string>('');
+  const [isDropdownOpen, setIsDropdownOpen] = useState<boolean>(false);
+  const [schoolToDelete, setSchoolToDelete] = useState<number | null>(null);
+  const [actionFeedback, setActionFeedback] = useState<{ type: 'add' | 'delete'; msg: string } | null>(null);
+
+  // Class / Stream combination dropdown states
+  const [classDropdownOpen, setClassDropdownOpen] = useState<boolean>(false);
+  const [classSearchQuery, setClassSearchQuery] = useState<string>('');
+  const classDropdownRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (classDropdownRef.current && !classDropdownRef.current.contains(e.target as Node)) {
+        setClassDropdownOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const showFeedback = useCallback((type: 'add' | 'delete', msg: string) => {
+    setActionFeedback({ type, msg });
+    setTimeout(() => {
+      setActionFeedback((prev) => (prev?.msg === msg ? null : prev));
+    }, 3000);
+  }, []);
+
   const [openSections, setOpenSections] = useState<Record<string, boolean>>({
     sec1: true,
     sec2: true,
@@ -247,6 +352,24 @@ export function MultiSchoolSection({
   };
 
   const currentSchool = schoolsList[activeSchoolIndex] || schoolsList[0] || { schoolName: '', id: 'school-1' };
+
+  // Filtered schools for search dropdown
+  const filteredSchools = useMemo(() => {
+    if (!schoolSearchQuery.trim()) {
+      return schoolsList.map((school, index) => ({ school, originalIndex: index }));
+    }
+    const q = schoolSearchQuery.toLowerCase();
+    return schoolsList
+      .map((school, index) => ({ school, originalIndex: index }))
+      .filter(({ school, originalIndex }) =>
+        (school.schoolName || '').toLowerCase().includes(q) ||
+        (school.addressContact || '').toLowerCase().includes(q) ||
+        (school.principalName || '').toLowerCase().includes(q) ||
+        (school.pocName || '').toLowerCase().includes(q) ||
+        `school #${originalIndex + 1}`.toLowerCase().includes(q) ||
+        `branch #${originalIndex + 1}`.toLowerCase().includes(q)
+      );
+  }, [schoolsList, schoolSearchQuery]);
 
   // Update a single school in the list and propagate change
   const handleUpdateCurrentSchool = useCallback((updatedFields: Partial<ISchoolSurveyData>) => {
@@ -266,11 +389,15 @@ export function MultiSchoolSection({
   }, [schoolsList, activeSchoolIndex, onChange, value]);
 
   const handleAddSchool = () => {
-    const nextId = `school-${schoolsList.length + 1}`;
+    const nextNum = schoolsList.length + 1;
+    const nextId = `school-${Date.now()}`;
+    const newSchoolName = `School Branch #${nextNum}`;
     const newSchool: ISchoolSurveyData = {
       id: nextId,
-      schoolName: `School Unit #${schoolsList.length + 1}`,
+      schoolName: newSchoolName,
       schoolCategory: [],
+      classes: [],
+      streams: [],
       classroomCondition: [],
       parentIncomeGroup: [],
       parentProfessions: [],
@@ -278,6 +405,8 @@ export function MultiSchoolSection({
     };
     const nextList = [...schoolsList, newSchool];
     setActiveSchoolIndex(nextList.length - 1);
+    setIsDropdownOpen(false);
+    showFeedback('add', `"${newSchoolName}" added successfully`);
 
     onChange({
       ...value,
@@ -288,9 +417,11 @@ export function MultiSchoolSection({
 
   const handleRemoveSchool = (idxToRemove: number) => {
     if (schoolsList.length <= 1) return;
+    const deletedName = schoolsList[idxToRemove]?.schoolName || `School #${idxToRemove + 1}`;
     const nextList = schoolsList.filter((_, idx) => idx !== idxToRemove);
     const nextActive = activeSchoolIndex >= nextList.length ? nextList.length - 1 : activeSchoolIndex;
     setActiveSchoolIndex(nextActive);
+    showFeedback('delete', `"${deletedName}" removed`);
 
     onChange({
       ...value,
@@ -308,53 +439,197 @@ export function MultiSchoolSection({
   };
 
   return (
-    <div className="space-y-6 font-sans">
+    <div className="space-y-4 font-sans">
       
-      {/* ── Top Multi-School Navigation Tabs ─────────────────────── */}
-      <div className="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200 shadow-2xs">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-teal-50 border border-teal-200 flex items-center justify-center text-[#2d6b73]">
-              <Building2 className="w-4 h-4" />
-            </div>
-            <div>
-              <h3 className="font-heading text-sm font-bold text-slate-900">
-                School Information & Survey Form
-              </h3>
-              <p className="text-[11px] text-slate-500 font-medium">
-                Official 7-Section DigiToppers Baseline Survey ({schoolsList.length} {schoolsList.length === 1 ? 'School' : 'Schools'} Configured)
-              </p>
-            </div>
-          </div>
-
-          {!disabled && (
+      {/* ── Professional Multi-School Selector & Search Bar ─────────────────────── */}
+      <div className="bg-white p-3 rounded-2xl border border-[#b6e0e4] shadow-2xs space-y-2.5">
+        
+        {/* Main Controls Row */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          
+          {/* Left: Searchable Dropdown Trigger */}
+          <div className="relative flex-1 min-w-0 max-w-lg">
             <button
               type="button"
-              onClick={handleAddSchool}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#2d6b73] hover:bg-[#235359] text-white text-xs font-bold transition shadow-xs cursor-pointer self-start sm:self-auto"
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#f0f8f9] hover:bg-[#e4f3f5] border border-[#b6e0e4] text-[#2d6b73] text-xs font-bold transition shadow-2xs cursor-pointer text-left"
             >
-              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Add School / Branch</span>
+              <div className="flex items-center gap-2 min-w-0">
+                <School className="w-4 h-4 text-[#3a7d84] shrink-0" />
+                <span className="truncate font-heading">
+                  {currentSchool.schoolName || `School Branch #${activeSchoolIndex + 1}`}
+                </span>
+                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-white border border-[#b6e0e4] text-[#3a7d84] shrink-0">
+                  #{activeSchoolIndex + 1} of {schoolsList.length}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 shrink-0 text-[#3a7d84]">
+                <Search className="w-3.5 h-3.5 opacity-60" />
+                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </div>
             </button>
-          )}
+
+            {/* Dropdown Popover */}
+            {isDropdownOpen && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setIsDropdownOpen(false)} 
+                />
+                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-[#b6e0e4] shadow-xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+                  
+                  {/* Search Input inside Dropdown */}
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      autoFocus
+                      value={schoolSearchQuery}
+                      onChange={(e) => setSchoolSearchQuery(e.target.value)}
+                      placeholder="Search school by name, code or city..."
+                      className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] font-medium"
+                    />
+                    {schoolSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setSchoolSearchQuery('')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* School List */}
+                  <div className="max-h-56 overflow-y-auto space-y-1 scrollbar-thin">
+                    {filteredSchools.length === 0 ? (
+                      <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                        No schools found matching &ldquo;{schoolSearchQuery}&rdquo;
+                      </div>
+                    ) : (
+                      filteredSchools.map(({ school, originalIndex }) => {
+                        const isSelected = originalIndex === activeSchoolIndex;
+                        return (
+                          <div
+                            key={school.id || originalIndex}
+                            onClick={() => {
+                              setActiveSchoolIndex(originalIndex);
+                              setIsDropdownOpen(false);
+                            }}
+                            className={`flex items-center justify-between gap-2 p-2 rounded-xl text-xs transition cursor-pointer select-none ${
+                              isSelected
+                                ? 'bg-[#f0f8f9] text-[#2d6b73] font-bold border border-[#b6e0e4]'
+                                : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <span className={`w-5 h-5 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center shrink-0 ${
+                                isSelected ? 'bg-[#3a7d84] text-white' : 'bg-slate-100 text-slate-600'
+                              }`}>
+                                {originalIndex + 1}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-xs font-semibold">
+                                  {school.schoolName || `School Branch #${originalIndex + 1}`}
+                                </p>
+                                {school.pocName && (
+                                  <p className="text-[10px] text-slate-400 truncate">
+                                    POC: {school.pocName}
+                                  </p>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-1.5 shrink-0">
+                              {isSelected && <Check className="w-3.5 h-3.5 text-[#3a7d84]" />}
+                              {schoolsList.length > 1 && !disabled && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSchoolToDelete(originalIndex);
+                                    setIsDropdownOpen(false);
+                                  }}
+                                  className="p-1 rounded-lg hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition"
+                                  title="Delete this school"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+
+                  {/* Dropdown Footer Action */}
+                  {!disabled && (
+                    <button
+                      type="button"
+                      onClick={handleAddSchool}
+                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-[#3a7d84] hover:bg-[#2c5f64] text-white text-xs font-bold transition cursor-pointer shadow-2xs"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Add New School Branch</span>
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+
+          {/* Right Actions: School count badge + Add & Delete buttons */}
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-1.5 rounded-xl">
+              Total: <strong>{schoolsList.length}</strong> {schoolsList.length === 1 ? 'School' : 'Schools'}
+            </span>
+
+            {!disabled && (
+              <button
+                type="button"
+                onClick={handleAddSchool}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#3a7d84] hover:bg-[#2c5f64] active:scale-95 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
+              >
+                <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Add School</span>
+              </button>
+            )}
+
+            {schoolsList.length > 1 && !disabled && (
+              <button
+                type="button"
+                onClick={() => setSchoolToDelete(activeSchoolIndex)}
+                className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-bold transition cursor-pointer"
+                title="Delete current school"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Delete</span>
+              </button>
+            )}
+          </div>
         </div>
 
-        {/* School Tabs */}
-        <div className="flex items-center gap-2 overflow-x-auto pt-3 pb-1 scrollbar-thin">
+        {/* Quick Tabs Row (Horizontal scrollable pills for direct switching) */}
+        <div className="bg-slate-50/80 p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-thin border border-slate-200/80 mt-2">
           {schoolsList.map((school, idx) => {
             const isActive = idx === activeSchoolIndex;
             return (
               <div
                 key={school.id || idx}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition border cursor-pointer shrink-0 ${
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs transition-all duration-200 cursor-pointer shrink-0 select-none border ${
                   isActive
-                    ? 'bg-[#e8f6f8] text-[#2c6870] border-[#9ed6dc] shadow-2xs'
-                    : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border-slate-200'
+                    ? 'bg-white text-[#2d6b73] border-[#51a8b1]/60 shadow-sm ring-2 ring-[#51a8b1]/20 font-bold'
+                    : 'bg-transparent hover:bg-white/80 text-slate-600 border-transparent hover:border-slate-200 font-medium'
                 }`}
                 onClick={() => setActiveSchoolIndex(idx)}
               >
-                <School className="w-3.5 h-3.5" />
-                <span className="max-w-[140px] truncate">
+                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                  isActive ? 'bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]' : 'bg-slate-200/70 text-slate-500'
+                }`}>
+                  #{idx + 1}
+                </span>
+                <span className="max-w-[280px] sm:max-w-[380px] truncate text-slate-800" title={school.schoolName || `School #${idx + 1}`}>
                   {school.schoolName || `School #${idx + 1}`}
                 </span>
                 {schoolsList.length > 1 && !disabled && (
@@ -362,10 +637,10 @@ export function MultiSchoolSection({
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      handleRemoveSchool(idx);
+                      setSchoolToDelete(idx);
                     }}
-                    className="p-0.5 rounded hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition ml-1"
-                    title="Remove School"
+                    className="p-0.5 rounded hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-all ml-0.5 cursor-pointer"
+                    title="Delete School"
                   >
                     <Trash2 className="w-3 h-3" />
                   </button>
@@ -374,10 +649,82 @@ export function MultiSchoolSection({
             );
           })}
         </div>
+
+        {/* Live Action Feedback Notification Toast */}
+        {actionFeedback && (
+          <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs font-bold animate-in fade-in slide-in-from-top-1 duration-200 border transition-all"
+            style={{
+              backgroundColor: actionFeedback.type === 'add' ? '#f0f8f9' : '#fff1f2',
+              borderColor: actionFeedback.type === 'add' ? '#b6e0e4' : '#fecdd3',
+              color: actionFeedback.type === 'add' ? '#2d6b73' : '#be123c',
+            }}
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              {actionFeedback.type === 'add' ? (
+                <CheckCircle2 className="w-3.5 h-3.5 text-[#3a7d84] shrink-0" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+              )}
+              <span className="truncate">{actionFeedback.msg}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActionFeedback(null)}
+              className="p-0.5 rounded hover:opacity-75 transition cursor-pointer shrink-0"
+            >
+              <X className="w-3 h-3" />
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* ── Active School Survey Form Container ─────────────────── */}
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden divide-y divide-slate-100">
+      {/* ── Delete School Confirmation Modal ─────────────────────── */}
+      {schoolToDelete !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 animate-in bounce-in duration-300">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 font-heading">
+                  Delete School Information?
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Are you sure you want to delete <strong className="text-slate-900 font-semibold">{schoolsList[schoolToDelete]?.schoolName || `School #${schoolToDelete + 1}`}</strong>? All survey details for this school will be permanently removed.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSchoolToDelete(null)}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleRemoveSchool(schoolToDelete);
+                  setSchoolToDelete(null);
+                }}
+                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Active School Survey Form Container (Smooth Cross-fade Transition) ─────────────────── */}
+      <div 
+        key={currentSchool.id || `school-form-${activeSchoolIndex}`}
+        className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden divide-y divide-slate-100 animate-in fade-in-50 slide-in-from-bottom-2 duration-300 transition-all"
+      >
 
         {/* ══════════════════════════════════════════════════════════
             SECTION 1: SCHOOL INFORMATION
@@ -432,40 +779,294 @@ export function MultiSchoolSection({
                 />
               </div>
 
-              {/* 1.3 School Category (Multi-Select Checkboxes) */}
-              <div className="md:col-span-2 space-y-2 p-3 bg-slate-50/70 rounded-xl border border-slate-200/70">
+              {/* 1.3 Classes & Stream Combinations Dropdown Selection */}
+              <div className="md:col-span-2 space-y-2">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
-                    <Info className="w-3.5 h-3.5 text-[#2d6b73]" />
-                    1.3 School Category (Multiple Selection Allowed)
+                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 font-heading">
+                    <BookOpen className="w-4 h-4 text-[#51a8b1]" />
+                    1.3 Offered Classes &amp; Streams Selection
                   </label>
-                  <span className="text-[10px] text-[#2d6b73] font-bold bg-teal-50 px-2 py-0.5 rounded-md border border-teal-200">
-                    {toArray(currentSchool.schoolCategory).length} selected
-                  </span>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  {SCHOOL_CATEGORIES.map((cat) => {
-                    const isChecked = toArray(currentSchool.schoolCategory).includes(cat);
-                    return (
-                      <label
-                        key={cat}
-                        className={`flex items-center gap-2 p-2 rounded-lg border text-xs cursor-pointer transition select-none ${
-                          isChecked
-                            ? 'bg-teal-50/90 border-[#51a8b1] text-[#2d6b73] font-bold shadow-2xs'
-                            : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-100/60'
-                        }`}
+                  {!disabled && (
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleUpdateCurrentSchool({ classes: LMS_CLASS_OPTIONS.map(opt => opt.name) })}
+                        className="text-[11px] font-bold text-[#3a7d84] bg-[#f0f8f9] hover:bg-[#e0f3f5] border border-[#b6e0e4] px-2.5 py-0.5 rounded-lg transition cursor-pointer"
                       >
+                        Select All
+                      </button>
+                      {toArray(currentSchool.classes).length > 0 && (
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateCurrentSchool({ classes: [] })}
+                          className="text-[11px] font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 px-2 py-0.5 rounded-lg transition cursor-pointer"
+                        >
+                          Clear
+                        </button>
+                      )}
+                      <span className="text-[10px] font-bold text-[#3a7d84] bg-white px-2 py-0.5 rounded-md border border-[#b6e0e4]">
+                        {toArray(currentSchool.classes).length} selected
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Compact Dropdown Trigger */}
+                <div className="relative" ref={classDropdownRef}>
+                  <div
+                    onClick={() => {
+                      if (!disabled) setClassDropdownOpen((prev) => !prev);
+                    }}
+                    className={`min-h-[42px] w-full p-2 bg-slate-50 border rounded-xl flex items-center justify-between gap-2 cursor-pointer transition select-none ${
+                      classDropdownOpen 
+                        ? 'bg-white border-[#51a8b1] ring-2 ring-[#51a8b1]/20' 
+                        : 'border-slate-200 hover:border-[#51a8b1] hover:bg-white'
+                    } ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
+                  >
+                    {/* Selected Tags inside the input or placeholder */}
+                    <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
+                      {toArray(currentSchool.classes).length === 0 ? (
+                        <span className="text-xs text-slate-400 font-normal pl-1">
+                          Click to select classes &amp; stream combinations...
+                        </span>
+                      ) : (
+                        toArray(currentSchool.classes).map((cls) => {
+                          const matchingOpt = LMS_CLASS_OPTIONS.find(
+                            opt => opt.name.toLowerCase() === String(cls).toLowerCase() || opt.label.toLowerCase() === String(cls).toLowerCase()
+                          );
+                          return (
+                            <span
+                              key={String(cls)}
+                              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold border shadow-2xs ${
+                                matchingOpt?.pillColor || 'bg-[#e8f6f8] text-[#3a7d84] border-[#b6e0e4]'
+                              }`}
+                            >
+                              <span>{matchingOpt?.label || cls}</span>
+                              {!disabled && (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const nextClasses = toArray(currentSchool.classes).filter(
+                                      c => c.toLowerCase() !== String(cls).toLowerCase() && c.toLowerCase() !== matchingOpt?.name.toLowerCase()
+                                    );
+                                    handleUpdateCurrentSchool({ classes: nextClasses });
+                                  }}
+                                  className="w-3.5 h-3.5 rounded hover:bg-black/10 flex items-center justify-center transition cursor-pointer text-slate-500 hover:text-slate-800"
+                                >
+                                  <X className="w-2.5 h-2.5" />
+                                </span>
+                              )}
+                            </span>
+                          );
+                        })
+                      )}
+                    </div>
+
+                    {/* Right side dropdown toggle icon */}
+                    <div className="flex items-center gap-1 text-slate-400 shrink-0 pr-1">
+                      {classDropdownOpen ? (
+                        <ChevronUp className="w-4 h-4 text-[#51a8b1]" />
+                      ) : (
+                        <ChevronDown className="w-4 h-4" />
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Absolute Floating Dropdown Menu */}
+                  {classDropdownOpen && (
+                    <div className="absolute top-full left-0 right-0 mt-1.5 z-50 bg-white rounded-2xl border border-[#b6e0e4] shadow-xl p-3 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-150">
+                      {/* Search bar */}
+                      <div className="relative">
+                        <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
-                          type="checkbox"
-                          disabled={disabled}
-                          checked={isChecked}
-                          onChange={() => handleToggleArrayItem('schoolCategory', cat)}
-                          className="rounded text-[#2d6b73] focus:ring-[#51a8b1]"
+                          type="text"
+                          value={classSearchQuery}
+                          onChange={(e) => setClassSearchQuery(e.target.value)}
+                          placeholder="Filter classes (e.g. 11 Science, Nursery, Class 5, 12 Arts...)"
+                          className="w-full text-xs bg-slate-50 border border-slate-200 rounded-xl pl-9 pr-8 py-2 text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] transition font-medium"
+                          autoFocus
                         />
-                        <span>{cat}</span>
-                      </label>
-                    );
-                  })}
+                        {classSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setClassSearchQuery('')}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Scrollable Class Options List */}
+                      <div className="max-h-64 overflow-y-auto pr-1 space-y-2">
+                        {classSearchQuery.trim() ? (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                            {LMS_CLASS_OPTIONS.filter(opt => 
+                              opt.label.toLowerCase().includes(classSearchQuery.toLowerCase()) || 
+                              opt.name.toLowerCase().includes(classSearchQuery.toLowerCase())
+                            ).map((opt) => {
+                              const isSelected = isClassOptionSelected(currentSchool.classes, opt);
+                              return (
+                                <button
+                                  type="button"
+                                  key={opt.id}
+                                  onClick={() => {
+                                    const currentArr = toArray(currentSchool.classes);
+                                    const isSel = isClassOptionSelected(currentArr, opt);
+                                    const nextArr = isSel
+                                      ? currentArr.filter(c => c.toLowerCase() !== opt.name.toLowerCase() && c.toLowerCase() !== opt.label.toLowerCase())
+                                      : [...currentArr, opt.name];
+                                    handleUpdateCurrentSchool({ classes: nextArr });
+                                  }}
+                                  className={`flex items-center justify-between gap-1.5 p-2 rounded-xl border text-xs font-semibold transition cursor-pointer select-none text-left shadow-2xs ${
+                                    isSelected
+                                      ? 'bg-[#3a7d84] text-white border-[#3a7d84] ring-1 ring-[#51a8b1]'
+                                      : 'bg-white text-slate-700 border-slate-200 hover:border-[#51a8b1] hover:bg-[#f0f8f9]'
+                                  }`}
+                                >
+                                  <span className="truncate">{opt.label}</span>
+                                  {isSelected ? (
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                                  ) : (
+                                    <div className="w-3.5 h-3.5 rounded-md border border-slate-300 shrink-0" />
+                                  )}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <>
+                            {/* Regular Nursery to Class 10 */}
+                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                              {LMS_CLASS_OPTIONS.filter(opt => !opt.id.startsWith('c11') && !opt.id.startsWith('c12')).map((opt) => {
+                                const isSelected = isClassOptionSelected(currentSchool.classes, opt);
+                                return (
+                                  <button
+                                    type="button"
+                                    key={opt.id}
+                                    onClick={() => {
+                                      const currentArr = toArray(currentSchool.classes);
+                                      const isSel = isClassOptionSelected(currentArr, opt);
+                                      const nextArr = isSel
+                                        ? currentArr.filter(c => c.toLowerCase() !== opt.name.toLowerCase() && c.toLowerCase() !== opt.label.toLowerCase())
+                                        : [...currentArr, opt.name];
+                                      handleUpdateCurrentSchool({ classes: nextArr });
+                                    }}
+                                    className={`flex items-center justify-between gap-1.5 p-2 rounded-xl border text-xs font-semibold transition cursor-pointer select-none text-left shadow-2xs ${
+                                      isSelected
+                                        ? 'bg-[#3a7d84] text-white border-[#3a7d84] ring-1 ring-[#51a8b1]'
+                                        : 'bg-white text-slate-700 border-slate-200 hover:border-[#51a8b1] hover:bg-[#f0f8f9]'
+                                    }`}
+                                  >
+                                    <span className="truncate">{opt.label}</span>
+                                    {isSelected ? (
+                                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                                    ) : (
+                                      <div className="w-3.5 h-3.5 rounded-md border border-slate-300 shrink-0" />
+                                    )}
+                                  </button>
+                                );
+                              })}
+                            </div>
+
+                            {/* Class 11 Row (Dedicated Next Line) */}
+                            <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                              <div className="flex items-center justify-between px-0.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  Class 11 Streams
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {LMS_CLASS_OPTIONS.filter(opt => opt.id.startsWith('c11')).map((opt) => {
+                                  const isSelected = isClassOptionSelected(currentSchool.classes, opt);
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={opt.id}
+                                      onClick={() => {
+                                        const currentArr = toArray(currentSchool.classes);
+                                        const isSel = isClassOptionSelected(currentArr, opt);
+                                        const nextArr = isSel
+                                          ? currentArr.filter(c => c.toLowerCase() !== opt.name.toLowerCase() && c.toLowerCase() !== opt.label.toLowerCase())
+                                          : [...currentArr, opt.name];
+                                        handleUpdateCurrentSchool({ classes: nextArr });
+                                      }}
+                                      className={`flex items-center justify-between gap-1.5 p-2 rounded-xl border text-xs font-semibold transition cursor-pointer select-none text-left shadow-2xs ${
+                                        isSelected
+                                          ? 'bg-[#3a7d84] text-white border-[#3a7d84] ring-1 ring-[#51a8b1]'
+                                          : 'bg-white text-slate-700 border-slate-200 hover:border-[#51a8b1] hover:bg-[#f0f8f9]'
+                                      }`}
+                                    >
+                                      <span className="truncate">{opt.label}</span>
+                                      {isSelected ? (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                                      ) : (
+                                        <div className="w-3.5 h-3.5 rounded-md border border-slate-300 shrink-0" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* Class 12 Row (Dedicated Next Line) */}
+                            <div className="pt-2.5 border-t border-slate-100 space-y-1.5">
+                              <div className="flex items-center justify-between px-0.5">
+                                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                                  Class 12 Streams
+                                </span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1.5">
+                                {LMS_CLASS_OPTIONS.filter(opt => opt.id.startsWith('c12')).map((opt) => {
+                                  const isSelected = isClassOptionSelected(currentSchool.classes, opt);
+                                  return (
+                                    <button
+                                      type="button"
+                                      key={opt.id}
+                                      onClick={() => {
+                                        const currentArr = toArray(currentSchool.classes);
+                                        const isSel = isClassOptionSelected(currentArr, opt);
+                                        const nextArr = isSel
+                                          ? currentArr.filter(c => c.toLowerCase() !== opt.name.toLowerCase() && c.toLowerCase() !== opt.label.toLowerCase())
+                                          : [...currentArr, opt.name];
+                                        handleUpdateCurrentSchool({ classes: nextArr });
+                                      }}
+                                      className={`flex items-center justify-between gap-1.5 p-2 rounded-xl border text-xs font-semibold transition cursor-pointer select-none text-left shadow-2xs ${
+                                        isSelected
+                                          ? 'bg-[#3a7d84] text-white border-[#3a7d84] ring-1 ring-[#51a8b1]'
+                                          : 'bg-white text-slate-700 border-slate-200 hover:border-[#51a8b1] hover:bg-[#f0f8f9]'
+                                      }`}
+                                    >
+                                      <span className="truncate">{opt.label}</span>
+                                      {isSelected ? (
+                                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-300 shrink-0" />
+                                      ) : (
+                                        <div className="w-3.5 h-3.5 rounded-md border border-slate-300 shrink-0" />
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          </>
+                        )}
+                      </div>
+
+                      {/* Dropdown Footer with Done button */}
+                      <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-slate-500">
+                          {toArray(currentSchool.classes).length} selected
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setClassDropdownOpen(false)}
+                          className="text-xs font-bold text-white bg-[#3a7d84] hover:bg-[#2d6268] px-3.5 py-1.5 rounded-xl transition cursor-pointer shadow-2xs"
+                        >
+                          Done
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

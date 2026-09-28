@@ -77,7 +77,7 @@ class RequestService {
     const createdTimeline = timeline[0];
 
     for (const stageDef of timelineConfig.stages) {
-      const stageAssignedTo = (stageDef.key === 'PROJECT_REVIEWER' && pmId) ? pmId : null;
+      const stageAssignedTo = pmId || null;
       const stageNode = await TimelineNode.create([{
         timeline: createdTimeline._id,
         parentNode: null,
@@ -95,7 +95,7 @@ class RequestService {
 
       if (stageDef.substages) {
         for (const subDef of stageDef.substages) {
-          const subAssignedTo = (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(subDef.key) && pmId) ? pmId : null;
+          const subAssignedTo = pmId || null;
           const subTaskNode = await TimelineNode.create([{
             timeline: createdTimeline._id,
             parentNode: createdStage._id,
@@ -113,7 +113,7 @@ class RequestService {
 
           if (subDef.nested) {
             for (const nestedDef of subDef.nested) {
-              const nestedAssignedTo = (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(nestedDef.key) && pmId) ? pmId : null;
+              const nestedAssignedTo = pmId || null;
               await TimelineNode.create([{
                 timeline: createdTimeline._id,
                 parentNode: createdSub._id,
@@ -384,35 +384,30 @@ class RequestService {
         // ── Create the Live Project Record linked to Selected Project ID ───
         const createdProjects = await Project.create([{
           orgId: request.orgId || approver.orgId || undefined,
+          requestId: request._id,
           projectId: finalProjectId,
           projectName: request.title,
           email: request.email || '',
-          country: (request.country && mongoose.isValidObjectId(request.country)) ? request.country : undefined,
+          country: (request.country && mongoose.isValidObjectId(request.country)) ? request.country : (request.country || ''),
           phone: request.phone || '',
           address: request.address || '',
+          numberOfSchools: request.numberOfSchools || 0,
+          numberOfLicenses: request.numberOfLicenses || 0,
           isActive: request.isActive !== undefined ? request.isActive : true,
           organization: request.organization || request.client || request.title,
+          client: request.client || request.organization || request.title,
           description: request.description || '',
-          expectedProjectValue: request.expectedProjectValue || 0,
           projectManager: request.projectManager,
-          requestedBy: request.requestedBy,
-          assignedReviewer: request.requestedTo,
-          status: PROJECT_STATUSES.ACTIVE,
-          reviewStatus: 'APPROVED',
-          reviewNotes: payload.reviewNotes || request.reviewNotes || '',
-          createdBy: approverEmployeeId
+          status: PROJECT_STATUSES.ACTIVE
         }], { session });
 
         newProject = createdProjects[0];
       } else {
         // Existing Project: Update status to ACTIVE and ensure PM is assigned
+        existingProject.requestId = existingProject.requestId || request._id;
         existingProject.status = PROJECT_STATUSES.ACTIVE;
-        existingProject.reviewStatus = 'APPROVED';
         if (request.projectManager) {
           existingProject.projectManager = request.projectManager;
-        }
-        if (payload.reviewNotes) {
-          existingProject.reviewNotes = payload.reviewNotes;
         }
         await existingProject.save({ session });
         newProject = existingProject;
@@ -490,7 +485,7 @@ class RequestService {
         { upsert: true, new: true, session }
       );
 
-      // ── Sync PM to Timeline & Stage 01 Nodes ─────────────────────
+      // ── Sync PM to Timeline & All Nodes ─────────────────────
       const assignedPmId = request.projectManager || newProject.projectManager;
       if (assignedPmId) {
         await Timeline.findOneAndUpdate(
@@ -504,7 +499,7 @@ class RequestService {
           await TimelineNode.updateMany(
             {
               timeline: timelineDoc._id,
-              key: { $in: ['PROJECT_REVIEWER', 'PROJECT_CREATED', 'LEAD_CREATION'] }
+              $or: [{ assignedTo: null }, { key: { $in: ['PROJECT_REVIEWER', 'PROJECT_CREATED', 'LEAD_CREATION'] } }]
             },
             { assignedTo: assignedPmId },
             { session }

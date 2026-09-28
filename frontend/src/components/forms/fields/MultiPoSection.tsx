@@ -160,11 +160,20 @@ export function MultiPoSection({
     updatePoList(updated);
   };
 
-  // PDF File Upload Handler
+  // File Upload Handler (PDF or Image, Max 2MB)
   const handlePdfUpload = async (index: number, file: File) => {
     setErrorIndex(null);
-    if (!file.name.toLowerCase().endsWith('.pdf') && file.type !== 'application/pdf') {
-      setErrorIndex({ index, msg: 'Only PDF format (.pdf) is allowed.' });
+    const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
+    const allowedExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.webp', '.doc', '.docx'];
+    const isAllowed = allowedExtensions.some(ext => file.name.toLowerCase().endsWith(ext)) || file.type.startsWith('image/') || file.type === 'application/pdf';
+
+    if (!isAllowed) {
+      setErrorIndex({ index, msg: 'Only PDF (.pdf) or Image (.jpg, .png, .webp) formats are allowed.' });
+      return;
+    }
+
+    if (file.size > MAX_FILE_SIZE) {
+      setErrorIndex({ index, msg: `File exceeds 2MB limit (selected: ${(file.size / (1024 * 1024)).toFixed(2)} MB).` });
       return;
     }
 
@@ -191,7 +200,7 @@ export function MultiPoSection({
       const uploadedUrl = data.data?.url || data.url;
       handlePoChange(index, 'poDocumentUrl', uploadedUrl);
     } catch (err: any) {
-      setErrorIndex({ index, msg: err.message || 'Failed to upload PDF.' });
+      setErrorIndex({ index, msg: err.message || 'Failed to upload document.' });
     } finally {
       setUploadingIndex(null);
     }
@@ -240,8 +249,8 @@ export function MultiPoSection({
             <h4 className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] font-heading">
               Purchase Orders ({poList.length})
             </h4>
-            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-50 text-rose-600 border border-rose-200">
-              .pdf
+            <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
+              PDF / Image • Max 2MB
             </span>
           </div>
           {!disabled && (
@@ -351,7 +360,7 @@ export function MultiPoSection({
                     `}>
                       <input
                         type="file"
-                        accept="application/pdf,.pdf"
+                        accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,image/*,application/pdf"
                         disabled={disabled || uploadingIndex === index}
                         onChange={(e) => {
                           const file = e.target.files?.[0];
@@ -367,7 +376,7 @@ export function MultiPoSection({
                       ) : (
                         <>
                           <UploadCloud className="w-3 h-3 text-[#51a8b1]" />
-                          <span>Upload PDF</span>
+                          <span>Upload (PDF / Img)</span>
                         </>
                       )}
                     </label>

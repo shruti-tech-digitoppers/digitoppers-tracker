@@ -8,18 +8,19 @@ import {
 } from '../utils/formHelpers';
 import {
   Check,
-  AlertCircle,
-  Building2,
   Cpu,
-  MapPin,
-  Wrench,
   ChevronDown,
   Search,
   X,
-  School
+  School,
+  Copy,
+  Trash2,
+  Layers,
+  Wrench,
+  Hash
 } from 'lucide-react';
 
-interface SchoolHardwareItem {
+export interface SchoolHardwareItem {
   itemKey: string;
   itemName: string;
   quantity: number;
@@ -35,22 +36,24 @@ interface HardwareRequirementsInputProps {
   allFormData?: Record<string, any>;
 }
 
-// ─── HARDWARE MULTI-SELECT DROPDOWN COMPONENT ───
-interface HardwareDropdownProps {
+// ─── SCHOOL-SPECIFIC HARDWARE MULTI-SELECT DROPDOWN COMPONENT ───
+interface SchoolHardwareDropdownProps {
   selectedKeys: string[];
+  schoolName: string;
   onToggleHardware: (key: string) => void;
   onSelectAll: () => void;
   onClearAll: () => void;
   disabled?: boolean;
 }
 
-function HardwareMultiSelectDropdown({
+function SchoolHardwareMultiSelectDropdown({
   selectedKeys,
+  schoolName,
   onToggleHardware,
   onSelectAll,
   onClearAll,
   disabled = false,
-}: HardwareDropdownProps) {
+}: SchoolHardwareDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -81,29 +84,19 @@ function HardwareMultiSelectDropdown({
 
   return (
     <div className="relative font-sans" ref={dropdownRef}>
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
-        <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
-          <Cpu className="w-4 h-4 text-[#51a8b1]" />
-          <span>Select Hardware Products (Multi-Select Dropdown)</span>
-        </label>
-        <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#51a8b1]/15 text-[#3a7d84] border border-[#b6e0e4]">
-          {selectedKeys.length} of {DEFAULT_HARDWARE_ITEMS.length} Products Active
-        </span>
-      </div>
-
       {/* Main Trigger Dropdown Field */}
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full min-h-[46px] px-3.5 py-2 rounded-xl border-2 transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${
+        className={`w-full min-h-[46px] px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${
           isOpen
-            ? 'border-[#51a8b1] ring-2 ring-[#51a8b1]/30 shadow-md'
-            : 'border-[#51a8b1]/40 hover:border-[#51a8b1] shadow-2xs'
-        } ${disabled ? 'opacity-60 cursor-not-allowed bg-gray-50' : ''}`}
+            ? 'border-[#51a8b1] ring-2 ring-[#51a8b1]/20 shadow-xs'
+            : 'border-slate-300 hover:border-[#51a8b1] shadow-2xs'
+        } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : ''}`}
       >
-        <div className="flex-1 flex flex-wrap items-center gap-2 min-w-0 py-0.5">
+        <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0 py-0.5">
           {selectedKeys.length === 0 ? (
-            <span className="text-xs text-gray-400 italic">
-              Click to select required hardware items (e.g., IFP Panel, Tablets, Mini PC, Charging Cart)...
+            <span className="text-xs text-slate-400 font-medium pl-0.5">
+              Click to select required hardware items for {schoolName} (IFP, Tablets, Charging Cart, etc.)...
             </span>
           ) : (
             selectedKeys.map((key) => {
@@ -111,9 +104,8 @@ function HardwareMultiSelectDropdown({
               return (
                 <span
                   key={key}
-                  className="inline-flex items-center gap-1.5 text-xs font-semibold bg-gradient-to-r from-[#f0f8f9] to-[#e4f4f6] text-[#275a5f] border border-[#b6e0e4] px-2.5 py-1 rounded-lg shadow-2xs"
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] px-2.5 py-1 rounded-lg shadow-2xs"
                 >
-                  <span>{item?.icon || '🖥️'}</span>
                   <span>{item?.label || key}</span>
                   {!disabled && (
                     <button
@@ -137,44 +129,44 @@ function HardwareMultiSelectDropdown({
           {selectedKeys.length > 0 && !disabled && (
             <button
               type="button"
-              title="Clear all hardware"
+              title="Clear all hardware for this school"
               onClick={(e) => {
                 e.stopPropagation();
                 onClearAll();
               }}
-              className="text-gray-400 hover:text-rose-600 text-xs px-2 py-0.5 rounded hover:bg-rose-50 transition"
+              className="text-slate-400 hover:text-rose-600 text-xs px-2 py-0.5 rounded hover:bg-rose-50 transition"
             >
               Clear
             </button>
           )}
           <ChevronDown
-            className={`w-5 h-5 transition-transform duration-200 ${
+            className={`w-4 h-4 transition-transform duration-200 ${
               isOpen ? 'rotate-180' : ''
             }`}
           />
         </div>
       </div>
 
-      {/* Popover Dropdown Menu */}
+      {/* Hardware Popover Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 top-full mt-1.5 bg-white border border-[#51a8b1]/50 rounded-2xl shadow-2xl p-3.5 space-y-3 max-h-[380px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
-          {/* Search Bar & Quick Actions */}
+        <div className="absolute z-50 left-0 right-0 top-full mt-1.5 bg-white border border-[#b6e0e4] rounded-2xl shadow-xl p-3 space-y-2.5 max-h-[380px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-150">
+          {/* Header with Search and Quick Actions */}
           <div className="space-y-2">
             <div className="relative">
-              <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search hardware by name, model or specification..."
-                className="w-full text-xs pl-9 pr-8 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1] bg-gray-50/70 text-gray-800"
+                placeholder="Search hardware by name or specification..."
+                className="w-full text-xs pl-9 pr-8 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-slate-50 text-slate-900 font-medium"
                 autoFocus
               />
               {searchQuery && (
                 <button
                   type="button"
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -187,28 +179,28 @@ function HardwareMultiSelectDropdown({
                 <button
                   type="button"
                   onClick={onSelectAll}
-                  className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#51a8b1]/15 hover:bg-[#51a8b1]/30 text-[#3a7d84] transition cursor-pointer"
+                  className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-[#f0f8f9] hover:bg-[#e0f3f5] text-[#3a7d84] border border-[#b6e0e4] transition cursor-pointer"
                 >
                   Select All
                 </button>
                 <button
                   type="button"
                   onClick={onClearAll}
-                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-gray-200 text-gray-600 transition cursor-pointer"
+                  className="text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
                 >
                   Clear All
                 </button>
               </div>
-              <span className="text-[11px] text-gray-500 font-medium">
-                {selectedKeys.length} selected
+              <span className="text-[11px] text-slate-500 font-medium">
+                {selectedKeys.length} selected for {schoolName}
               </span>
             </div>
           </div>
 
-          {/* Hardware Options List */}
-          <div className="overflow-y-auto space-y-2 pr-1 flex-1 max-h-[240px]">
+          {/* Hardware Items List */}
+          <div className="overflow-y-auto space-y-1.5 pr-1 flex-1 max-h-[220px]">
             {filteredHardware.length === 0 ? (
-              <div className="py-6 text-center text-xs text-gray-400">
+              <div className="py-6 text-center text-xs text-slate-400">
                 No hardware products match &quot;{searchQuery}&quot;
               </div>
             ) : (
@@ -218,32 +210,29 @@ function HardwareMultiSelectDropdown({
                   <div
                     key={item.key}
                     onClick={() => onToggleHardware(item.key)}
-                    className={`p-2.5 rounded-xl border transition-all cursor-pointer select-none flex items-start gap-3 ${
+                    className={`px-3 py-2 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
                       isSelected
-                        ? 'bg-gradient-to-r from-[#f0f8f9] to-white border-[#51a8b1] ring-1 ring-[#51a8b1] shadow-2xs'
-                        : 'bg-white border-gray-200 hover:border-[#51a8b1]/60 hover:bg-gray-50'
+                        ? 'bg-[#f0f8f9] border-[#51a8b1] ring-1 ring-[#51a8b1] shadow-2xs'
+                        : 'bg-white border-slate-200 hover:border-[#51a8b1] hover:bg-slate-50'
                     }`}
                   >
+                    <div className="flex flex-col min-w-0">
+                      <h5 className="text-xs font-bold text-slate-800 truncate font-heading">
+                        {item.label}
+                      </h5>
+                      <span className="text-[10.5px] text-slate-400 truncate">
+                        {item.desc}
+                      </span>
+                    </div>
+
                     <div
-                      className={`w-4 h-4 rounded mt-0.5 flex items-center justify-center border text-[10px] transition-colors shrink-0 ${
+                      className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] transition-colors shrink-0 ${
                         isSelected
-                          ? 'bg-[#51a8b1] border-[#51a8b1] text-white'
-                          : 'border-gray-300 bg-white'
+                          ? 'bg-[#3a7d84] border-[#3a7d84] text-white'
+                          : 'border-slate-300 bg-white'
                       }`}
                     >
                       {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-base">{item.icon}</span>
-                        <h5 className="text-xs font-bold text-[#1f2937] truncate font-heading">
-                          {item.label}
-                        </h5>
-                      </div>
-                      <p className="text-[10.5px] text-[#6b7280] leading-snug mt-0.5">
-                        {item.desc}
-                      </p>
                     </div>
                   </div>
                 );
@@ -252,14 +241,14 @@ function HardwareMultiSelectDropdown({
           </div>
 
           {/* Footer Action */}
-          <div className="pt-2 border-t border-gray-100 flex items-center justify-between">
-            <span className="text-[11px] text-gray-500">
-              Select all hardware equipment required for this project
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+            <span className="text-[11px] text-slate-500">
+              Hardware products allocated for {schoolName}
             </span>
             <button
               type="button"
               onClick={() => setIsOpen(false)}
-              className="text-xs font-bold px-4 py-1.5 bg-[#51a8b1] hover:bg-[#3a7d84] text-white rounded-xl shadow-2xs transition cursor-pointer"
+              className="text-xs font-bold px-4 py-1.5 bg-[#3a7d84] hover:bg-[#2d6268] text-white rounded-xl shadow-2xs transition cursor-pointer"
             >
               Done
             </button>
@@ -278,73 +267,77 @@ export function HardwareRequirementsInput({
   schools = [],
   allFormData = {},
 }: HardwareRequirementsInputProps) {
-  // 1. Determine active schools list with centralized helper
+  // 1. Determine effective schools list
   const effectiveSchools = useMemo<EffectiveSchoolItem[]>(() => {
-    return extractEffectiveSchools(schools, allFormData, value, 'Primary School Campus');
+    return extractEffectiveSchools(schools, allFormData, value);
   }, [schools, allFormData, value]);
 
   const [activeSchoolIndex, setActiveSchoolIndex] = useState<number>(0);
+  const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState<boolean>(false);
+  const [schoolSearchQuery, setSchoolSearchQuery] = useState<string>('');
+  const schoolDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Close school dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target as Node)) {
+        setIsSchoolDropdownOpen(false);
+      }
+    }
+    if (isSchoolDropdownOpen) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [isSchoolDropdownOpen]);
+
   const currentSchool =
     effectiveSchools[Math.min(activeSchoolIndex, effectiveSchools.length - 1)] ||
-    effectiveSchools[0];
+    effectiveSchools[0] || { id: 'school-1', name: 'Primary School' };
 
-  // 2. Global Catalog Selection
-  const selectedGlobalKeys = useMemo<string[]>(() => {
-    if (value && Array.isArray(value.activeHardwareKeys)) {
-      return value.activeHardwareKeys;
-    }
-    if (value?.items && typeof value.items === 'object') {
-      const keys = Object.keys(value.items).filter(
-        (k) => value.items[k]?.selected !== false && DEFAULT_HARDWARE_ITEMS.some((d) => d.key === k)
-      );
-      if (keys.length > 0) return keys;
-    }
-    if (value && typeof value === 'object' && !value.items) {
-      const keys = Object.keys(value).filter(
-        (k) =>
-          k !== 'activeHardwareKeys' &&
-          k !== 'schoolWiseHardware' &&
-          k !== 'schools' &&
-          k !== 'schoolName' &&
-          k !== 'schoolCode' &&
-          value[k]?.selected !== false &&
-          DEFAULT_HARDWARE_ITEMS.some((d) => d.key === k)
-      );
-      if (keys.length > 0) return keys;
-    }
-    return ['IFP', 'OPS', 'PENDRIVE'];
-  }, [value]);
-
-  // 3. School-wise hardware allocations state
+  // 2. School-wise hardware allocations state (CLEAN 0 DEFAULT - no hardcoded hardware!)
   const schoolAllocations = useMemo<Record<string, Record<string, SchoolHardwareItem>>>(() => {
     if (value?.schoolWiseHardware && typeof value.schoolWiseHardware === 'object') {
       return value.schoolWiseHardware;
     }
     const legacyItems = value?.items || value || {};
+    const fallbackKeys = Array.isArray(value?.activeHardwareKeys)
+      ? value.activeHardwareKeys
+      : [];
+
     const initialMap: Record<string, Record<string, SchoolHardwareItem>> = {};
     effectiveSchools.forEach((sch: EffectiveSchoolItem) => {
       initialMap[sch.id] = {};
-      selectedGlobalKeys.forEach((itemKey) => {
+      fallbackKeys.forEach((itemKey: string) => {
         const legacy = legacyItems[itemKey] || {};
         const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
         initialMap[sch.id][itemKey] = {
           itemKey,
           itemName: legacy.itemName || defObj?.label || itemKey,
-          quantity: Number(legacy.quantity) || (itemKey === 'STUDENT_TABLETS' ? 10 : 1),
+          quantity: Number(legacy.quantity) || 1,
           specNotes: legacy.specNotes || defObj?.desc || '',
           serialNotes: legacy.serialNotes || '',
         };
       });
     });
     return initialMap;
-  }, [value, effectiveSchools, selectedGlobalKeys]);
+  }, [value, effectiveSchools]);
 
+  // Synchronize changes up to parent
   const emitUpdate = useCallback((
-    updatedGlobalKeys: string[],
     updatedSchoolMap: Record<string, Record<string, SchoolHardwareItem>>
   ) => {
+    const allActiveKeys = Array.from(
+      new Set(
+        Object.values(updatedSchoolMap).flatMap((sMap) =>
+          sMap && typeof sMap === 'object' ? Object.keys(sMap) : []
+        )
+      )
+    );
+
     const legacyItems: Record<string, any> = {};
-    updatedGlobalKeys.forEach((itemKey) => {
+    allActiveKeys.forEach((itemKey) => {
       const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
       let aggregatedQty = 0;
       let combinedSpecs = '';
@@ -367,75 +360,63 @@ export function HardwareRequirementsInput({
 
     onChange({
       ...(typeof value === 'object' && value !== null ? value : {}),
-      activeHardwareKeys: updatedGlobalKeys,
+      activeHardwareKeys: allActiveKeys,
       schoolWiseHardware: updatedSchoolMap,
       items: legacyItems,
       ...legacyItems,
     });
   }, [value, onChange]);
 
-  // --- Handlers ---
-  const handleToggleGlobalHardware = useCallback((itemKey: string) => {
-    let nextKeys: string[];
-    const isCurrentlySelected = selectedGlobalKeys.includes(itemKey);
-    if (isCurrentlySelected) {
-      nextKeys = selectedGlobalKeys.filter((k) => k !== itemKey);
+  // Toggle hardware product for the ACTIVE school
+  const handleToggleSchoolHardware = useCallback((itemKey: string) => {
+    const schoolId = currentSchool.id;
+    const nextSchoolMap = { ...schoolAllocations };
+    nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
+
+    if (nextSchoolMap[schoolId][itemKey]) {
+      delete nextSchoolMap[schoolId][itemKey];
     } else {
-      nextKeys = [...selectedGlobalKeys, itemKey];
+      const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
+      nextSchoolMap[schoolId][itemKey] = {
+        itemKey,
+        itemName: defObj?.label || itemKey,
+        quantity: itemKey === 'TABLET' ? 10 : 1,
+        specNotes: defObj?.desc || '',
+        serialNotes: '',
+      };
     }
 
+    emitUpdate(nextSchoolMap);
+  }, [currentSchool.id, schoolAllocations, emitUpdate]);
+
+  const handleSelectAllForSchool = useCallback(() => {
+    const schoolId = currentSchool.id;
     const nextSchoolMap = { ...schoolAllocations };
-    effectiveSchools.forEach((sch: EffectiveSchoolItem) => {
-      nextSchoolMap[sch.id] = { ...(nextSchoolMap[sch.id] || {}) };
-      if (isCurrentlySelected) {
-        delete nextSchoolMap[sch.id][itemKey];
-      } else {
-        const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
-        nextSchoolMap[sch.id][itemKey] = {
-          itemKey,
-          itemName: defObj?.label || itemKey,
-          quantity: itemKey === 'STUDENT_TABLETS' ? 10 : 1,
-          specNotes: defObj?.desc || '',
+    nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
+
+    DEFAULT_HARDWARE_ITEMS.forEach((item) => {
+      if (!nextSchoolMap[schoolId][item.key]) {
+        nextSchoolMap[schoolId][item.key] = {
+          itemKey: item.key,
+          itemName: item.label,
+          quantity: item.key === 'TABLET' ? 10 : 1,
+          specNotes: item.desc || '',
           serialNotes: '',
         };
       }
     });
 
-    emitUpdate(nextKeys, nextSchoolMap);
-  }, [selectedGlobalKeys, schoolAllocations, effectiveSchools, emitUpdate]);
+    emitUpdate(nextSchoolMap);
+  }, [currentSchool.id, schoolAllocations, emitUpdate]);
 
-  const handleSelectAllHardware = useCallback(() => {
-    const allKeys = DEFAULT_HARDWARE_ITEMS.map((s) => s.key);
+  const handleClearAllForSchool = useCallback(() => {
+    const schoolId = currentSchool.id;
     const nextSchoolMap = { ...schoolAllocations };
+    nextSchoolMap[schoolId] = {};
+    emitUpdate(nextSchoolMap);
+  }, [currentSchool.id, schoolAllocations, emitUpdate]);
 
-    effectiveSchools.forEach((sch: EffectiveSchoolItem) => {
-      nextSchoolMap[sch.id] = { ...(nextSchoolMap[sch.id] || {}) };
-      allKeys.forEach((itemKey) => {
-        if (!nextSchoolMap[sch.id][itemKey]) {
-          const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
-          nextSchoolMap[sch.id][itemKey] = {
-            itemKey,
-            itemName: defObj?.label || itemKey,
-            quantity: itemKey === 'STUDENT_TABLETS' ? 10 : 1,
-            specNotes: defObj?.desc || '',
-            serialNotes: '',
-          };
-        }
-      });
-    });
-
-    emitUpdate(allKeys, nextSchoolMap);
-  }, [schoolAllocations, effectiveSchools, emitUpdate]);
-
-  const handleClearAllHardware = useCallback(() => {
-    const nextSchoolMap: Record<string, Record<string, SchoolHardwareItem>> = {};
-    effectiveSchools.forEach((sch: EffectiveSchoolItem) => {
-      nextSchoolMap[sch.id] = {};
-    });
-    emitUpdate([], nextSchoolMap);
-  }, [effectiveSchools, emitUpdate]);
-
-  const handleUpdateSchoolHardware = useCallback((
+  const handleUpdateSchoolHardwareField = useCallback((
     schoolId: string,
     itemKey: string,
     field: keyof SchoolHardwareItem,
@@ -458,14 +439,52 @@ export function HardwareRequirementsInput({
       [field]: val,
     };
 
-    emitUpdate(selectedGlobalKeys, nextSchoolMap);
-  }, [schoolAllocations, selectedGlobalKeys, emitUpdate]);
+    emitUpdate(nextSchoolMap);
+  }, [schoolAllocations, emitUpdate]);
 
-  // Calculate Aggregated Metrics
-  const totalHardwareUnits = useMemo(() => {
+  const handleRemoveHardwareFromSchool = useCallback((schoolId: string, itemKey: string) => {
+    const nextSchoolMap = { ...schoolAllocations };
+    nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
+    delete nextSchoolMap[schoolId][itemKey];
+    emitUpdate(nextSchoolMap);
+  }, [schoolAllocations, emitUpdate]);
+
+  // Copy current school config to all other schools
+  const handleApplyToAllSchools = useCallback(() => {
+    const sourceHardware = schoolAllocations[currentSchool.id] || {};
+    const nextSchoolMap = { ...schoolAllocations };
+
+    effectiveSchools.forEach((sch) => {
+      if (sch.id !== currentSchool.id) {
+        nextSchoolMap[sch.id] = JSON.parse(JSON.stringify(sourceHardware));
+      }
+    });
+
+    emitUpdate(nextSchoolMap);
+  }, [currentSchool.id, effectiveSchools, schoolAllocations, emitUpdate]);
+
+  // Active school's selected hardware items
+  const activeSchoolHardware = useMemo(() => {
+    return schoolAllocations[currentSchool.id] || {};
+  }, [schoolAllocations, currentSchool.id]);
+
+  const activeSchoolKeys = useMemo(() => {
+    return Object.keys(activeSchoolHardware);
+  }, [activeSchoolHardware]);
+
+  // Filter schools for the dropdown search
+  const filteredSchoolsList = useMemo(() => {
+    return effectiveSchools.map((sch, idx) => ({ sch, originalIndex: idx })).filter(({ sch }) =>
+      sch.name.toLowerCase().includes(schoolSearchQuery.toLowerCase()) ||
+      (sch.address && sch.address.toLowerCase().includes(schoolSearchQuery.toLowerCase()))
+    );
+  }, [effectiveSchools, schoolSearchQuery]);
+
+  // Total summary across all schools
+  const totalUnitsAcrossSchools = useMemo(() => {
     let total = 0;
     Object.values(schoolAllocations).forEach((schMap) => {
-      Object.values(schMap).forEach((item) => {
+      Object.values(schMap || {}).forEach((item) => {
         total += Number(item.quantity) || 1;
       });
     });
@@ -474,114 +493,243 @@ export function HardwareRequirementsInput({
 
   return (
     <div className="space-y-4 font-sans">
-      {/* ── STEP 1: GLOBAL HARDWARE MULTI-SELECT DROPDOWN ── */}
-      <div className="bg-gradient-to-r from-[#f8fafb] via-white to-[#f8fafb] border border-[#51a8b1]/40 rounded-2xl p-4 shadow-2xs space-y-3">
-        <HardwareMultiSelectDropdown
-          selectedKeys={selectedGlobalKeys}
-          onToggleHardware={handleToggleGlobalHardware}
-          onSelectAll={handleSelectAllHardware}
-          onClearAll={handleClearAllHardware}
+      {/* ── STEP 1: SELECT SCHOOL CAMPUS ── */}
+      <div className="bg-white p-4 rounded-2xl border border-[#b6e0e4] shadow-2xs space-y-3">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+          {/* Step 1 Title */}
+          <div className="flex items-center gap-2">
+            <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
+              1
+            </span>
+            <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900">
+              Step 1: Select School Campus
+            </h4>
+          </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-[11px] font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-1 rounded-xl">
+              Total Across Schools: <strong>{totalUnitsAcrossSchools} Units</strong>
+            </span>
+            {effectiveSchools.length > 1 && !disabled && (
+              <button
+                type="button"
+                onClick={handleApplyToAllSchools}
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white hover:bg-[#e0f3f5] text-[#3a7d84] border border-[#b6e0e4] text-xs font-bold transition shadow-2xs cursor-pointer"
+                title="Copy current school's hardware allocation to all other campuses"
+              >
+                <Copy className="w-3.5 h-3.5" />
+                <span>Apply to All</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Searchable School Dropdown Component */}
+        <div className="relative" ref={schoolDropdownRef}>
+          <button
+            type="button"
+            onClick={() => setIsSchoolDropdownOpen((prev) => !prev)}
+            className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-[#f0f8f9] hover:bg-[#e4f3f5] border border-[#b6e0e4] text-[#2d6b73] text-xs font-bold transition shadow-2xs cursor-pointer text-left select-none"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <School className="w-4 h-4 text-[#3a7d84] shrink-0" />
+              <span className="truncate font-heading text-slate-800 text-sm">
+                {currentSchool.name || `School Branch #${activeSchoolIndex + 1}`}
+              </span>
+              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-white border border-[#b6e0e4] text-[#3a7d84] shrink-0">
+                #{activeSchoolIndex + 1} of {effectiveSchools.length}
+              </span>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 text-[#3a7d84]">
+              <span className="text-[10.5px] font-bold bg-white px-2 py-0.5 rounded-md border border-[#b6e0e4]">
+                {activeSchoolKeys.length} items configured
+              </span>
+              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSchoolDropdownOpen ? 'rotate-180' : ''}`} />
+            </div>
+          </button>
+
+          {/* School Dropdown Popover */}
+          {isSchoolDropdownOpen && (
+            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-[#b6e0e4] shadow-xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  autoFocus
+                  value={schoolSearchQuery}
+                  onChange={(e) => setSchoolSearchQuery(e.target.value)}
+                  placeholder="Search school by name or address..."
+                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] font-medium"
+                />
+                {schoolSearchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSchoolSearchQuery('')}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                  >
+                    <X className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+
+              {/* School Items List */}
+              <div className="max-h-56 overflow-y-auto space-y-1 scrollbar-thin">
+                {filteredSchoolsList.length === 0 ? (
+                  <div className="p-3 text-center text-xs text-slate-400 font-medium">
+                    No schools match &ldquo;{schoolSearchQuery}&rdquo;
+                  </div>
+                ) : (
+                  filteredSchoolsList.map(({ sch, originalIndex }) => {
+                    const isSelected = originalIndex === activeSchoolIndex;
+                    const hwItems = Object.values(schoolAllocations[sch.id] || {});
+                    const count = hwItems.length;
+                    const units = hwItems.reduce((acc, curr) => acc + (Number(curr.quantity) || 1), 0);
+
+                    return (
+                      <div
+                        key={sch.id || originalIndex}
+                        onClick={() => {
+                          setActiveSchoolIndex(originalIndex);
+                          setIsSchoolDropdownOpen(false);
+                        }}
+                        className={`flex items-center justify-between gap-2 p-2 rounded-xl text-xs transition cursor-pointer select-none ${
+                          isSelected
+                            ? 'bg-[#f0f8f9] text-[#2d6b73] font-bold border border-[#b6e0e4]'
+                            : 'hover:bg-slate-50 text-slate-700 border border-transparent'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-5 h-5 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center shrink-0 ${
+                            isSelected ? 'bg-[#3a7d84] text-white' : 'bg-slate-100 text-slate-600'
+                          }`}>
+                            {originalIndex + 1}
+                          </span>
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-semibold text-slate-900">
+                              {sch.name || `School Branch #${originalIndex + 1}`}
+                            </p>
+                            {sch.address && (
+                              <p className="text-[10px] text-slate-400 truncate">
+                                {sch.address}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-white border border-[#b6e0e4] text-[#3a7d84]">
+                            {count} items • {units}u
+                          </span>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-[#3a7d84]" />}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Quick Horizontal School Pills */}
+        {effectiveSchools.length > 1 && (
+          <div className="bg-slate-50/80 p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-thin border border-slate-200/80">
+            {effectiveSchools.map((school, idx) => {
+              const isActive = idx === activeSchoolIndex;
+              const schHwItems = Object.values(schoolAllocations[school.id] || {});
+              const count = schHwItems.length;
+              const units = schHwItems.reduce((acc, curr) => acc + (Number(curr.quantity) || 1), 0);
+
+              return (
+                <button
+                  type="button"
+                  key={school.id || idx}
+                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs transition-all duration-200 cursor-pointer shrink-0 select-none border ${
+                    isActive
+                      ? 'bg-white text-[#2d6b73] border-[#51a8b1]/60 shadow-sm ring-2 ring-[#51a8b1]/20 font-bold'
+                      : 'bg-transparent hover:bg-white/80 text-slate-600 border-transparent hover:border-slate-200 font-medium'
+                  }`}
+                  onClick={() => setActiveSchoolIndex(idx)}
+                >
+                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
+                    isActive ? 'bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]' : 'bg-slate-200/70 text-slate-500'
+                  }`}>
+                    #{idx + 1}
+                  </span>
+                  <span className="max-w-[280px] sm:max-w-[380px] truncate text-slate-800" title={school.name || `School #${idx + 1}`}>
+                    {school.name || `School #${idx + 1}`}
+                  </span>
+                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                    isActive ? 'bg-[#3a7d84] text-white shadow-2xs' : 'bg-slate-200/80 text-slate-600'
+                  }`}>
+                    {count} ({units}u)
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── STEP 2: SELECT HARDWARE PRODUCTS FOR THE ACTIVE SCHOOL ── */}
+      <div 
+        key={currentSchool.id || `school-hardware-${activeSchoolIndex}`}
+        className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 animate-in fade-in-50 duration-200"
+      >
+        <div className="flex items-center gap-2">
+          <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
+            2
+          </span>
+          <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900 truncate">
+            Step 2: Select Hardware Products for {currentSchool.name}
+          </h4>
+        </div>
+
+        {/* Dropdown to pick hardware products */}
+        <SchoolHardwareMultiSelectDropdown
+          selectedKeys={activeSchoolKeys}
+          schoolName={currentSchool.name}
+          onToggleHardware={handleToggleSchoolHardware}
+          onSelectAll={handleSelectAllForSchool}
+          onClearAll={handleClearAllForSchool}
           disabled={disabled}
         />
       </div>
 
-      {/* ── STEP 2: SCHOOL & ADDRESS-WISE HARDWARE BREAKDOWN ── */}
-      <div className="bg-white border border-[#b9c0cb]/50 rounded-2xl p-4 shadow-2xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2.5">
+      {/* ── STEP 3: CONFIGURE QUANTITIES (NO.) & SPECIFICATIONS FOR SELECTED HARDWARE ── */}
+      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-[#3a7d84] to-[#51a8b1] text-white flex items-center justify-center text-xs shadow-xs">
-              <Building2 className="w-4 h-4" />
-            </div>
-            <div>
-              <h4 className="text-xs font-bold uppercase tracking-wider text-[#1f2937] font-heading">
-                Step 2: School &amp; Address-Wise Hardware Allocation
-              </h4>
-              <p className="text-[10.5px] text-[#6b7280]">
-                Assign quantities and specifications per school branch and delivery address.
-              </p>
-            </div>
+            <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
+              3
+            </span>
+            <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900">
+              Step 3: Hardware Quantity (No.) &amp; Specifications
+            </h4>
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold px-3 py-1 rounded-lg bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
-              Total Units: <strong>{totalHardwareUnits} Items</strong>
-            </span>
-          </div>
+          <span className="text-xs font-bold text-[#3a7d84] bg-[#f0f8f9] px-2.5 py-1 rounded-lg border border-[#b6e0e4]">
+            {activeSchoolKeys.length} Products Active
+          </span>
         </div>
 
-        {/* ── Prominent School & Delivery Address Selection Dropdown ── */}
-        <div className="bg-gradient-to-r from-[#f0f8f9] via-white to-[#f0f8f9] border-2 border-[#51a8b1]/40 rounded-2xl p-4 shadow-sm space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex-1">
-              <label className="block text-xs font-bold uppercase tracking-wider text-[#3a7d84] mb-1.5 flex items-center gap-1.5">
-                <School className="w-4 h-4 text-[#51a8b1]" />
-                <span>Select School / Delivery Destination:</span>
-                <span className="text-[11px] font-normal normal-case text-[#4a5462]">
-                  (Hardware items &amp; specifications will configure for the selected school)
-                </span>
-              </label>
-
-              <div className="relative">
-                <select
-                  value={activeSchoolIndex}
-                  onChange={(e) => setActiveSchoolIndex(Number(e.target.value))}
-                  className="w-full bg-white border-2 border-[#51a8b1] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-bold text-[#1f2937] shadow-xs focus:outline-none focus:ring-2 focus:ring-[#3a7d84] cursor-pointer appearance-none pr-10"
-                >
-                  {effectiveSchools.map((sch, idx) => {
-                    const schHardware = schoolAllocations[sch.id] || {};
-                    const activeCount = Object.keys(schHardware).length;
-                    return (
-                      <option key={sch.id || idx} value={idx}>
-                        🏫 {idx + 1}. {sch.name}{' '}
-                        {sch.address ? `— [${sch.address.slice(0, 40)}...]` : ''} ({activeCount}{' '}
-                        items mapped)
-                      </option>
-                    );
-                  })}
-                </select>
-                <div className="absolute right-3.5 top-1/2 -translate-y-1/2 pointer-events-none text-[#51a8b1]">
-                  ▼
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Active School Delivery Address Header Banner */}
-          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-[#51a8b1]/20 text-xs">
-            <div>
-              <span className="px-2 py-0.5 rounded-md bg-[#51a8b1] text-white font-bold text-[11px]">
-                Target Destination: {currentSchool.name}
-              </span>
-              {currentSchool.address && (
-                <div className="text-[11px] text-[#4a5462] flex items-center gap-1 mt-1 font-medium">
-                  <MapPin className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
-                  <span>Delivery Address: {currentSchool.address}</span>
-                </div>
-              )}
-            </div>
-
-            <span className="text-[11px] font-semibold text-[#3a7d84]">
-              {selectedGlobalKeys.length} hardware product(s) mapped
-            </span>
-          </div>
-        </div>
-
-        {/* Selected School's Hardware Breakdown */}
-        {selectedGlobalKeys.length === 0 ? (
-          <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-            <span>
-              Please select at least one hardware product from the hardware dropdown above to configure quantities and specifications.
-            </span>
+        {/* If no hardware selected yet */}
+        {activeSchoolKeys.length === 0 ? (
+          <div className="p-8 bg-slate-50 border border-dashed border-slate-200 rounded-2xl text-center space-y-1">
+            <Cpu className="w-8 h-8 text-slate-300 mx-auto" />
+            <p className="text-xs font-bold text-slate-700">
+              No hardware products allocated for {currentSchool.name}
+            </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {selectedGlobalKeys.map((itemKey) => {
+          <div className="space-y-3 pt-1">
+            {activeSchoolKeys.map((itemKey) => {
               const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
-              const item = schoolAllocations[currentSchool.id]?.[itemKey] || {
+              const item = activeSchoolHardware[itemKey] || {
                 itemKey,
                 itemName: defObj?.label || itemKey,
-                quantity: itemKey === 'STUDENT_TABLETS' ? 10 : 1,
+                quantity: 1,
                 specNotes: defObj?.desc || '',
                 serialNotes: '',
               };
@@ -589,30 +737,43 @@ export function HardwareRequirementsInput({
               return (
                 <div
                   key={itemKey}
-                  className="bg-[#fcfdfd] border border-[#b9c0cb]/40 hover:border-[#51a8b1]/50 rounded-2xl p-3.5 shadow-2xs space-y-2.5 transition-all text-xs"
+                  className="bg-slate-50/70 border border-slate-200 hover:border-[#51a8b1]/60 rounded-2xl p-4 shadow-2xs space-y-3 transition-all"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-gray-100 pb-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="text-base">{defObj?.icon || '🖥️'}</span>
-                      <div className="min-w-0">
-                        <h5 className="text-xs font-bold text-[#1f2937] font-heading truncate">
-                          {defObj?.label || itemKey}
-                        </h5>
-                        <p className="text-[10px] text-gray-500 truncate">{defObj?.desc}</p>
-                      </div>
+                  {/* Hardware Card Header */}
+                  <div className="flex items-center justify-between gap-2 border-b border-slate-200/70 pb-2">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2.5 h-2.5 rounded-full bg-[#51a8b1]" />
+                      <h5 className="text-xs font-bold text-slate-800 font-heading">
+                        {defObj?.label || itemKey}
+                      </h5>
+                      <span className="text-[10px] text-slate-400">
+                        ({defObj?.desc || itemKey})
+                      </span>
                     </div>
 
-                    <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-[#51a8b1]/15 text-[#3a7d84] shrink-0">
-                      Required: {item.quantity || 1} units
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
+                        {item.quantity || 1} Unit(s)
+                      </span>
+                      {!disabled && (
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveHardwareFromSchool(currentSchool.id, itemKey)}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                          title="Remove item from this school"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
                   </div>
 
-                  {/* 2-Column Inputs Grid: Quantity & Spec/Brand */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Quantity */}
+                  {/* Quantity (No.) & Specifications Row */}
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {/* Quantity / Number Input */}
                     <div>
-                      <label className="block text-[10px] font-bold text-[#4b5563] mb-1">
-                        Quantity Required <span className="text-rose-500">*</span>
+                      <label className="block text-[10.5px] font-bold text-slate-700 mb-1">
+                        Quantity Needed (Number) <span className="text-rose-500">*</span>
                       </label>
                       <input
                         type="number"
@@ -620,57 +781,57 @@ export function HardwareRequirementsInput({
                         disabled={disabled}
                         value={item.quantity || 1}
                         onChange={(e) =>
-                          handleUpdateSchoolHardware(
+                          handleUpdateSchoolHardwareField(
                             currentSchool.id,
                             itemKey,
                             'quantity',
                             Math.max(1, Number(e.target.value) || 1)
                           )
                         }
-                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-1.5 focus:ring-[#51a8b1] bg-white text-[#1f2937] font-bold"
+                        className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-bold"
                       />
                     </div>
 
-                    {/* Model / Brand / Spec */}
-                    <div>
-                      <label className="block text-[10px] font-bold text-[#4b5563] mb-1 flex items-center gap-1">
+                    {/* Specification / Model Notes */}
+                    <div className="sm:col-span-2">
+                      <label className="block text-[10.5px] font-bold text-slate-700 mb-1 flex items-center gap-1">
                         <Wrench className="w-3 h-3 text-[#51a8b1]" />
-                        <span>Model / Brand / Specification</span>
+                        <span>Specifications / Model Requirement</span>
                       </label>
                       <input
                         type="text"
                         disabled={disabled}
                         value={item.specNotes || ''}
                         onChange={(e) =>
-                          handleUpdateSchoolHardware(
+                          handleUpdateSchoolHardwareField(
                             currentSchool.id,
                             itemKey,
                             'specNotes',
                             e.target.value
                           )
                         }
-                        placeholder="e.g. 75-inch UHD, Maxhub 4K, 4GB RAM"
-                        className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-300 focus:outline-none focus:ring-1.5 focus:ring-[#51a8b1] bg-white text-[#1f2937]"
+                        placeholder="e.g. 75-inch 4K UHD with 4GB/32GB Android 13..."
+                        className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-medium placeholder:text-slate-400"
                       />
                     </div>
                   </div>
 
-                  {/* Remarks / Serial Notes */}
+                  {/* Room / Deployment Notes */}
                   <div>
                     <input
                       type="text"
                       disabled={disabled}
                       value={item.serialNotes || ''}
                       onChange={(e) =>
-                        handleUpdateSchoolHardware(
+                        handleUpdateSchoolHardwareField(
                           currentSchool.id,
                           itemKey,
                           'serialNotes',
                           e.target.value
                         )
                       }
-                      placeholder="Serial numbers or delivery remarks for this school branch..."
-                      className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-1.5 focus:ring-[#51a8b1] bg-white text-gray-700 placeholder:text-gray-400"
+                      placeholder="Deployment room / location (e.g., Room 102 - Smart Class 1)..."
+                      className="w-full text-xs px-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-medium placeholder:text-slate-400"
                     />
                   </div>
                 </div>

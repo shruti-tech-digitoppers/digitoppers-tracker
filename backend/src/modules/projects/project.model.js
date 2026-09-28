@@ -3,17 +3,11 @@ const mongoose = require('mongoose');
 const projectSchema = new mongoose.Schema({
   projectName: { type: String, required: true, trim: true },
   projectId: { type: String, required: true, trim: true, uppercase: true, index: true },
-  email: { type: String, required: true, trim: true },
-  phone: { type: String, required: true, trim: true },
+  email: { type: String, default: '', trim: true },
+  phone: { type: String, default: '', trim: true },
   address: { type: String, trim: true },
   numberOfSchools: { type: Number, default: 0 },
   numberOfLicenses: { type: Number, default: 0 },
-  country: { type: mongoose.Schema.Types.ObjectId, ref: 'Country', required: false },
-  status: {
-    type: String,
-    enum: ['ACTIVE', 'ON_HOLD', 'COMPLETED', 'ARCHIVED'],
-    default: 'ACTIVE'
-  },
   isActive: { type: Boolean, default: true }
 }, {
   timestamps: true,
@@ -21,7 +15,6 @@ const projectSchema = new mongoose.Schema({
     virtuals: true,
     transform: function (doc, ret) {
       ret.title = ret.projectName;
-      ret.status = ret.status || (ret.isActive ? 'ACTIVE' : 'ARCHIVED');
       return ret;
     }
   },
@@ -29,7 +22,6 @@ const projectSchema = new mongoose.Schema({
     virtuals: true,
     transform: function (doc, ret) {
       ret.title = ret.projectName;
-      ret.status = ret.status || (ret.isActive ? 'ACTIVE' : 'ARCHIVED');
       return ret;
     }
   }
@@ -43,3 +35,4 @@ projectSchema.virtual('title').get(function () {
 });
 
 module.exports = mongoose.model('Project', projectSchema);
+

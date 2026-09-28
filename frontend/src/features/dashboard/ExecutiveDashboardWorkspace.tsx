@@ -13,7 +13,25 @@ import { CreateProjectRequestModal } from '../requests/components/CreateProjectR
 import { NotificationDetailModal } from '../../components/shell/NotificationDetailModal';
 import { requestsApi } from '../../lib/api/requests.api';
 import { ICreateProjectRequestPayload } from '../../types/request';
-import { RefreshCw, Send, Search, X, PanelRightOpen, Bell, Layers, UserCheck, Sparkles } from 'lucide-react';
+import { 
+  RefreshCw, 
+  Send, 
+  Search, 
+  X, 
+  PanelRightOpen, 
+  PanelRightClose,
+  Bell, 
+  Layers, 
+  UserCheck, 
+  Sparkles,
+  ChevronDown,
+  ChevronUp,
+  ChevronRight,
+  Maximize2,
+  Minimize2,
+  Eye,
+  EyeOff
+} from 'lucide-react';
 import { useSearch } from '../../context/SearchContext';
 import { useLoading } from '../../context/LoadingContext';
 
@@ -37,7 +55,10 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL');
   const [expandedMap, setExpandedMap] = useState<Record<string, boolean>>({});
   const [isModalOpen, setIsModalOpen] = useState<boolean>(false);
-  const [isSidePanelShrunk, setIsSidePanelShrunk] = useState<boolean>(false);
+  
+  // Independent Partition Open/Close Toggles
+  const [isTimelineOpen, setIsTimelineOpen] = useState<boolean>(true);
+  const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(true);
 
   const isAdmin = currentUser?.globalRole === 'ADMIN' || (currentUser as any)?.role === 'ADMIN';
   const canRequestProject = isAdmin || Boolean(currentUser?.canRequestNewProject || currentUser?.permissions?.canRequestNewProject);
@@ -48,13 +69,32 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       setError(null);
       const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('accessToken')) : null;
 
-      if (!token || hideSidePanel) {
-        // Guest / Root mode: only fetch projects and their timelines
+      if (!token) {
+        // Guest mode: fetch projects and generate project activity feeds
         const res = await projectsApi.getProjects();
         const projectList = res.projects || [];
         setProjects(projectList);
         setEmployees([]);
-        setNotifications([]);
+
+        // Generate lively timeline updates & assignments from active projects for demonstration
+        const nowIso = new Date().toISOString();
+        const guestNotifications: INotificationItem[] = projectList.slice(0, 5).map((p, idx) => ({
+          _id: `guest-notif-${p._id || idx}`,
+          recipient: 'guest',
+          title: `Project Update: ${p.projectName || (p as any).title || 'Project'}`,
+          message: `Current Status: ${(p as any).currentStage || p.status || 'Active'} is in progress with real-time tracking enabled.`,
+          type: idx === 0 ? 'ASSIGNMENT' : idx === 1 ? 'TASK_ASSIGNED' : 'STATUS_UPDATE',
+          isRead: idx > 1,
+          createdAt: new Date(Date.now() - idx * 3600000).toISOString(),
+          updatedAt: nowIso,
+          metadata: {
+            projectId: p._id,
+            projectName: p.projectName || p.title,
+            projectCustomId: p.projectId,
+            targetUrl: `/tracker?projectId=${p._id}`
+          }
+        }));
+        setNotifications(guestNotifications);
 
         setExpandedMap((prev) => {
           const next: Record<string, boolean> = {};
@@ -300,25 +340,6 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
         </div>
 
         <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
-          {/* Test Loader Overlay Button */}
-          <button
-            type="button"
-            onClick={() => {
-              showLoading({
-                message: 'DigiToppers Animation Test',
-                subtext: 'Testing the full-screen Lottie animated loader overlay...',
-              });
-              setTimeout(() => {
-                hideLoading();
-              }, 4000);
-            }}
-            className="bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white px-3.5 py-2.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer active:scale-95 border border-amber-400/40"
-            title="Preview the DigiToppers Lottie animated loading overlay"
-          >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>Test Animated Loader</span>
-          </button>
-
           {canRequestProject && (
             <button
               type="button"
@@ -355,102 +376,95 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
         onSelectFilter={setStatusFilter}
       />
 
-      {/* ── Sub-Stats Toolbar: Projects Timeline Title + 2 Small Filters (All vs Me) + Notifications Toggle ── */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 p-3 sm:p-3.5 bg-white rounded-2xl border border-slate-200/90 shadow-xs">
-        {/* Left: 'Projects Timeline' Title + 2 Filters (All vs Assigned to Me) */}
-        <div className="flex items-center gap-3.5 flex-wrap">
-          <div className="flex items-center gap-2 sm:pr-3 sm:border-r border-slate-200">
-            <div className="w-7 h-7 rounded-xl bg-[#f0f9fa] border border-[#b6e0e4] flex items-center justify-center text-[#2d6b73]">
-              <Layers className="w-4 h-4" />
-            </div>
-            <span className="font-heading text-sm font-bold text-slate-900 tracking-tight">
-              Projects Timeline
-            </span>
-          </div>
-
-          {/* Small Filters: All vs Me */}
-          <div className="flex items-center bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 text-xs gap-1 shadow-inner">
-            <button
-              type="button"
-              onClick={() => setScopeFilter('ALL')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                scopeFilter === 'ALL'
-                  ? 'bg-white text-[#3a7d84] shadow-xs border border-slate-200/90 font-black'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <span>All</span>
-              <span className="font-mono text-[10.5px] px-1.5 py-0.2 rounded-md bg-slate-200/70 text-slate-700 font-bold">
-                {projects.length}
-              </span>
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setScopeFilter('ME')}
-              className={`px-3 py-1.5 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer ${
-                scopeFilter === 'ME'
-                  ? 'bg-[#0d9488] text-white shadow-xs font-black'
-                  : 'text-slate-600 hover:text-slate-900'
-              }`}
-            >
-              <UserCheck className="w-3.5 h-3.5" />
-              <span>Assigned to Me</span>
-              <span className={`font-mono text-[10.5px] px-1.5 py-0.2 rounded-md font-bold ${
-                scopeFilter === 'ME' ? 'bg-[#0f766e] text-white' : 'bg-slate-200/70 text-slate-700'
-              }`}>
-                {stats.assignedToMe}
-              </span>
-            </button>
-          </div>
-        </div>
-
-        {/* Right: Primary Notification Shrink / Expand Button (Under Stats Cards) */}
-        {currentUser && !hideSidePanel && (
-          <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-            {!isSidePanelShrunk ? (
-              <button
-                type="button"
-                onClick={() => setIsSidePanelShrunk(true)}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl bg-slate-50 hover:bg-teal-50/70 text-slate-700 hover:text-[#0d9488] border border-slate-200/90 hover:border-teal-300 text-xs font-bold transition-all shadow-2xs cursor-pointer group"
-                title="Toggle notifications panel"
-              >
-                <Bell className="w-4 h-4 text-slate-500 group-hover:text-[#0d9488] transition" />
-                <span>Notifications</span>
-                {notifications.filter((n) => !n.isRead).length > 0 && (
-                  <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
-                    {notifications.filter((n) => !n.isRead).length}
-                  </span>
-                )}
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setIsSidePanelShrunk(false)}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-teal-600 to-[#3a7d84] hover:from-teal-700 hover:to-[#2e646a] text-white text-xs font-bold transition-all shadow-xs cursor-pointer group animate-in fade-in"
-                title="Open notifications & assignments feed"
-              >
-                <Bell className="w-4 h-4 text-white" />
-                <span>Notifications</span>
-                {notifications.filter((n) => !n.isRead).length > 0 && (
-                  <span className="bg-rose-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full shadow-xs">
-                    {notifications.filter((n) => !n.isRead).length}
-                  </span>
-                )}
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* ── Main Workspace Layout: 62/38 Split when Logged In with Side Panel, 100% Full Width when Shrunk or Guest ── */}
+      {/* ── Main Dual Partition Workspace Helpers & Render ── */}
       {(() => {
-        const showSidePanel = Boolean(currentUser && !hideSidePanel && !isSidePanelShrunk);
-        return (
-          <div className="flex flex-col lg:flex-row items-start gap-6">
-            {/* ── Left Column: Timeline Roadmaps & Projects (Takes 100% full width if side panel is shrunk) ── */}
-            <div className={`w-full ${showSidePanel ? 'lg:w-[62%] xl:w-[64%]' : 'lg:w-full'} space-y-4 min-w-0 transition-all duration-300`}>
-              {/* Projects List with Collapsible Roadmaps */}
+        const renderTimelineCard = (compact: boolean) => (
+          <div className="bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs hover:shadow-sm overflow-hidden flex flex-col transition-all duration-200">
+            {/* Timeline Card Header */}
+            <div className="p-4 sm:p-4.5 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] border-b border-[#b6e0e4]/50 flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-[#3a7d84] flex items-center justify-center shadow-2xs shrink-0">
+                  <Layers className="w-5 h-5" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-heading font-bold text-sm sm:text-base text-[#2d6b73] tracking-tight">
+                    Projects Timeline
+                  </h3>
+                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]">
+                    {filteredProjects.length}
+                  </span>
+                </div>
+              </div>
+
+              {/* Scope Filters (All / Me) + Card Actions */}
+              <div className="flex items-center gap-2 ml-auto flex-wrap">
+                {/* Scope filter */}
+                <div className="flex items-center bg-[#f0f8f9]/80 p-1 rounded-xl border border-[#b6e0e4]/60 text-xs gap-1 shadow-inner">
+                  <button
+                    type="button"
+                    onClick={() => setScopeFilter('ALL')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                      scopeFilter === 'ALL'
+                        ? 'bg-white text-[#2d6b73] shadow-xs border border-[#b6e0e4] font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <span>All</span>
+                    <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-md bg-slate-200/70 text-slate-700 font-bold">
+                      {projects.length}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setScopeFilter('ME')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                      scopeFilter === 'ME'
+                        ? 'bg-gradient-to-r from-[#3a7d84] to-[#51a8b1] text-white shadow-xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    <UserCheck className="w-3 h-3" />
+                    <span>Me</span>
+                    <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md font-bold ${
+                      scopeFilter === 'ME' ? 'bg-[#2d6b73] text-white' : 'bg-slate-200/70 text-slate-700'
+                    }`}>
+                      {stats.assignedToMe}
+                    </span>
+                  </button>
+                </div>
+
+                <div className="hidden xl:flex items-center gap-1 pr-1 border-r border-[#b6e0e4]/50">
+                  <button
+                    type="button"
+                    onClick={expandAll}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs"
+                  >
+                    Expand All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={collapseAll}
+                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs"
+                  >
+                    Collapse All
+                  </button>
+                </div>
+
+                {/* Collapse Arrow Toggle */}
+                <button
+                  type="button"
+                  onClick={() => setIsTimelineOpen(false)}
+                  className="w-8 h-8 rounded-xl bg-[#f0f8f9] hover:bg-[#3a7d84] text-[#3a7d84] hover:text-white border border-[#b6e0e4] shadow-2xs transition-all duration-200 flex items-center justify-center cursor-pointer group/btn"
+                  title="Collapse Projects Timeline"
+                >
+                  <ChevronUp className="w-4 h-4 transition-transform duration-200 group-hover/btn:-translate-y-0.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Timeline Roadmap List */}
+            <div className="p-3 sm:p-4 md:p-5 space-y-4">
               <DashboardRoadmapList
                 projects={filteredProjects}
                 loading={loading}
@@ -462,26 +476,122 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                 onRetry={fetchDashboardData}
                 onProjectUpdated={fetchDashboardData}
                 currentUser={currentUser}
-                compactTimeline={showSidePanel}
+                compactTimeline={compact}
                 employees={employees}
               />
             </div>
+          </div>
+        );
 
-            {/* ── 38% Width Right Column: Recent Timeline Notifications & Requests Box ── */}
-            {showSidePanel && (
-              <div className="w-full lg:w-[38%] xl:w-[36%] lg:sticky lg:top-4 min-w-0 animate-in fade-in zoom-in-95 duration-200">
-                <RecentTimelineNotificationsBox
-                  notifications={notifications}
-                  loading={notificationsLoading}
-                  onRefresh={refreshNotificationsOnly}
-                  onMarkAsRead={handleMarkNotificationRead}
-                  onMarkAllAsRead={handleMarkAllNotificationsRead}
-                  onSelectNotification={(item) => setSelectedNotification(item)}
-                  onToggleShrink={() => setIsSidePanelShrunk(true)}
-                  isShrunk={isSidePanelShrunk}
-                />
+        const renderNotificationsCard = () => (
+          <RecentTimelineNotificationsBox
+            notifications={notifications}
+            loading={notificationsLoading}
+            onRefresh={refreshNotificationsOnly}
+            onMarkAsRead={handleMarkNotificationRead}
+            onMarkAllAsRead={handleMarkAllNotificationsRead}
+            onSelectNotification={(item) => setSelectedNotification(item)}
+            onToggleShrink={() => setIsNotificationsOpen(false)}
+            isShrunk={false}
+          />
+        );
+
+        const renderCollapsedTimelineDock = () => (
+          <div
+            onClick={() => setIsTimelineOpen(true)}
+            className="w-full bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs p-3.5 sm:p-4 px-5 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-[#51a8b1] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 group select-none"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] flex items-center justify-center text-[#3a7d84] shadow-2xs group-hover:bg-[#3a7d84] group-hover:text-white group-hover:border-[#3a7d84] transition-all duration-200">
+                <Layers className="w-5 h-5" />
               </div>
-            )}
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-[#2d6b73] group-hover:text-[#1e4a50] transition-colors">
+                  Projects Timeline
+                </h4>
+                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]">
+                  {filteredProjects.length}
+                </span>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="w-8 h-8 rounded-xl bg-[#f0f8f9] group-hover:bg-[#3a7d84] text-[#3a7d84] group-hover:text-white border border-[#b6e0e4] group-hover:border-[#3a7d84] flex items-center justify-center shadow-2xs transition-all duration-200"
+              title="Open Projects Timeline"
+            >
+              <ChevronDown className="w-4 h-4 transition-transform duration-200 group-hover:translate-y-0.5" />
+            </button>
+          </div>
+        );
+
+        const renderCollapsedNotificationsDock = () => (
+          <div
+            onClick={() => setIsNotificationsOpen(true)}
+            className="w-full bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs p-3.5 sm:p-4 px-5 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-[#51a8b1] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 group select-none"
+          >
+            <div className="flex items-center gap-3.5">
+              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] flex items-center justify-center text-[#3a7d84] shadow-2xs group-hover:bg-[#3a7d84] group-hover:text-white group-hover:border-[#3a7d84] transition-all duration-200">
+                <Bell className="w-5 h-5" />
+              </div>
+              <div className="flex items-center gap-2">
+                <h4 className="text-sm font-bold text-[#2d6b73] group-hover:text-[#1e4a50] transition-colors">
+                  Assignments &amp; Notifications
+                </h4>
+              </div>
+            </div>
+            <button
+              type="button"
+              className="w-8 h-8 rounded-xl bg-[#f0f8f9] group-hover:bg-[#3a7d84] text-[#3a7d84] group-hover:text-white border border-[#b6e0e4] group-hover:border-[#3a7d84] flex items-center justify-center shadow-2xs transition-all duration-200"
+              title="Open Assignments & Notifications"
+            >
+              <ChevronDown className="w-4 h-4 transition-transform duration-200 group-hover:translate-y-0.5" />
+            </button>
+          </div>
+        );
+
+        // Case 1: Both Open (70% Timeline / 30% Notifications side-by-side)
+        if (isTimelineOpen && isNotificationsOpen) {
+          return (
+            <div className="flex flex-col lg:flex-row items-start gap-6 transition-all duration-300">
+              <div className="w-full lg:w-[70%] min-w-0 transition-all duration-300">
+                {renderTimelineCard(true)}
+              </div>
+              <div className="w-full lg:w-[30%] min-w-0 lg:sticky lg:top-4 transition-all duration-300">
+                {renderNotificationsCard()}
+              </div>
+            </div>
+          );
+        }
+
+        // Case 2: Only Timeline Open (Collapsed Notifications Dock sits ABOVE, Timeline takes 100% space)
+        if (isTimelineOpen && !isNotificationsOpen) {
+          return (
+            <div className="space-y-4 transition-all duration-300">
+              {renderCollapsedNotificationsDock()}
+              <div className="w-full min-w-0 transition-all duration-300">
+                {renderTimelineCard(false)}
+              </div>
+            </div>
+          );
+        }
+
+        // Case 3: Only Notifications Open (Collapsed Timeline Dock sits ABOVE, Notifications takes 100% space)
+        if (!isTimelineOpen && isNotificationsOpen) {
+          return (
+            <div className="space-y-4 transition-all duration-300">
+              {renderCollapsedTimelineDock()}
+              <div className="w-full min-w-0 transition-all duration-300">
+                {renderNotificationsCard()}
+              </div>
+            </div>
+          );
+        }
+
+        // Case 4: Both Collapsed (Render side-by-side summary docks)
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-300">
+            {renderCollapsedTimelineDock()}
+            {renderCollapsedNotificationsDock()}
           </div>
         );
       })()}
