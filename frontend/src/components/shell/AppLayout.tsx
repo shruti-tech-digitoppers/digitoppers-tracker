@@ -7,9 +7,12 @@ import { authApi } from '../../lib/api/auth.api';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { NotificationDetailModal } from './NotificationDetailModal';
+import { ReadOnlyToast } from './ReadOnlyToast';
 import { SearchProvider } from '../../context/SearchContext';
 import { LoadingProvider } from '../../context/LoadingContext';
+import { PermissionProvider } from '../../context/PermissionContext';
 import { useFaviconBadge } from '../../hooks/useFaviconBadge';
+import { usePermissions } from '../../hooks/usePermissions';
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -137,6 +140,10 @@ export default function AppLayout({ children }: AppLayoutProps) {
     }
   }, [router]);
 
+  // Permissions (must be before any early return — React rules of hooks)
+  const permissions = usePermissions(currentUser);
+  const isReadOnly = !permissions.canEdit && isAuthenticated === true;
+
   // Full Screen Viewport for Login Page (NO sidebar, NO header)
   if (isLoginPage) {
     return (
@@ -148,47 +155,53 @@ export default function AppLayout({ children }: AppLayoutProps) {
     );
   }
 
-  // Consistent Shell Layout across SSR and Client Hydration
   return (
     <LoadingProvider>
       <SearchProvider>
-        <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
-          {/* ── Left Sidebar Navigation Panel ───────────────────── */}
-          <AppSidebar
-            collapsed={collapsed}
-            onToggleCollapse={handleToggleCollapse}
-            currentUser={currentUser}
-            onLogout={handleLogout}
-            unreadCount={unreadNotificationsCount}
-          />
-
-          {/* ── Main App Container with Top Header ──────────────── */}
-          <div className="flex-1 flex flex-col min-w-0 min-h-screen">
-            <AppHeader
-              currentUser={currentUser}
-              notifications={notifications}
-              isNotifOpen={isNotifOpen}
-              onToggleNotif={handleToggleNotif}
-              onMarkAsRead={handleMarkAsRead}
-              onMarkAllAsRead={handleMarkAllAsRead}
-              onSelectNotification={handleSelectNotification}
+        <PermissionProvider permissions={permissions}>
+          <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
+            {/* ── Left Sidebar Navigation Panel ───────────────────── */}
+            <AppSidebar
               collapsed={collapsed}
-              onToggleSidebar={handleToggleCollapse}
+              onToggleCollapse={handleToggleCollapse}
+              currentUser={currentUser}
+              onLogout={handleLogout}
+              unreadCount={unreadNotificationsCount}
             />
 
-            {/* Page Content */}
-            <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
-              {children}
-            </main>
-          </div>
+            {/* ── Main App Container with Top Header ──────────────── */}
+            <div className="flex-1 flex flex-col min-w-0 min-h-screen">
+              <AppHeader
+                currentUser={currentUser}
+                notifications={notifications}
+                isNotifOpen={isNotifOpen}
+                onToggleNotif={handleToggleNotif}
+                onMarkAsRead={handleMarkAsRead}
+                onMarkAllAsRead={handleMarkAllAsRead}
+                onSelectNotification={handleSelectNotification}
+                collapsed={collapsed}
+                onToggleSidebar={handleToggleCollapse}
+              />
 
-          {/* ── Notification Full Detail & Direct Routing Modal ── */}
-          <NotificationDetailModal
-            notification={selectedNotification}
-            isOpen={Boolean(selectedNotification)}
-            onClose={() => setSelectedNotification(null)}
-          />
-        </div>
+              {/* Page Content */}
+              <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+                {children}
+              </main>
+            </div>
+
+            {/* ── Notification Full Detail & Direct Routing Modal ── */}
+            <NotificationDetailModal
+              notification={selectedNotification}
+              isOpen={Boolean(selectedNotification)}
+              onClose={() => setSelectedNotification(null)}
+            />
+
+            {/* ── Read-Only Access Toast (bottom-left, for non-admin users) ── */}
+            {isReadOnly && mounted && (
+              <ReadOnlyToast userName={currentUser?.name} />
+            )}
+          </div>
+        </PermissionProvider>
       </SearchProvider>
     </LoadingProvider>
   );
