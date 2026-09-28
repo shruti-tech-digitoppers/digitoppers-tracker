@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { usePermissionContext } from '../../context/PermissionContext';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { timelineApi } from '../../lib/api/timeline.api';
 import { projectsApi } from '../../lib/api/projects.api';
@@ -55,6 +56,7 @@ export function MindMapWorkspace() {
 
   const isAdmin = currentUser?.globalRole === 'ADMIN' || (currentUser as any)?.role === 'ADMIN';
   const canRequestProject = isAdmin || Boolean(currentUser?.canRequestNewProject || currentUser?.permissions?.canRequestNewProject);
+  const { showReadOnlyToast } = usePermissionContext();
 
   const handleCreateProjectRequest = async (payload: ICreateProjectRequestPayload) => {
     const res = await requestsApi.createRequest(payload);
@@ -168,7 +170,10 @@ export function MindMapWorkspace() {
   };
 
   const handleNodeSelect = async (node: ITimelineNode) => {
-    if (!currentUser) return;
+    if (!currentUser) {
+      showReadOnlyToast('🔒 Please log in to view stage details and forms.');
+      return;
+    }
     setSelectedNode(node);
     setMutationError(null);
     setFormSchema(null);

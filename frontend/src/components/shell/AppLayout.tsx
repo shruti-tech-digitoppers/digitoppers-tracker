@@ -159,14 +159,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <SearchProvider>
         <PermissionProvider permissions={permissions}>
           <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
-            {/* ── Left Sidebar Navigation Panel ───────────────────── */}
-            <AppSidebar
-              collapsed={collapsed}
-              onToggleCollapse={handleToggleCollapse}
-              currentUser={currentUser}
-              onLogout={handleLogout}
-              unreadCount={unreadNotificationsCount}
-            />
+            {/* ── Left Sidebar Navigation Panel (Only for authenticated users) ── */}
+            {currentUser && (
+              <AppSidebar
+                collapsed={collapsed}
+                onToggleCollapse={handleToggleCollapse}
+                currentUser={currentUser}
+                onLogout={handleLogout}
+                unreadCount={unreadNotificationsCount}
+              />
+            )}
 
             {/* ── Main App Container with Top Header ──────────────── */}
             <div className="flex-1 flex flex-col min-w-0 min-h-screen">
@@ -179,7 +181,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 onMarkAllAsRead={handleMarkAllAsRead}
                 onSelectNotification={handleSelectNotification}
                 collapsed={collapsed}
-                onToggleSidebar={handleToggleCollapse}
+                onToggleSidebar={currentUser ? handleToggleCollapse : undefined}
               />
 
               {/* Page Content */}

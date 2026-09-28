@@ -77,7 +77,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     onClose();
   }, { enabled: Boolean(node) });
 
-  if (!node) return null;
+  if (!node || !currentUser) return null;
 
   const stageTheme = getStageTheme(node.order || node.key);
   const empList = employees.length > 0 ? employees : availableEmployees;

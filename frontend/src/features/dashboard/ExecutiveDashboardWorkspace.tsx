@@ -332,7 +332,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1 pb-1">
         <div className="space-y-1">
           <h2 suppressHydrationWarning className="font-heading text-lg sm:text-2xl font-extrabold text-[#2d6b73] tracking-tight">
-            Hello, {currentUser?.name || 'User'}
+            Hello{currentUser?.name ? `, ${currentUser.name}` : ''}
           </h2>
           <p className="text-xs sm:text-sm font-medium text-[#556987]">
             Welcome to <span className="font-semibold text-[#3a7d84]">DigiToppers Project Tracker</span>
@@ -415,23 +415,25 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                     </span>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setScopeFilter('ME')}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
-                      scopeFilter === 'ME'
-                        ? 'bg-gradient-to-r from-[#3a7d84] to-[#51a8b1] text-white shadow-xs font-bold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <UserCheck className="w-3 h-3" />
-                    <span>Me</span>
-                    <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md font-bold ${
-                      scopeFilter === 'ME' ? 'bg-[#2d6b73] text-white' : 'bg-slate-200/70 text-slate-700'
-                    }`}>
-                      {stats.assignedToMe}
-                    </span>
-                  </button>
+                  {currentUser && (
+                    <button
+                      type="button"
+                      onClick={() => setScopeFilter('ME')}
+                      className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                        scopeFilter === 'ME'
+                          ? 'bg-gradient-to-r from-[#3a7d84] to-[#51a8b1] text-white shadow-xs font-bold'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      <UserCheck className="w-3 h-3" />
+                      <span>Me</span>
+                      <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md font-bold ${
+                        scopeFilter === 'ME' ? 'bg-[#2d6b73] text-white' : 'bg-slate-200/70 text-slate-700'
+                      }`}>
+                        {stats.assignedToMe}
+                      </span>
+                    </button>
+                  )}
                 </div>
 
                 <div className="hidden xl:flex items-center gap-1 pr-1 border-r border-[#b6e0e4]/50">
@@ -451,15 +453,17 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                   </button>
                 </div>
 
-                {/* Collapse Arrow Toggle */}
-                <button
-                  type="button"
-                  onClick={() => setIsTimelineOpen(false)}
-                  className="w-8 h-8 rounded-xl bg-[#f0f8f9] hover:bg-[#3a7d84] text-[#3a7d84] hover:text-white border border-[#b6e0e4] shadow-2xs transition-all duration-200 flex items-center justify-center cursor-pointer group/btn"
-                  title="Collapse Projects Timeline"
-                >
-                  <ChevronUp className="w-4 h-4 transition-transform duration-200 group-hover/btn:-translate-y-0.5" />
-                </button>
+                {/* Collapse Arrow Toggle (Only for logged-in users) */}
+                {currentUser && (
+                  <button
+                    type="button"
+                    onClick={() => setIsTimelineOpen(false)}
+                    className="w-8 h-8 rounded-xl bg-[#f0f8f9] hover:bg-[#3a7d84] text-[#3a7d84] hover:text-white border border-[#b6e0e4] shadow-2xs transition-all duration-200 flex items-center justify-center cursor-pointer group/btn"
+                    title="Collapse Projects Timeline"
+                  >
+                    <ChevronUp className="w-4 h-4 transition-transform duration-200 group-hover/btn:-translate-y-0.5" />
+                  </button>
+                )}
               </div>
             </div>
 
@@ -549,6 +553,15 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           </div>
         );
 
+        // For unauthenticated users (without login): ONLY Stats Cards + Timeline are shown
+        if (!currentUser) {
+          return (
+            <div className="w-full min-w-0 transition-all duration-300">
+              {renderTimelineCard(false)}
+            </div>
+          );
+        }
+
         // Case 1: Both Open (70% Timeline / 30% Notifications side-by-side)
         if (isTimelineOpen && isNotificationsOpen) {
           return (
@@ -597,20 +610,24 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       })()}
 
       {/* ── Project Creation Request Modal ────────────── */}
-      <CreateProjectRequestModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        employees={employees}
-        onSubmit={handleCreateProjectRequest}
-      />
+      {currentUser && (
+        <CreateProjectRequestModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          employees={employees}
+          onSubmit={handleCreateProjectRequest}
+        />
+      )}
 
       {/* ── Notification & Request Full Details / Confirmation Modal ── */}
-      <NotificationDetailModal
-        notification={selectedNotification}
-        isOpen={Boolean(selectedNotification)}
-        onClose={() => setSelectedNotification(null)}
-        onRefreshData={fetchDashboardData}
-      />
+      {currentUser && (
+        <NotificationDetailModal
+          notification={selectedNotification}
+          isOpen={Boolean(selectedNotification)}
+          onClose={() => setSelectedNotification(null)}
+          onRefreshData={fetchDashboardData}
+        />
+      )}
     </div>
   );
 }

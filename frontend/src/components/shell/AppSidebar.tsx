@@ -34,6 +34,11 @@ export const AppSidebar = React.memo(function AppSidebar({
 }: AppSidebarProps) {
   const pathname = usePathname();
 
+  // Do not render the sidebar if the user is not logged in
+  if (!currentUser) {
+    return null;
+  }
+
   const isAdmin = 
     currentUser?.globalRole === 'ADMIN' || 
     (currentUser as any)?.role === 'ADMIN';
