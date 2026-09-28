@@ -7,7 +7,6 @@ import { authApi } from '../../lib/api/auth.api';
 import { AppSidebar } from './AppSidebar';
 import { AppHeader } from './AppHeader';
 import { NotificationDetailModal } from './NotificationDetailModal';
-import { ReadOnlyToast } from './ReadOnlyToast';
 import { SearchProvider } from '../../context/SearchContext';
 import { LoadingProvider } from '../../context/LoadingContext';
 import { PermissionProvider } from '../../context/PermissionContext';
@@ -196,10 +195,6 @@ export default function AppLayout({ children }: AppLayoutProps) {
               onClose={() => setSelectedNotification(null)}
             />
 
-            {/* ── Read-Only Access Toast (bottom-left, for non-admin users) ── */}
-            {isReadOnly && mounted && (
-              <ReadOnlyToast userName={currentUser?.name} />
-            )}
           </div>
         </PermissionProvider>
       </SearchProvider>
