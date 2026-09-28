@@ -61,13 +61,13 @@ export const PermissionProvider = ({
 
     setToast(prev => ({ visible: true, exiting: false, message: msg, key: prev.key + 1 }));
 
-    // Auto-exit after 3s (start exit animation), then remove after 400ms
+    // Auto-exit after 5s (start exit animation), then remove after 400ms
     hideTimerRef.current = setTimeout(() => {
       setToast(prev => ({ ...prev, exiting: true }));
       exitTimerRef.current = setTimeout(() => {
         setToast(prev => ({ ...prev, visible: false, exiting: false }));
       }, 400);
-    }, 3000);
+    }, 5000);
   }, []);
 
   return (
@@ -78,42 +78,57 @@ export const PermissionProvider = ({
       {toast.visible && (
         <div
           key={toast.key}
-          className={`
-            fixed bottom-6 left-1/2 z-[9999] pointer-events-auto
-            transition-all duration-[400ms] ease-out
-            ${toast.exiting
-              ? 'opacity-0 translate-y-6 scale-95'
-              : 'opacity-100 translate-y-0 scale-100'
-            }
-          `}
+          className="fixed bottom-6 left-1/2 z-[9999] pointer-events-auto"
           style={{
             transform: toast.exiting
-              ? 'translateX(-50%) translateY(24px) scale(0.95)'
+              ? 'translateX(-50%) translateY(28px) scale(0.94)'
               : 'translateX(-50%) translateY(0) scale(1)',
-            animation: toast.exiting ? undefined : 'readOnlyToastSlideUp 0.38s cubic-bezier(0.34,1.56,0.64,1) both',
+            opacity: toast.exiting ? 0 : 1,
+            transition: toast.exiting ? 'all 0.4s ease-out' : undefined,
+            animation: toast.exiting ? undefined : 'readOnlyToastSlideUp 0.4s cubic-bezier(0.34,1.56,0.64,1) both',
           }}
           role="alert"
           aria-live="assertive"
         >
+          {/* Card */}
           <div
-            className="
-              relative flex items-center gap-3 px-5 py-3.5 rounded-2xl
-              bg-gradient-to-r from-[#1a2f3f] to-[#1e3a4c]
-              border border-white/10
-              text-white min-w-[300px] max-w-[440px]
-              overflow-hidden
-            "
-            style={{ boxShadow: '0 10px 40px rgba(0,0,0,0.45), 0 0 0 1px rgba(255,255,255,0.06)' }}
+            style={{
+              background: 'linear-gradient(135deg, #2f4154 0%, #243547 60%, #1e3040 100%)',
+              boxShadow: '0 8px 36px rgba(47,65,84,0.45), 0 2px 8px rgba(81,168,177,0.18), 0 0 0 1px rgba(81,168,177,0.18)',
+              minWidth: '320px',
+              maxWidth: '460px',
+            }}
+            className="relative flex items-center gap-3.5 px-5 py-3.5 rounded-2xl overflow-hidden border border-[#51a8b1]/25"
           >
-            {/* Icon badge */}
-            <div className="w-8 h-8 rounded-xl bg-amber-400/15 flex items-center justify-center flex-shrink-0 border border-amber-400/25">
-              <ShieldAlert className="w-4 h-4 text-amber-400" />
+            {/* Left teal accent bar */}
+            <div className="absolute left-0 top-0 bottom-0 w-1 rounded-l-2xl bg-gradient-to-b from-[#51a8b1] to-[#3a7d84]" />
+
+            {/* Icon badge — teal */}
+            <div
+              className="w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ml-1"
+              style={{
+                background: 'rgba(81,168,177,0.15)',
+                border: '1px solid rgba(81,168,177,0.35)',
+              }}
+            >
+              <ShieldAlert className="w-4.5 h-4.5" style={{ color: '#51a8b1' }} />
             </div>
 
-            {/* Message */}
-            <p className="text-[13px] font-semibold leading-snug flex-1 tracking-wide">
-              {toast.message}
-            </p>
+            {/* Text block */}
+            <div className="flex-1 min-w-0">
+              <p
+                className="text-[11px] font-bold uppercase tracking-widest mb-0.5"
+                style={{ color: '#51a8b1', fontFamily: 'Montserrat, sans-serif' }}
+              >
+                Read-Only Access
+              </p>
+              <p
+                className="text-[12.5px] font-medium leading-snug"
+                style={{ color: '#d1dce8' }}
+              >
+                {toast.message.replace('🔒 ', '')}
+              </p>
+            </div>
 
             {/* Dismiss button */}
             <button
@@ -126,19 +141,26 @@ export const PermissionProvider = ({
                   setToast(prev => ({ ...prev, visible: false, exiting: false }));
                 }, 400);
               }}
-              className="p-1 rounded-lg text-white/50 hover:text-white hover:bg-white/10 transition cursor-pointer flex-shrink-0 ml-1"
+              className="p-1.5 rounded-lg transition cursor-pointer flex-shrink-0 ml-1"
+              style={{ color: 'rgba(209,220,232,0.5)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = '#d1dce8')}
+              onMouseLeave={e => (e.currentTarget.style.color = 'rgba(209,220,232,0.5)')}
               aria-label="Dismiss"
             >
               <X className="w-3.5 h-3.5" />
             </button>
 
-            {/* Animated progress bar countdown */}
+            {/* Green progress bar — matches #a8cf45 brand green */}
             <div
-              className="absolute bottom-0 left-0 right-0 h-[3px] bg-amber-400/25"
+              className="absolute bottom-0 left-0 right-0 h-[3px]"
+              style={{ background: 'rgba(168,207,69,0.18)' }}
             >
               <div
-                className="h-full bg-amber-400 rounded-full origin-left"
-                style={{ animation: 'readOnlyToastProgress 3s linear forwards' }}
+                className="h-full rounded-full"
+                style={{
+                  background: 'linear-gradient(90deg, #a8cf45, #8fbb2a)',
+                  animation: 'readOnlyToastProgress 5s linear forwards',
+                }}
               />
             </div>
           </div>
@@ -150,7 +172,10 @@ export const PermissionProvider = ({
         @keyframes readOnlyToastSlideUp {
           from {
             opacity: 0;
-            transform: translateX(-50%) translateY(32px) scale(0.92);
+            transform: translateX(-50%) translateY(36px) scale(0.90);
+          }
+          40% {
+            opacity: 1;
           }
           to {
             opacity: 1;
