@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { usePermissionContext } from '../../context/PermissionContext';
 import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
 import { IUser } from '../../types/auth';
@@ -87,17 +87,11 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   const allowAssignEdit = canModifyAssignment !== undefined ? canModifyAssignment : (canAssign !== undefined ? canAssign : true);
   const handleAssign = onAssignmentChange || onAssigneeChange || (async (employeeId: string, targetNodeId?: string) => { });
 
-  // Read-only permission guard
-  const { isReadOnly } = usePermissionContext();
-
-  // Animated one-liner banner state
-  const [showReadOnlyBanner, setShowReadOnlyBanner] = useState(false);
-  const [bannerKey, setBannerKey] = useState(0);
+  // Read-only permission guard + global bottom toast
+  const { isReadOnly, showReadOnlyToast } = usePermissionContext();
 
   const triggerReadOnlyBanner = () => {
-    setBannerKey(k => k + 1); // re-trigger animation each time
-    setShowReadOnlyBanner(true);
-    setTimeout(() => setShowReadOnlyBanner(false), 2800);
+    showReadOnlyToast('🔒 Read-only access — contact an Admin to assign employees.');
   };
 
   const nodeStatusMap = React.useMemo(() => {
@@ -403,21 +397,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             </div>
           )}
 
-                    {/* Sub-Tasks & Stages Assignment Section */}
-          {/* Animated Read-Only Banner — slides in from left below header */}
-          {isReadOnly && (
-            <div
-              key={bannerKey}
-              className={`overflow-hidden transition-all duration-300 ${showReadOnlyBanner ? 'max-h-14 opacity-100' : 'max-h-0 opacity-0'}`}
-            >
-              <div className="flex items-center gap-2.5 px-4 py-2.5 bg-gradient-to-r from-amber-50 to-orange-50 border border-amber-200 rounded-2xl shadow-xs">
-                <ShieldAlert className="w-4 h-4 text-amber-500 flex-shrink-0 animate-pulse" />
-                <p className="text-xs font-semibold text-amber-700 tracking-wide">
-                  🔒 You have <strong>read-only access</strong> — contact an Admin to assign employees.
-                </p>
-              </div>
-            </div>
-          )}
+          {/* Sub-Tasks & Stages Assignment Section */}
 
           {(() => {
             const getChildrenList = (): ITimelineNode[] => {
