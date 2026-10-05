@@ -4,6 +4,7 @@ export interface EffectiveSchoolItem {
   address?: string;
   classes?: string[];
   pocName?: string;
+  contactPerson?: string;
 }
 
 export const DEFAULT_SOLUTIONS = [
@@ -125,13 +126,13 @@ export function extractEffectiveSchools(
   schools?: any[],
   allFormData?: Record<string, any>,
   value?: any,
-  fallbackTitle = 'Primary School / Institution'
+  fallbackTitle = 'Untitled School'
 ): EffectiveSchoolItem[] {
   // 1. Direct schools array prop
   if (Array.isArray(schools) && schools.length > 0) {
     return schools.map((s, idx) => ({
       id: s.id || `school-${idx + 1}`,
-      name: s.schoolName || s.name || `School Branch #${idx + 1}`,
+      name: s.schoolName || s.name || (schools.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
       address: s.address || s.addressContact || '',
       classes: s.classes || [],
       pocName: s.pocName || s.contactPerson || '',
@@ -142,7 +143,7 @@ export function extractEffectiveSchools(
   if (Array.isArray(allFormData?.stage3Schools) && allFormData.stage3Schools.length > 0) {
     return allFormData.stage3Schools.map((s: any, idx: number) => ({
       id: s.id || `school-${idx + 1}`,
-      name: s.schoolName || s.name || `School Branch #${idx + 1}`,
+      name: s.schoolName || s.name || (allFormData.stage3Schools.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
       address: s.address || s.addressContact || '',
       classes: s.classes || [],
       pocName: s.pocName || s.contactPerson || '',
@@ -157,7 +158,7 @@ export function extractEffectiveSchools(
   if (Array.isArray(fromAllForm) && fromAllForm.length > 0) {
     return fromAllForm.map((s: any, idx: number) => ({
       id: s.id || `school-${idx + 1}`,
-      name: s.schoolName || s.name || `School Branch #${idx + 1}`,
+      name: s.schoolName || s.name || (fromAllForm.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
       address: s.address || s.addressContact || '',
       classes: s.classes || [],
       pocName: s.pocName || s.contactPerson || '',
@@ -168,7 +169,7 @@ export function extractEffectiveSchools(
   if (Array.isArray(value?.schools) && value.schools.length > 0) {
     return value.schools.map((s: any, idx: number) => ({
       id: s.id || `school-${idx + 1}`,
-      name: s.schoolName || s.name || `School Branch #${idx + 1}`,
+      name: s.schoolName || s.name || (value.schools.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
       address: s.address || s.addressContact || '',
       classes: s.classes || [],
       pocName: s.pocName || s.contactPerson || '',
@@ -200,4 +201,129 @@ export function normalizeOption(opt: any): { value: string; label: string } {
     };
   }
   return { value: String(opt), label: String(opt) };
+}
+
+const NON_HARDWARE_FIELD_KEYS = new Set([
+  'checked',
+  'stockStatus',
+  'stockSummary',
+  'remarks',
+  'purchaseAssignedTo',
+  'inStockAssignedTo',
+  'submittedBy',
+  'submittedAt',
+  'status',
+  '_id',
+  'id',
+  'procurements',
+  'procurement',
+  'stockCheck'
+]);
+
+export function extractEffectiveHardwareItems(
+  allFormData: Record<string, any> = {},
+  value?: any,
+  project?: any
+): Record<string, { itemName: string; quantity: number; specNotes: string; schoolBreakdown?: any[] }> {
+  // 1. First priority: schoolWiseHardware (from project / stage3 / orderRequirement)
+  const rawSchoolWise =
+    allFormData?.schoolWiseHardware ||
+    allFormData?.hardwareRequirements?.schoolWiseHardware ||
+    allFormData?.stage3SchoolWiseHardware ||
+    allFormData?.stage3HardwareData?.schoolWiseHardware ||
+    allFormData?.orderRequirement?.hardwareRequirement?.schoolWiseHardware ||
+    project?.orderRequirement?.hardwareRequirement?.schoolWiseHardware ||
+    project?.orderRequirement?.schoolWiseHardware ||
+    value?.schoolWiseHardware;
+
+  const result: Record<string, { itemName: string; quantity: number; specNotes: string; schoolBreakdown?: any[] }> = {};
+
+  // Build a lookup map of schoolId -> friendly schoolName
+  const effectiveSchools = extractEffectiveSchools(undefined, allFormData, value, project?.projectName || project?.title);
+  const schoolNameMap = new Map<string, string>();
+  effectiveSchools.forEach((s) => {
+    if (s.id) schoolNameMap.set(s.id, s.name);
+  });
+
+  if (rawSchoolWise) {
+    if (Array.isArray(rawSchoolWise)) {
+      rawSchoolWise.forEach((schObj: any) => {
+        const schId = schObj.id || schObj.schoolId || '';
+        const schName = schObj.schoolName || schObj.name || (schId ? schoolNameMap.get(schId) : '') || 'School';
+        const hwMap = schObj.hardware || schObj.items || {};
+        Object.entries(hwMap).forEach(([hwKey, hwVal]: [string, any]) => {
+          if (NON_HARDWARE_FIELD_KEYS.has(hwKey)) return;
+          const qty = Number(hwVal?.quantity || hwVal?.qty || 1);
+          const spec = hwVal?.specs || hwVal?.specNotes || hwVal?.specifications || '';
+          const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === hwKey || d.label === hwKey);
+          const name = defObj?.label || hwKey;
+          if (!result[hwKey]) {
+            result[hwKey] = { itemName: name, quantity: 0, specNotes: spec, schoolBreakdown: [] };
+          }
+          result[hwKey].quantity += qty;
+          if (spec && !result[hwKey].specNotes) result[hwKey].specNotes = spec;
+          result[hwKey].schoolBreakdown?.push({
+            schoolId: schId,
+            schoolName: schName,
+            quantity: qty,
+            specs: spec,
+            serialNotes: hwVal?.serialNotes || '',
+            solutionName: hwVal?.solutionName || hwVal?.solutionKey || ''
+          });
+        });
+      });
+    } else if (typeof rawSchoolWise === 'object') {
+      Object.entries(rawSchoolWise).forEach(([schoolId, hwMap]: [string, any]) => {
+        if (hwMap && typeof hwMap === 'object') {
+          const schName = schoolNameMap.get(schoolId) || (schoolId.startsWith('SCH-') && effectiveSchools[0] ? effectiveSchools[0].name : schoolId);
+          Object.entries(hwMap).forEach(([hwKey, hwVal]: [string, any]) => {
+            if (NON_HARDWARE_FIELD_KEYS.has(hwKey)) return;
+            const qty = Number(hwVal?.quantity || hwVal?.qty || 1);
+            const spec = hwVal?.specNotes || hwVal?.specs || hwVal?.specifications || '';
+            const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === hwKey || d.label === hwKey);
+            const name = defObj?.label || hwKey;
+            if (!result[hwKey]) {
+              result[hwKey] = { itemName: name, quantity: 0, specNotes: spec, schoolBreakdown: [] };
+            }
+            result[hwKey].quantity += qty;
+            if (spec && !result[hwKey].specNotes) result[hwKey].specNotes = spec;
+            result[hwKey].schoolBreakdown?.push({
+              schoolId,
+              schoolName: schName,
+              quantity: qty,
+              specs: spec,
+              serialNotes: hwVal?.serialNotes || '',
+              solutionName: hwVal?.solutionName || hwVal?.solutionKey || ''
+            });
+          });
+        }
+      });
+    }
+    if (Object.keys(result).length > 0) return result;
+  }
+
+  // 2. Fallback: items map from hardwareRequirements (excluding non-hardware fields)
+  const flatItems =
+    allFormData?.stage3HardwareItems ||
+    allFormData?.hardwareRequirements?.items ||
+    allFormData?.hardware?.items ||
+    (value?.stockCheck?.items && typeof value.stockCheck.items === 'object' ? value.stockCheck.items : null) ||
+    (value?.items && typeof value.items === 'object' ? value.items : null);
+
+  if (flatItems && typeof flatItems === 'object' && Object.keys(flatItems).length > 0) {
+    Object.entries(flatItems).forEach(([k, v]: [string, any]) => {
+      if (NON_HARDWARE_FIELD_KEYS.has(k)) return;
+      if (typeof v !== 'object' || v === null || Array.isArray(v)) return;
+      const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === k || d.label === k);
+      result[k] = {
+        itemName: defObj?.label || k,
+        quantity: Number(v?.quantity) || 1,
+        specNotes: v?.specNotes || '',
+        schoolBreakdown: v?.schoolBreakdown || []
+      };
+    });
+    return result;
+  }
+
+  return {};
 }

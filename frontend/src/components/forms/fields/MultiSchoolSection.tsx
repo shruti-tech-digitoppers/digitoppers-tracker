@@ -64,7 +64,7 @@ export interface ISchoolSurveyData {
 
   // ── 3. School Infrastructure ───────────────────────────────────────
   totalClassrooms?: number | string;
-  classroomCondition?: string[] | string; // Multi-select support: Pucca, Semi-Pucca, Kutcha, Tent
+  classroomCondition?: string[] | string; // Multi-select support: Permanent, Semi-Permanent, Temporary, Tent / Temporary Shelter
   additionalRooms?: string; // Music/Computer/Sports/Library
   spareRooms?: string;
   electricityInternetAvailability?: string;
@@ -204,10 +204,10 @@ export function isClassOptionSelected(selectedClasses: string[] | string | undef
 }
 
 const CLASSROOM_CONDITIONS = [
-  'Pucca (पक्का)',
-  'Semi-Pucca (आंशिक रूप से पक्का)',
-  'Kutcha (कच्चा)',
-  'Tent (तंबू)',
+  'Permanent',
+  'Semi-Permanent',
+  'Temporary',
+  'Tent / Temporary Shelter',
 ];
 
 const INCOME_GROUPS = [
@@ -319,6 +319,14 @@ export function MultiSchoolSection({
   const [classDropdownOpen, setClassDropdownOpen] = useState<boolean>(false);
   const [classSearchQuery, setClassSearchQuery] = useState<string>('');
   const classDropdownRef = useRef<HTMLDivElement>(null);
+  const activeTabRef = useRef<HTMLButtonElement>(null);
+
+  // Auto-scroll active tab into view horizontally
+  useEffect(() => {
+    if (activeTabRef.current) {
+      activeTabRef.current.scrollIntoView({ behavior: 'smooth', inline: 'nearest', block: 'nearest' });
+    }
+  }, [activeSchoolIndex]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -366,8 +374,9 @@ export function MultiSchoolSection({
         (school.addressContact || '').toLowerCase().includes(q) ||
         (school.principalName || '').toLowerCase().includes(q) ||
         (school.pocName || '').toLowerCase().includes(q) ||
-        `school #${originalIndex + 1}`.toLowerCase().includes(q) ||
-        `branch #${originalIndex + 1}`.toLowerCase().includes(q)
+        `school ${originalIndex + 1}`.toLowerCase().includes(q) ||
+        `branch ${originalIndex + 1}`.toLowerCase().includes(q) ||
+        `campus ${originalIndex + 1}`.toLowerCase().includes(q)
       );
   }, [schoolsList, schoolSearchQuery]);
 
@@ -391,10 +400,9 @@ export function MultiSchoolSection({
   const handleAddSchool = () => {
     const nextNum = schoolsList.length + 1;
     const nextId = `school-${Date.now()}`;
-    const newSchoolName = `School Branch #${nextNum}`;
     const newSchool: ISchoolSurveyData = {
       id: nextId,
-      schoolName: newSchoolName,
+      schoolName: '',
       schoolCategory: [],
       classes: [],
       streams: [],
@@ -406,7 +414,7 @@ export function MultiSchoolSection({
     const nextList = [...schoolsList, newSchool];
     setActiveSchoolIndex(nextList.length - 1);
     setIsDropdownOpen(false);
-    showFeedback('add', `"${newSchoolName}" added successfully`);
+    showFeedback('add', `School ${nextNum} added successfully`);
 
     onChange({
       ...value,
@@ -417,7 +425,7 @@ export function MultiSchoolSection({
 
   const handleRemoveSchool = (idxToRemove: number) => {
     if (schoolsList.length <= 1) return;
-    const deletedName = schoolsList[idxToRemove]?.schoolName || `School #${idxToRemove + 1}`;
+    const deletedName = schoolsList[idxToRemove]?.schoolName || `School ${idxToRemove + 1}`;
     const nextList = schoolsList.filter((_, idx) => idx !== idxToRemove);
     const nextActive = activeSchoolIndex >= nextList.length ? nextList.length - 1 : activeSchoolIndex;
     setActiveSchoolIndex(nextActive);
@@ -438,78 +446,107 @@ export function MultiSchoolSection({
     handleUpdateCurrentSchool({ [field]: nextArr });
   };
 
+  // Compute school initials for LinkedIn-style avatar logo
+  const schoolInitials = useMemo(() => {
+    const name = currentSchool.schoolName?.trim();
+    if (!name) return `S${activeSchoolIndex + 1}`;
+    const words = name.split(/\s+/).filter(Boolean);
+    if (words.length === 1) return words[0].slice(0, 2).toUpperCase();
+    return (words[0][0] + words[1][0]).toUpperCase();
+  }, [currentSchool.schoolName, activeSchoolIndex]);
+
   return (
     <div className="space-y-4 font-sans">
       
-      {/* ── Professional Multi-School Selector & Search Bar ─────────────────────── */}
-      <div className="bg-white p-3 rounded-2xl border border-[#b6e0e4] shadow-2xs space-y-2.5">
+      {/* ── Single Unified Institutional School Master-Card ─────────────────────── */}
+      <div className="bg-white rounded-2xl border border-[#b6e0e4] shadow-xs overflow-hidden">
         
-        {/* Main Controls Row */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          
-          {/* Left: Searchable Dropdown Trigger */}
-          <div className="relative flex-1 min-w-0 max-w-lg">
-            <button
-              type="button"
-              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-              className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-[#f0f8f9] hover:bg-[#e4f3f5] border border-[#b6e0e4] text-[#2d6b73] text-xs font-bold transition shadow-2xs cursor-pointer text-left"
-            >
-              <div className="flex items-center gap-2 min-w-0">
-                <School className="w-4 h-4 text-[#3a7d84] shrink-0" />
-                <span className="truncate font-heading">
-                  {currentSchool.schoolName || `School Branch #${activeSchoolIndex + 1}`}
-                </span>
-                <span className="text-[10px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-white border border-[#b6e0e4] text-[#3a7d84] shrink-0">
-                  #{activeSchoolIndex + 1} of {schoolsList.length}
+        {/* 1. Header Banner: Active School Identity & Global Actions */}
+        <div className="p-4 sm:p-5 bg-gradient-to-r from-[#f0f8f9] via-white to-[#f0f8f9] border-b border-[#b6e0e4] flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5 min-w-0">
+            {/* School Avatar */}
+            <div className="w-12 h-12 rounded-2xl bg-[#2d6b73] text-white flex items-center justify-center shrink-0 shadow-xs border border-[#3a7d84]">
+              <Building2 className="w-6 h-6 text-teal-100" />
+            </div>
+
+            {/* Title & Metadata Tagline */}
+            <div className="min-w-0 space-y-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 text-[11px] font-extrabold px-2.5 py-0.5 rounded-md bg-[#3a7d84] text-white shadow-2xs">
+                  <School className="w-3.5 h-3.5 text-teal-200" />
+                  <span>{activeSchoolIndex + 1} of {schoolsList.length}</span>
                 </span>
               </div>
-              <div className="flex items-center gap-1 shrink-0 text-[#3a7d84]">
-                <Search className="w-3.5 h-3.5 opacity-60" />
-                <ChevronDown className={`w-3.5 h-3.5 transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+
+              <h3 className="font-heading text-lg sm:text-xl font-bold text-slate-900 tracking-tight truncate max-w-xl">
+                {currentSchool.schoolName || (schoolsList.length > 1 ? `Untitled School ${activeSchoolIndex + 1}` : 'Untitled School')}
+              </h3>
+              
+              <div className="text-xs text-slate-600 flex items-center gap-2.5 flex-wrap font-medium">
+                <span className="truncate max-w-xs">📍 {currentSchool.addressContact ? currentSchool.addressContact.slice(0, 45) + (currentSchool.addressContact.length > 45 ? '...' : '') : 'Address not specified'}</span>
+                {currentSchool.pocName && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span>👤 POC: <strong className="text-slate-800 font-bold">{currentSchool.pocName}</strong></span>
+                  </>
+                )}
+                {toArray(currentSchool.classes).length > 0 && (
+                  <>
+                    <span className="text-slate-300">•</span>
+                    <span>📚 <strong className="text-[#2d6b73] font-bold">{toArray(currentSchool.classes).length} Classes</strong></span>
+                  </>
+                )}
               </div>
-            </button>
+            </div>
+          </div>
 
-            {/* Dropdown Popover */}
-            {isDropdownOpen && (
-              <>
-                <div 
-                  className="fixed inset-0 z-40" 
-                  onClick={() => setIsDropdownOpen(false)} 
-                />
-                <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-[#b6e0e4] shadow-xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
-                  
-                  {/* Search Input inside Dropdown */}
-                  <div className="relative">
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                    <input
-                      type="text"
-                      autoFocus
-                      value={schoolSearchQuery}
-                      onChange={(e) => setSchoolSearchQuery(e.target.value)}
-                      placeholder="Search school by name, code or city..."
-                      className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] font-medium"
-                    />
-                    {schoolSearchQuery && (
-                      <button
-                        type="button"
-                        onClick={() => setSchoolSearchQuery('')}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    )}
-                  </div>
+          {/* Quick Search & Actions */}
+          <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+            {/* Search Dropdown Trigger */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 border border-[#b6e0e4] text-[#2d6b73] text-xs font-bold transition cursor-pointer shadow-2xs hover:border-[#3a7d84]"
+                title="Search or switch school"
+              >
+                <Search className="w-3.5 h-3.5 text-[#3a7d84]" />
+                <span className="hidden sm:inline">Find School</span>
+                <ChevronDown className={`w-3.5 h-3.5 text-[#3a7d84] transition-transform ${isDropdownOpen ? 'rotate-180' : ''}`} />
+              </button>
 
-                  {/* School List */}
-                  <div className="max-h-56 overflow-y-auto space-y-1 scrollbar-thin">
-                    {filteredSchools.length === 0 ? (
-                      <div className="p-3 text-center text-xs text-slate-400 font-medium">
-                        No schools found matching &ldquo;{schoolSearchQuery}&rdquo;
-                      </div>
-                    ) : (
-                      filteredSchools.map(({ school, originalIndex }) => {
-                        const isSelected = originalIndex === activeSchoolIndex;
-                        return (
+              {isDropdownOpen && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setIsDropdownOpen(false)} />
+                  <div className="absolute right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-[#b6e0e4] shadow-xl p-2.5 space-y-2 w-72 animate-in fade-in zoom-in-95 duration-150">
+                    <div className="relative">
+                      <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        autoFocus
+                        value={schoolSearchQuery}
+                        onChange={(e) => setSchoolSearchQuery(e.target.value)}
+                        placeholder="Filter by name, POC, city..."
+                        className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] font-medium"
+                      />
+                      {schoolSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSchoolSearchQuery('')}
+                          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="max-h-48 overflow-y-auto space-y-1 scrollbar-thin">
+                      {filteredSchools.length === 0 ? (
+                        <div className="p-2 text-center text-xs text-slate-400 font-medium">
+                          No schools match
+                        </div>
+                      ) : (
+                        filteredSchools.map(({ school, originalIndex }) => (
                           <div
                             key={school.id || originalIndex}
                             onClick={() => {
@@ -517,79 +554,27 @@ export function MultiSchoolSection({
                               setIsDropdownOpen(false);
                             }}
                             className={`flex items-center justify-between gap-2 p-2 rounded-xl text-xs transition cursor-pointer select-none ${
-                              isSelected
-                                ? 'bg-[#f0f8f9] text-[#2d6b73] font-bold border border-[#b6e0e4]'
+                              originalIndex === activeSchoolIndex
+                                ? 'bg-[#3a7d84] text-white font-bold shadow-xs'
                                 : 'hover:bg-slate-50 text-slate-700 border border-transparent'
                             }`}
                           >
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className={`w-5 h-5 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center shrink-0 ${
-                                isSelected ? 'bg-[#3a7d84] text-white' : 'bg-slate-100 text-slate-600'
-                              }`}>
-                                {originalIndex + 1}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-semibold">
-                                  {school.schoolName || `School Branch #${originalIndex + 1}`}
-                                </p>
-                                {school.pocName && (
-                                  <p className="text-[10px] text-slate-400 truncate">
-                                    POC: {school.pocName}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-
-                            <div className="flex items-center gap-1.5 shrink-0">
-                              {isSelected && <Check className="w-3.5 h-3.5 text-[#3a7d84]" />}
-                              {schoolsList.length > 1 && !disabled && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSchoolToDelete(originalIndex);
-                                    setIsDropdownOpen(false);
-                                  }}
-                                  className="p-1 rounded-lg hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition"
-                                  title="Delete this school"
-                                >
-                                  <Trash2 className="w-3 h-3" />
-                                </button>
-                              )}
-                            </div>
+                            <span className="truncate font-medium">{school.schoolName || (schoolsList.length > 1 ? `Untitled School ${originalIndex + 1}` : 'Untitled School')}</span>
+                            {originalIndex === activeSchoolIndex && <Check className="w-3.5 h-3.5 text-white" />}
                           </div>
-                        );
-                      })
-                    )}
+                        ))
+                      )}
+                    </div>
                   </div>
-
-                  {/* Dropdown Footer Action */}
-                  {!disabled && (
-                    <button
-                      type="button"
-                      onClick={handleAddSchool}
-                      className="w-full flex items-center justify-center gap-1.5 py-1.5 rounded-xl bg-[#3a7d84] hover:bg-[#2c5f64] text-white text-xs font-bold transition cursor-pointer shadow-2xs"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Add New School Branch</span>
-                    </button>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
-
-          {/* Right Actions: School count badge + Add & Delete buttons */}
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-1.5 rounded-xl">
-              Total: <strong>{schoolsList.length}</strong> {schoolsList.length === 1 ? 'School' : 'Schools'}
-            </span>
+                </>
+              )}
+            </div>
 
             {!disabled && (
               <button
                 type="button"
                 onClick={handleAddSchool}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#3a7d84] hover:bg-[#2c5f64] active:scale-95 text-white text-xs font-bold transition shadow-2xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#3a7d84] hover:bg-[#2c5f64] active:scale-95 text-white text-xs font-bold transition shadow-xs cursor-pointer"
               >
                 <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
                 <span>Add School</span>
@@ -610,49 +595,64 @@ export function MultiSchoolSection({
           </div>
         </div>
 
-        {/* Quick Tabs Row (Horizontal scrollable pills for direct switching) */}
-        <div className="bg-slate-50/80 p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-thin border border-slate-200/80 mt-2">
-          {schoolsList.map((school, idx) => {
-            const isActive = idx === activeSchoolIndex;
-            return (
-              <div
-                key={school.id || idx}
-                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs transition-all duration-200 cursor-pointer shrink-0 select-none border ${
-                  isActive
-                    ? 'bg-white text-[#2d6b73] border-[#51a8b1]/60 shadow-sm ring-2 ring-[#51a8b1]/20 font-bold'
-                    : 'bg-transparent hover:bg-white/80 text-slate-600 border-transparent hover:border-slate-200 font-medium'
-                }`}
-                onClick={() => setActiveSchoolIndex(idx)}
-              >
-                <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                  isActive ? 'bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]' : 'bg-slate-200/70 text-slate-500'
-                }`}>
-                  #{idx + 1}
-                </span>
-                <span className="max-w-[280px] sm:max-w-[380px] truncate text-slate-800" title={school.schoolName || `School #${idx + 1}`}>
-                  {school.schoolName || `School #${idx + 1}`}
-                </span>
-                {schoolsList.length > 1 && !disabled && (
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSchoolToDelete(idx);
-                    }}
-                    className="p-0.5 rounded hover:bg-rose-100 text-slate-400 hover:text-rose-600 transition-all ml-0.5 cursor-pointer"
-                    title="Delete School"
+        {/* 2. School Branches Horizontal Selector Strip */}
+        <div className="bg-[#f8fcfd] px-4 py-2.5 border-b border-[#b6e0e4] flex items-center gap-2 overflow-x-auto scrollbar-thin">
+          <span className="text-[11px] font-extrabold text-[#2d6b73] uppercase tracking-wider shrink-0 mr-1 select-none">
+            Total Schools ({schoolsList.length}):
+          </span>
+
+          <div className="flex items-center gap-2 flex-nowrap">
+            {schoolsList.map((sch, idx) => {
+              const isActive = idx === activeSchoolIndex;
+              const displayName = sch.schoolName || (schoolsList.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School');
+              return (
+                <button
+                  key={sch.id || `school-tab-${idx}`}
+                  ref={isActive ? activeTabRef : null}
+                  type="button"
+                  onClick={() => setActiveSchoolIndex(idx)}
+                  className={`group inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer select-none whitespace-nowrap shadow-2xs shrink-0 ${
+                    isActive
+                      ? 'bg-[#3a7d84] text-white border border-[#2c5f64] shadow-xs'
+                      : 'bg-white hover:bg-slate-50 border border-slate-200 hover:border-[#b6e0e4] text-slate-700'
+                  }`}
+                >
+                  <span
+                    className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[10px] font-extrabold ${
+                      isActive ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'
+                    }`}
                   >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-            );
-          })}
+                    <Building2 className="w-3 h-3" />
+                    <span>{idx + 1}</span>
+                  </span>
+
+                  <span className="truncate max-w-[160px] sm:max-w-[200px]">
+                    {displayName}
+                  </span>
+
+                  {schoolsList.length > 1 && !disabled && (
+                    <span
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSchoolToDelete(idx);
+                      }}
+                      className={`p-0.5 rounded-md transition-all ml-0.5 cursor-pointer opacity-70 group-hover:opacity-100 ${
+                        isActive ? 'hover:bg-white/20 text-white' : 'hover:bg-rose-100 text-slate-400 hover:text-rose-600'
+                      }`}
+                      title="Delete School"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Live Action Feedback Notification Toast */}
         {actionFeedback && (
-          <div className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-xl text-xs font-bold animate-in fade-in slide-in-from-top-1 duration-200 border transition-all"
+          <div className="flex items-center justify-between gap-2 px-4 py-2 text-xs font-bold border-b transition-all"
             style={{
               backgroundColor: actionFeedback.type === 'add' ? '#f0f8f9' : '#fff1f2',
               borderColor: actionFeedback.type === 'add' ? '#b6e0e4' : '#fecdd3',
@@ -676,55 +676,12 @@ export function MultiSchoolSection({
             </button>
           </div>
         )}
-      </div>
 
-      {/* ── Delete School Confirmation Modal ─────────────────────── */}
-      {schoolToDelete !== null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 space-y-4 animate-in zoom-in-95 duration-200">
-            <div className="flex items-start gap-3.5">
-              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 animate-in bounce-in duration-300">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="text-sm font-bold text-slate-900 font-heading">
-                  Delete School Information?
-                </h3>
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Are you sure you want to delete <strong className="text-slate-900 font-semibold">{schoolsList[schoolToDelete]?.schoolName || `School #${schoolToDelete + 1}`}</strong>? All survey details for this school will be permanently removed.
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-              <button
-                type="button"
-                onClick={() => setSchoolToDelete(null)}
-                className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  handleRemoveSchool(schoolToDelete);
-                  setSchoolToDelete(null);
-                }}
-                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Confirm Delete</span>
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* ── Active School Survey Form Container (Smooth Cross-fade Transition) ─────────────────── */}
-      <div 
-        key={currentSchool.id || `school-form-${activeSchoolIndex}`}
-        className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden divide-y divide-slate-100 animate-in fade-in-50 slide-in-from-bottom-2 duration-300 transition-all"
-      >
+        {/* 3. Active School Survey Form Sections (Smooth Fade Transition) */}
+        <div 
+          key={currentSchool.id || `school-form-${activeSchoolIndex}`}
+          className="divide-y divide-slate-100 animate-in fade-in-50 duration-200"
+        >
 
         {/* ══════════════════════════════════════════════════════════
             SECTION 1: SCHOOL INFORMATION
@@ -739,7 +696,7 @@ export function MultiSchoolSection({
                 1
               </span>
               <h4 className="font-heading text-sm font-bold text-slate-900 group-hover:text-[#2d6b73] transition">
-                1. School Information
+                School Information
               </h4>
             </div>
             <button type="button" className="text-slate-400 group-hover:text-slate-600">
@@ -780,10 +737,9 @@ export function MultiSchoolSection({
               </div>
 
               {/* 1.3 Classes & Stream Combinations Dropdown Selection */}
-              <div className="md:col-span-2 space-y-2">
+              <div className="md:col-span-2 space-y-1">
                 <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold text-slate-700 flex items-center gap-1.5 font-heading">
-                    <BookOpen className="w-4 h-4 text-[#51a8b1]" />
+                  <label className="text-xs font-bold text-slate-700">
                     1.3 Offered Classes &amp; Streams Selection
                   </label>
                   {!disabled && (
@@ -1155,7 +1111,7 @@ export function MultiSchoolSection({
                 2
               </span>
               <h4 className="font-heading text-sm font-bold text-slate-900 group-hover:text-[#2d6b73] transition">
-                2. School Demographics
+                School Demographics
               </h4>
             </div>
             <button type="button" className="text-slate-400 group-hover:text-slate-600">
@@ -1338,7 +1294,7 @@ export function MultiSchoolSection({
                 3
               </span>
               <h4 className="font-heading text-sm font-bold text-slate-900 group-hover:text-[#2d6b73] transition">
-                3. School Infrastructure
+                School Infrastructure
               </h4>
             </div>
             <button type="button" className="text-slate-400 group-hover:text-slate-600">
@@ -1490,7 +1446,7 @@ export function MultiSchoolSection({
                 4
               </span>
               <h4 className="font-heading text-sm font-bold text-slate-900 group-hover:text-[#2d6b73] transition">
-                4. Digital Initiatives and Facilities
+                Digital Initiatives and Facilities
               </h4>
             </div>
             <button type="button" className="text-slate-400 group-hover:text-slate-600">
@@ -1718,7 +1674,7 @@ export function MultiSchoolSection({
                 5
               </span>
               <h4 className="font-heading text-sm font-bold text-slate-900 group-hover:text-[#2d6b73] transition">
-                5. Additional Notes and Stakeholders
+                Additional Notes and Stakeholders
               </h4>
             </div>
             <button type="button" className="text-slate-400 group-hover:text-slate-600">
@@ -1902,7 +1858,7 @@ export function MultiSchoolSection({
                 6
               </span>
               <h4 className="font-heading text-sm font-bold text-slate-900 group-hover:text-[#2d6b73] transition">
-                6. Socio-Economic Background of Parents / Students
+                Socio-Economic Background of Parents / Students
               </h4>
             </div>
             <button type="button" className="text-slate-400 group-hover:text-slate-600">
@@ -2079,7 +2035,7 @@ export function MultiSchoolSection({
                 7
               </span>
               <h4 className="font-heading text-sm font-bold text-slate-900 group-hover:text-[#2d6b73] transition">
-                7. Security and Handling
+                Security and Handling
               </h4>
             </div>
             <button type="button" className="text-slate-400 group-hover:text-slate-600">
@@ -2251,7 +2207,51 @@ export function MultiSchoolSection({
           )}
         </div>
 
+        </div>
       </div>
+
+      {/* ── Delete School Confirmation Modal ─────────────────────── */}
+      {schoolToDelete !== null && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl max-w-md w-full p-5 space-y-4 animate-in zoom-in-95 duration-200">
+            <div className="flex items-start gap-3.5">
+              <div className="w-10 h-10 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0 animate-in bounce-in duration-300">
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 font-heading">
+                  Delete Campus Information?
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Are you sure you want to delete <strong className="text-slate-900 font-semibold">{schoolsList[schoolToDelete]?.schoolName || `School #${schoolToDelete + 1}`}</strong>? All survey details for this campus will be removed.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setSchoolToDelete(null)}
+                className="px-3.5 py-1.5 rounded-xl border border-slate-200 text-xs font-bold text-slate-600 hover:bg-slate-50 transition cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  handleRemoveSchool(schoolToDelete);
+                  setSchoolToDelete(null);
+                }}
+                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 active:scale-95 text-white text-xs font-bold transition shadow-xs cursor-pointer flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>Confirm Delete</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

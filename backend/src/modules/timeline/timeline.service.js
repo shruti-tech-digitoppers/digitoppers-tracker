@@ -1053,21 +1053,20 @@ class TimelineService {
           ])
         );
 
+        const { items: _unusedItems, hardware: _unusedHardware, ...cleanFormData } = formData || {};
         reqDoc.orderRequirement = {
           ...(reqDoc.orderRequirement || {}),
           hardwareRequirement: { 
-            ...formData, 
+            ...cleanFormData, 
             activeHardwareKeys: derivedHardwareKeys,
             schoolWiseHardware,
-            items: formData.items || {},
-            hardware: formData.hardware || formData.items || {},
             submittedBy: employee._id, 
             submittedAt: new Date() 
           }
         };
         reqDoc.markModified('orderRequirement');
 
-        if (derivedHardwareKeys.length > 0 || (formData.schoolWiseHardware && Object.keys(formData.schoolWiseHardware).length > 0) || (formData.items && Object.keys(formData.items).length > 0) || formData.autoComplete === true) {
+        if (derivedHardwareKeys.length > 0 || (formData.schoolWiseHardware && Object.keys(formData.schoolWiseHardware).length > 0) || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
           if (node.parentNode) {
@@ -1120,8 +1119,17 @@ class TimelineService {
 
         // Send notifications for individual in-stock dispatch and purchase procurement assignees
         try {
-          const stockData = formData.stockCheck || formData;
-          const itemsMap = stockData.items || (typeof stockData === 'object' && !stockData.items ? stockData : {});
+          const nonItemKeys = new Set(['checked', 'stockStatus', 'stockSummary', 'remarks', 'purchaseAssignedTo', 'inStockAssignedTo', 'submittedBy', 'submittedAt', 'status', '_id', 'id']);
+          let itemsMap = stockData.items;
+          if (!itemsMap && typeof stockData === 'object') {
+            itemsMap = {};
+            for (const [k, v] of Object.entries(stockData)) {
+              if (!nonItemKeys.has(k) && typeof v === 'object' && v !== null && !Array.isArray(v)) {
+                itemsMap[k] = v;
+              }
+            }
+          }
+          itemsMap = itemsMap || {};
           const project = await Project.findById(projectId);
           let primaryPurchaseOfficer = formData.purchaseAssignedTo;
 
@@ -1132,43 +1140,87 @@ class TimelineService {
               const inStockCount = Number(itemVal.inStockQty) !== undefined ? Number(itemVal.inStockQty) : (mode === 'IN_STOCK' ? (Number(itemVal.quantity) || 1) : 0);
               const purchaseCount = Number(itemVal.purchaseQty) !== undefined ? Number(itemVal.purchaseQty) : (mode === 'PURCHASE_REQUIRED' ? (Number(itemVal.quantity) || 1) : 0);
 
-              // 1. In-Stock Dispatch Assignee Notification
-              const stockAssignee = itemVal.inStockAssignedTo || (mode === 'IN_STOCK' ? itemVal.assignedTo : null);
-              if (stockAssignee && inStockCount > 0) {
-                await Notification.create({
-                  recipient: stockAssignee,
-                  project: projectId,
-                  title: `Hardware In-Stock Dispatch: ${itemTitle} (${inStockCount} Units)`,
-                  message: `You have been assigned to dispatch ${inStockCount} units of "${itemTitle}" from warehouse stock for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`,
-                  type: 'ASSIGNMENT',
-                  metadata: {
-                    projectId: projectId.toString(),
-                    projectCustomId: project?.projectId,
-                    projectName: project?.projectName || project?.title,
-                    nodeKey: 'REQ_AND_STOCK_CHECK',
-                    targetUrl: `/tracker`
-                  }
-                });
-              }
+              if (Array.isArray(itemVal.splits) && itemVal.splits.length > 0) {
+                // Multi-batch split notifications
+                for (const [splitIdx, split] of itemVal.splits.entries()) {
+                  const splitQty = Number(split.quantity) || 0;
+                  const splitAssignee = split.assignedTo;
+                  const splitMode = split.mode || 'IN_STOCK';
+                  const batchLetter = String.fromCharCode(65 + splitIdx);
 
-              // 2. Purchase Procurement Assignee Notification
-              const purchaseAssignee = itemVal.purchaseAssignedTo || (mode === 'PURCHASE_REQUIRED' ? itemVal.assignedTo : null);
-              if (purchaseAssignee && purchaseCount > 0) {
-                if (!primaryPurchaseOfficer) primaryPurchaseOfficer = purchaseAssignee;
-                await Notification.create({
-                  recipient: purchaseAssignee,
-                  project: projectId,
-                  title: `Hardware Purchase Required: ${itemTitle} (${purchaseCount} Units)`,
-                  message: `You have been assigned to procure ${purchaseCount} units of "${itemTitle}" from vendor for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`,
-                  type: 'ASSIGNMENT',
-                  metadata: {
-                    projectId: projectId.toString(),
-                    projectCustomId: project?.projectId,
-                    projectName: project?.projectName || project?.title,
-                    nodeKey: 'PURCHASE_IF_NEEDED',
-                    targetUrl: `/tracker`
+                  if (splitAssignee && splitQty > 0) {
+                    if (splitMode === 'IN_STOCK') {
+                      await Notification.create({
+                        recipient: splitAssignee,
+                        project: projectId,
+                        title: `Hardware In-Stock Dispatch: ${itemTitle} (${splitQty} Units - Batch ${batchLetter})`,
+                        message: `You have been assigned to dispatch ${splitQty} units of "${itemTitle}" (Batch ${batchLetter}) from warehouse stock for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).${split.notes ? ` Note: ${split.notes}` : ''}`,
+                        type: 'ASSIGNMENT',
+                        metadata: {
+                          projectId: projectId.toString(),
+                          projectCustomId: project?.projectId,
+                          projectName: project?.projectName || project?.title,
+                          nodeKey: 'REQ_AND_STOCK_CHECK',
+                          targetUrl: `/tracker`
+                        }
+                      });
+                    } else {
+                      if (!primaryPurchaseOfficer) primaryPurchaseOfficer = splitAssignee;
+                      await Notification.create({
+                        recipient: splitAssignee,
+                        project: projectId,
+                        title: `Hardware Purchase Required: ${itemTitle} (${splitQty} Units - Batch ${batchLetter})`,
+                        message: `You have been assigned to procure ${splitQty} units of "${itemTitle}" (Batch ${batchLetter}) from vendor for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).${split.notes ? ` Note: ${split.notes}` : ''}`,
+                        type: 'ASSIGNMENT',
+                        metadata: {
+                          projectId: projectId.toString(),
+                          projectCustomId: project?.projectId,
+                          projectName: project?.projectName || project?.title,
+                          nodeKey: 'PURCHASE_IF_NEEDED',
+                          targetUrl: `/tracker`
+                        }
+                      });
+                    }
                   }
-                });
+                }
+              } else {
+                // Fallback for legacy single-item format
+                const stockAssignee = itemVal.inStockAssignedTo || (mode === 'IN_STOCK' ? itemVal.assignedTo : null);
+                if (stockAssignee && inStockCount > 0) {
+                  await Notification.create({
+                    recipient: stockAssignee,
+                    project: projectId,
+                    title: `Hardware In-Stock Dispatch: ${itemTitle} (${inStockCount} Units)`,
+                    message: `You have been assigned to dispatch ${inStockCount} units of "${itemTitle}" from warehouse stock for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`,
+                    type: 'ASSIGNMENT',
+                    metadata: {
+                      projectId: projectId.toString(),
+                      projectCustomId: project?.projectId,
+                      projectName: project?.projectName || project?.title,
+                      nodeKey: 'REQ_AND_STOCK_CHECK',
+                      targetUrl: `/tracker`
+                    }
+                  });
+                }
+
+                const purchaseAssignee = itemVal.purchaseAssignedTo || (mode === 'PURCHASE_REQUIRED' ? itemVal.assignedTo : null);
+                if (purchaseAssignee && purchaseCount > 0) {
+                  if (!primaryPurchaseOfficer) primaryPurchaseOfficer = purchaseAssignee;
+                  await Notification.create({
+                    recipient: purchaseAssignee,
+                    project: projectId,
+                    title: `Hardware Purchase Required: ${itemTitle} (${purchaseCount} Units)`,
+                    message: `You have been assigned to procure ${purchaseCount} units of "${itemTitle}" from vendor for project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`,
+                    type: 'ASSIGNMENT',
+                    metadata: {
+                      projectId: projectId.toString(),
+                      projectCustomId: project?.projectId,
+                      projectName: project?.projectName || project?.title,
+                      nodeKey: 'PURCHASE_IF_NEEDED',
+                      targetUrl: `/tracker`
+                    }
+                  });
+                }
               }
             }
           }
@@ -1189,14 +1241,68 @@ class TimelineService {
           console.error('Stock check assignment notification note:', stockCheckNotifErr.message);
         }
       } else if (key === 'PURCHASE_IF_NEEDED') {
+        const existingProcurement = (reqDoc.execution && reqDoc.execution.hardware && reqDoc.execution.hardware.purchaseIfNeeded) || {};
+        const incomingItems = formData?.items || (formData?.vendorName ? { legacyItem: formData } : formData) || {};
         reqDoc.execution = {
           ...(reqDoc.execution || {}),
           hardware: {
             ...((reqDoc.execution && reqDoc.execution.hardware) || {}),
-            purchaseIfNeeded: { ...formData, submittedBy: employee._id, submittedAt: new Date() }
+            purchaseIfNeeded: {
+              ...existingProcurement,
+              ...(typeof formData === 'object' && formData !== null ? formData : {}),
+              items: {
+                ...(existingProcurement.items || {}),
+                ...(typeof incomingItems === 'object' ? incomingItems : {})
+              },
+              submittedBy: employee._id,
+              submittedAt: new Date()
+            }
           }
         };
         reqDoc.markModified('execution');
+      } else if (key === 'CONSIGNMENT_TRACKING') {
+        const existingConsignment = (reqDoc.execution && reqDoc.execution.hardware && reqDoc.execution.hardware.consignmentTracking) || {};
+        const incomingItems = formData?.items || (formData?.trackingNumber ? { legacyItem: formData } : formData) || {};
+        reqDoc.execution = {
+          ...(reqDoc.execution || {}),
+          hardware: {
+            ...((reqDoc.execution && reqDoc.execution.hardware) || {}),
+            consignmentTracking: {
+              ...existingConsignment,
+              ...(typeof formData === 'object' && formData !== null ? formData : {}),
+              items: {
+                ...(existingConsignment.items || {}),
+                ...(typeof incomingItems === 'object' ? incomingItems : {})
+              },
+              submittedBy: employee._id,
+              submittedAt: new Date()
+            }
+          }
+        };
+        reqDoc.markModified('execution');
+      } else if (key === 'HARDWARE_READY') {
+        const existingReady = (reqDoc.execution && reqDoc.execution.hardware && reqDoc.execution.hardware.hardwareReady) || {};
+        reqDoc.execution = {
+          ...(reqDoc.execution || {}),
+          hardware: {
+            ...((reqDoc.execution && reqDoc.execution.hardware) || {}),
+            hardwareReady: {
+              ...existingReady,
+              ...(typeof formData === 'object' ? formData : {}),
+              submittedBy: employee._id,
+              submittedAt: new Date()
+            }
+          }
+        };
+        reqDoc.markModified('execution');
+        try {
+          const project = await Project.findById(projectId);
+          if (project) {
+            this._syncSchoolWiseHardwareExecution(reqDoc, project);
+          }
+        } catch (syncErr) {
+          console.error('Error syncing hardware ready:', syncErr);
+        }
       } else if (key === 'INTEGRATION_TESTING') {
         // Feedback & notification iteration for App, Dashboard and Content Testing Results
         try {
@@ -1266,6 +1372,13 @@ class TimelineService {
           }
         };
         reqDoc.markModified('installation');
+      }
+
+      // Sync school-wise hardware execution whenever hardware/execution nodes are updated
+      const hwSyncKeys = new Set(['HARDWARE_REQUIREMENT', 'REQ_AND_STOCK_CHECK', 'PURCHASE_IF_NEEDED', 'CONSIGNMENT_TRACKING', 'HARDWARE_READY']);
+      if (hwSyncKeys.has(key)) {
+        const project = await Project.findById(projectId);
+        this._syncSchoolWiseHardwareExecution(reqDoc, project);
       }
 
       await reqDoc.save();
@@ -1471,6 +1584,256 @@ class TimelineService {
 
     return await this.getTimelineHierarchy(projectId);
   }
+
+  _syncSchoolWiseHardwareExecution(reqDoc, project) {
+    try {
+      if (!reqDoc) return;
+      const orderReq = reqDoc.orderRequirement || {};
+      const schoolInfo = orderReq.schoolInformation || {};
+      const schoolsList = Array.isArray(schoolInfo.schools) 
+        ? schoolInfo.schools 
+        : (Array.isArray(project?.schools) ? project.schools : []);
+      
+      const schoolWiseHwConfig = orderReq.hardwareRequirement?.schoolWiseHardware || {};
+      const stockItems = reqDoc.execution?.hardware?.reqAndStockCheck?.stockCheck?.items || reqDoc.execution?.hardware?.reqAndStockCheck?.items || {};
+      const purchaseItems = reqDoc.execution?.hardware?.purchaseIfNeeded?.items || {};
+      const consignmentItems = reqDoc.execution?.hardware?.consignmentTracking?.items || {};
+      const readyConfig = reqDoc.execution?.hardware?.hardwareReady || {};
+      const schoolVerification = readyConfig.schoolWiseVerification || {};
+
+      const schoolWiseExecution = {};
+
+      // Map school metadata by ID and Name
+      const schoolMetaMap = {};
+      schoolsList.forEach((s) => {
+        const id = s.schoolId || s._id || s.id;
+        const name = s.schoolName || s.name || id;
+        if (id) {
+          schoolMetaMap[id] = {
+            schoolId: id,
+            schoolName: name,
+            address: s.address || s.schoolAddress || '',
+            contactPerson: s.contactPerson || s.principalName || '',
+            phone: s.contactPhone || s.phone || ''
+          };
+        }
+        if (name && !schoolMetaMap[name]) {
+          schoolMetaMap[name] = {
+            schoolId: id || name,
+            schoolName: name,
+            address: s.address || s.schoolAddress || '',
+            contactPerson: s.contactPerson || s.principalName || '',
+            phone: s.contactPhone || s.phone || ''
+          };
+        }
+      });
+
+      // Iterate through schoolWiseHardware from Stage 03
+      if (Object.keys(schoolWiseHwConfig).length > 0) {
+        for (const [schoolKey, hwMap] of Object.entries(schoolWiseHwConfig)) {
+          if (!hwMap || typeof hwMap !== 'object') continue;
+          const meta = schoolMetaMap[schoolKey] || {
+            schoolId: schoolKey,
+            schoolName: schoolKey,
+            address: '',
+            contactPerson: '',
+            phone: ''
+          };
+
+          const schoolReady = schoolVerification[schoolKey] || schoolVerification[meta.schoolName] || {};
+          const hardwareEntries = {};
+
+          for (const [hwKey, hwVal] of Object.entries(hwMap)) {
+            if (!hwVal || typeof hwVal !== 'object') continue;
+            const qty = Number(hwVal.quantity) || 1;
+            // Stock Check status & member from Stage 04 Stock Check
+            const stockEntry = stockItems[hwKey] || {};
+            const spec = stockEntry.specNotes !== undefined && stockEntry.specNotes !== ''
+              ? stockEntry.specNotes
+              : (hwVal.specNotes || hwVal.specs || hwVal.specifications || '');
+            const name = stockEntry.itemName || hwVal.itemName || hwVal.name || hwKey;
+            const stockStatus = stockEntry.stockDecision || 'IN_STOCK';
+            const member = stockEntry.inStockAssignedTo || stockEntry.purchaseAssignedTo || stockEntry.assignedTo || '';
+
+            // Purchase PO & PI from Stage 04 Purchase
+            const purchaseEntry = purchaseItems[hwKey] || {};
+            const purchaseOrders = Array.isArray(purchaseEntry.purchaseOrders) ? purchaseEntry.purchaseOrders : (stockEntry.purchaseOrders || stockEntry.po || []);
+            const proformaInvoices = Array.isArray(purchaseEntry.proformaInvoices) ? purchaseEntry.proformaInvoices : (stockEntry.proformaInvoices || stockEntry.pi || []);
+
+            // Consignment tracking from Stage 04 Consignment
+            const consignmentEntry = consignmentItems[hwKey] || {};
+            const consignments = Array.isArray(consignmentEntry.consignments)
+              ? consignmentEntry.consignments
+              : (consignmentEntry.trackingNumber ? [consignmentEntry] : []);
+
+            // Hardware Ready verification
+            const itemReady = schoolReady.items?.[hwKey] || {};
+            const hardwareReady = {
+              received: itemReady.checked !== undefined ? itemReady.checked : (readyConfig.allHardwareReceived === 'YES'),
+              deliveryDate: itemReady.deliveryDate || schoolReady.deliveryDate || readyConfig.deliveryDate || null,
+              receivedQty: itemReady.qty !== undefined ? Number(itemReady.qty) : qty,
+              readyForInstallation: readyConfig.readyForInstallation || 'YES',
+              damagedItems: readyConfig.damagedItems || '',
+              remarks: itemReady.remarks || schoolReady.schoolRemarks || readyConfig.remarks || ''
+            };
+
+            hardwareEntries[hwKey] = {
+              hardwareKey: hwKey,
+              itemName: name,
+              qty,
+              spec,
+              solutionName: hwVal.solutionName || '',
+              serialNotes: hwVal.serialNotes || '',
+              stockCheckStatus: stockStatus,
+              inStockQty: Number(stockEntry.inStockQty) || 0,
+              purchaseQty: Number(stockEntry.purchaseQty) || 0,
+              member,
+              // If purchase or split, includes PO and PI arrays
+              purchaseOrders: stockStatus === 'IN_STOCK' ? [] : purchaseOrders,
+              proformaInvoices: stockStatus === 'IN_STOCK' ? [] : proformaInvoices,
+              // Consignment tracking added in each hardware key
+              consignmentTracking: consignments,
+              // Hardware Ready verification
+              hardwareReady
+            };
+          }
+
+          schoolWiseExecution[schoolKey] = {
+            ...meta,
+            readyForInstallation: schoolReady.deliveryStatus === 'DELIVERED' || readyConfig.readyForInstallation === 'YES' ? 'YES' : (readyConfig.readyForInstallation || 'NO'),
+            allHardwareReceived: readyConfig.allHardwareReceived || 'YES',
+            deliveryDate: schoolReady.deliveryDate || readyConfig.deliveryDate || null,
+            hardware: hardwareEntries
+          };
+        }
+      } else {
+        // Fallback: build from stockItems or orderReq.hardwareRequirement.items
+        const allItems = { ...(orderReq.hardwareRequirement?.items || {}), ...stockItems };
+        for (const [hwKey, itemData] of Object.entries(allItems)) {
+          if (!itemData || typeof itemData !== 'object' || Array.isArray(itemData)) continue;
+          const schoolBreakdown = Array.isArray(itemData.schoolBreakdown) ? itemData.schoolBreakdown : [];
+          const stockEntry = stockItems[hwKey] || itemData;
+          const stockStatus = stockEntry.stockDecision || 'IN_STOCK';
+          const member = stockEntry.inStockAssignedTo || stockEntry.purchaseAssignedTo || stockEntry.assignedTo || '';
+          const purchaseEntry = purchaseItems[hwKey] || {};
+          const purchaseOrders = Array.isArray(purchaseEntry.purchaseOrders) ? purchaseEntry.purchaseOrders : (stockEntry.purchaseOrders || stockEntry.po || []);
+          const proformaInvoices = Array.isArray(purchaseEntry.proformaInvoices) ? purchaseEntry.proformaInvoices : (stockEntry.proformaInvoices || stockEntry.pi || []);
+          const consignmentEntry = consignmentItems[hwKey] || {};
+          const consignments = Array.isArray(consignmentEntry.consignments)
+            ? consignmentEntry.consignments
+            : (consignmentEntry.trackingNumber ? [consignmentEntry] : []);
+
+          if (schoolBreakdown.length > 0) {
+            schoolBreakdown.forEach((sb) => {
+              const sKey = sb.schoolId || sb.schoolName || 'school-1';
+              const meta = schoolMetaMap[sKey] || schoolMetaMap[sb.schoolName] || {
+                schoolId: sKey,
+                schoolName: sb.schoolName || sKey,
+                address: '',
+                contactPerson: '',
+                phone: ''
+              };
+
+              const schoolReady = schoolVerification[sKey] || schoolVerification[meta.schoolName] || {};
+              const itemReady = schoolReady.items?.[hwKey] || {};
+              const schoolQty = Number(sb.quantity) || 1;
+              const hardwareReady = {
+                received: itemReady.checked !== undefined ? itemReady.checked : (readyConfig.allHardwareReceived === 'YES'),
+                deliveryDate: itemReady.deliveryDate || schoolReady.deliveryDate || readyConfig.deliveryDate || null,
+                receivedQty: itemReady.qty !== undefined ? Number(itemReady.qty) : schoolQty,
+                readyForInstallation: readyConfig.readyForInstallation || 'YES',
+                damagedItems: readyConfig.damagedItems || '',
+                remarks: itemReady.remarks || schoolReady.schoolRemarks || readyConfig.remarks || ''
+              };
+
+              if (!schoolWiseExecution[sKey]) {
+                schoolWiseExecution[sKey] = {
+                  ...meta,
+                  readyForInstallation: schoolReady.deliveryStatus === 'DELIVERED' || readyConfig.readyForInstallation === 'YES' ? 'YES' : (readyConfig.readyForInstallation || 'NO'),
+                  allHardwareReceived: readyConfig.allHardwareReceived || 'YES',
+                  deliveryDate: schoolReady.deliveryDate || readyConfig.deliveryDate || null,
+                  hardware: {}
+                };
+              }
+
+              schoolWiseExecution[sKey].hardware[hwKey] = {
+                hardwareKey: hwKey,
+                itemName: itemData.itemName || hwKey,
+                qty: schoolQty,
+                spec: itemData.specNotes || sb.specs || '',
+                solutionName: sb.solutionName || '',
+                serialNotes: sb.serialNotes || '',
+                stockCheckStatus: stockStatus,
+                inStockQty: Math.min(schoolQty, Number(stockEntry.inStockQty) || 0),
+                purchaseQty: Math.min(schoolQty, Number(stockEntry.purchaseQty) || 0),
+                member,
+                purchaseOrders: stockStatus === 'IN_STOCK' ? [] : purchaseOrders,
+                proformaInvoices: stockStatus === 'IN_STOCK' ? [] : proformaInvoices,
+                consignmentTracking: consignments,
+                hardwareReady
+              };
+            });
+          } else if (schoolsList.length > 0) {
+            schoolsList.forEach((s, idx) => {
+              const sKey = s.schoolId || s._id || s.id || `school-${idx + 1}`;
+              const meta = schoolMetaMap[sKey] || {
+                schoolId: sKey,
+                schoolName: s.schoolName || s.name || sKey,
+                address: s.address || '',
+                contactPerson: s.contactPerson || '',
+                phone: s.phone || ''
+              };
+              const schoolReady = schoolVerification[sKey] || schoolVerification[meta.schoolName] || {};
+              const itemReady = schoolReady.items?.[hwKey] || {};
+              const itemQty = Number(itemData.quantity) || 1;
+              const hardwareReady = {
+                received: itemReady.checked !== undefined ? itemReady.checked : (readyConfig.allHardwareReceived === 'YES'),
+                deliveryDate: itemReady.deliveryDate || schoolReady.deliveryDate || readyConfig.deliveryDate || null,
+                receivedQty: itemReady.qty !== undefined ? Number(itemReady.qty) : itemQty,
+                readyForInstallation: readyConfig.readyForInstallation || 'YES',
+                damagedItems: readyConfig.damagedItems || '',
+                remarks: itemReady.remarks || schoolReady.schoolRemarks || readyConfig.remarks || ''
+              };
+
+              if (!schoolWiseExecution[sKey]) {
+                schoolWiseExecution[sKey] = {
+                  ...meta,
+                  readyForInstallation: schoolReady.deliveryStatus === 'DELIVERED' || readyConfig.readyForInstallation === 'YES' ? 'YES' : (readyConfig.readyForInstallation || 'NO'),
+                  allHardwareReceived: readyConfig.allHardwareReceived || 'YES',
+                  deliveryDate: schoolReady.deliveryDate || readyConfig.deliveryDate || null,
+                  hardware: {}
+                };
+              }
+              schoolWiseExecution[sKey].hardware[hwKey] = {
+                hardwareKey: hwKey,
+                itemName: itemData.itemName || hwKey,
+                qty: itemQty,
+                spec: itemData.specNotes || '',
+                solutionName: itemData.solutionName || '',
+                serialNotes: itemData.serialNotes || '',
+                stockCheckStatus: stockStatus,
+                inStockQty: Number(stockEntry.inStockQty) || 0,
+                purchaseQty: Number(stockEntry.purchaseQty) || 0,
+                member,
+                purchaseOrders: stockStatus === 'IN_STOCK' ? [] : purchaseOrders,
+                proformaInvoices: stockStatus === 'IN_STOCK' ? [] : proformaInvoices,
+                consignmentTracking: consignments,
+                hardwareReady
+              };
+            });
+          }
+        }
+      }
+
+      reqDoc.execution = reqDoc.execution || {};
+      reqDoc.execution.hardware = reqDoc.execution.hardware || {};
+      reqDoc.execution.hardware.schoolWiseHardware = schoolWiseExecution;
+      reqDoc.markModified('execution');
+    } catch (syncErr) {
+      console.error('Error syncing school-wise hardware execution:', syncErr);
+    }
+  }
 }
 
 module.exports = new TimelineService();
+

@@ -167,14 +167,6 @@ const requirementSchema = new mongoose.Schema(
           type: mongoose.Schema.Types.Mixed,
           default: {}
         },
-        items: {
-          type: mongoose.Schema.Types.Mixed,
-          default: {}
-        },
-        hardware: {
-          type: mongoose.Schema.Types.Mixed,
-          default: {}
-        },
         assignedHardwareManager: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
         overallHardwareNotes: String,
         remarks: String,
@@ -186,7 +178,19 @@ const requirementSchema = new mongoose.Schema(
     // ─── 06 — EXECUTION ──────────────────────────────────────────────────
     execution: {
       hardware: {
+        schoolWiseHardware: {
+          type: mongoose.Schema.Types.Mixed,
+          default: {}
+        },
         reqAndStockCheck: {
+          items: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
+          },
+          stockCheck: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
+          },
           checked: Boolean,
           stockSummary: String,
           stockStatus: { type: String, enum: ['IN_STOCK', 'PARTIALLY_AVAILABLE', 'NOT_IN_STOCK'] },
@@ -194,16 +198,25 @@ const requirementSchema = new mongoose.Schema(
           submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
           submittedAt: Date
         },
+        // Per-hardware purchase: keyed by hardware type (e.g. IFP_PANEL, NETWORKING_ROUTER)
+        // Each entry has: vendorName, purchaseOrders[], proformaInvoices[], overallRemarks
+        // purchaseOrders[]: { id, poNumber, poDate, poDocumentUrl, poFileName, remarks }
+        // proformaInvoices[]: { id, piNumber, piDate, piDocumentUrl, piFileName, ewayBillNumber, paymentStatus, remarks }
         purchaseIfNeeded: {
-          vendorName: String,
-          purchaseOrderNumber: String,
-          purchaseAmount: Number,
-          purchaseDocumentUrl: String,
-          remarks: String,
+          // items is a Mixed map: { [hardwareKey]: { vendorName, purchaseQty, purchaseOrders[], proformaInvoices[], overallRemarks } }
+          items: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
+          },
+          overallProcurementRemarks: String,
           submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
           submittedAt: Date
         },
         consignmentTracking: {
+          items: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
+          },
           courierName: String,
           trackingNumber: String,
           dispatchDate: Date,
@@ -232,6 +245,11 @@ const requirementSchema = new mongoose.Schema(
         },
         hardwareReady: {
           allHardwareReceived: { type: String, enum: ['YES', 'NO', null], default: null },
+          deliveryDate: Date,
+          schoolWiseVerification: {
+            type: mongoose.Schema.Types.Mixed,
+            default: {}
+          },
           damagedItems: String,
           readyForInstallation: { type: String, enum: ['YES', 'NO', null], default: null },
           remarks: String,

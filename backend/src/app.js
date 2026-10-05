@@ -14,6 +14,8 @@ const notificationRouter = require('./modules/notifications/notifications.routes
 const uploadRouter = require('./modules/upload/upload.routes');
 const requestRouter = require('./modules/requests/request.routes');
 const gradeRouter = require('./modules/curriculum/grade.routes');
+const solutionRouter = require('./modules/solutions/solution.routes');
+const hardwareRouter = require('./modules/hardware/hardware.routes');
 
 const app = express();
 
@@ -47,6 +49,8 @@ app.use('/api/v1/requests', requestRouter);
 app.use('/api/v1/notifications', notificationRouter);
 app.use('/api/v1/upload', uploadRouter);
 app.use('/api/v1/grades', gradeRouter);
+app.use('/api/v1/solutions', solutionRouter);
+app.use('/api/v1/hardware', hardwareRouter);
 
 // 404 Wildcard Route
 app.all('*', (req, res, next) => {

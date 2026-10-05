@@ -16,6 +16,8 @@ import { HardwareStockCheck } from './fields/HardwareStockCheck';
 import { HardwarePurchaseView } from './fields/HardwarePurchaseView';
 import { HardwarePurchaseSection } from './fields/HardwarePurchaseSection';
 import { HardwareConsignmentSection } from './fields/HardwareConsignmentSection';
+import { HardwareReadySection } from './fields/HardwareReadySection';
+import { HardwareReadyView } from './fields/HardwareReadyView';
 import { ContentConfigSection } from './fields/ContentConfigSection';
 import { AppFileDownloadSection } from './fields/AppFileDownloadSection';
 import { IntegrationTestingSection } from './fields/IntegrationTestingSection';
@@ -36,6 +38,9 @@ interface DynamicFormRendererProps {
   project?: IProject | null;
   currentUser?: IUser | null;
   onStatusChange?: (status: TimelineNodeStatus) => Promise<void>;
+  onDirtyChange?: (isDirty: boolean) => void;
+  formRef?: React.MutableRefObject<{ submitForm: () => Promise<void>; isDirty: () => boolean; getFormData: () => Record<string, any> } | null>;
+  hideFooter?: boolean;
 }
 
 export function DynamicFormRenderer({
@@ -48,9 +53,13 @@ export function DynamicFormRenderer({
   project = null,
   currentUser = null,
   onStatusChange,
+  onDirtyChange,
+  formRef,
+  hideFooter = false,
 }: DynamicFormRendererProps) {
   const [formData, setFormData] = useState<Record<string, any>>(initialData || {});
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [justSaved, setJustSaved] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>('');
@@ -93,17 +102,17 @@ export function DynamicFormRenderer({
 
   const isSchoolOnboardingForm = useMemo(() => {
     return fieldsArray.some(f => (
-      f.key === 'schoolName' || 
-      f.name === 'schoolName' || 
+      f.key === 'schoolName' ||
+      f.name === 'schoolName' ||
       f.key === 'multiSchoolSection' ||
       f.type === 'multiSchoolSection'
     )) && fieldsArray.some(f => (
       f.key === 'schoolCategory' ||
       f.key === 'addressContact' ||
-      f.key === 'principalName' || 
-      f.name === 'principalName' || 
-      f.key === 'schoolCode' || 
-      f.name === 'schoolCode' || 
+      f.key === 'principalName' ||
+      f.name === 'principalName' ||
+      f.key === 'schoolCode' ||
+      f.name === 'schoolCode' ||
       f.key === 'totalStudents'
     ));
   }, [fieldsArray]);
@@ -116,6 +125,50 @@ export function DynamicFormRenderer({
     return fieldsArray.some(f => f.type === 'multiPiInvoiceSection' || f.key === 'multiPiInvoiceSection' || f.key === 'piNumber' || f.key === 'invoiceNumber');
   }, [fieldsArray]);
 
+  const isHardwareStockCheckForm = useMemo(() => {
+    const schemaKey = (schema as any)?.key || (schema as any)?.nodeKey;
+    if (schemaKey === 'REQ_AND_STOCK_CHECK') return true;
+    return fieldsArray.some(
+      (f) => f.type === 'hardwareStockCheck' || f.key === 'stockCheck'
+    );
+  }, [schema, fieldsArray]);
+
+  const isHardwarePurchaseForm = useMemo(() => {
+    const schemaKey = (schema as any)?.key || (schema as any)?.nodeKey;
+    if (schemaKey === 'PURCHASE_IF_NEEDED') return true;
+    return fieldsArray.some(
+      (f) =>
+        f.type === 'hardwarePurchaseSection' ||
+        f.type === 'hardwarePurchaseView' ||
+        f.key === 'productProcurements'
+    );
+  }, [schema, fieldsArray]);
+
+  const isHardwareConsignmentForm = useMemo(() => {
+    const schemaKey = (schema as any)?.key || (schema as any)?.nodeKey;
+    if (schemaKey === 'CONSIGNMENT_TRACKING') return true;
+    return fieldsArray.some(
+      (f) =>
+        f.type === 'hardwareConsignmentSection' ||
+        f.key === 'productConsignments' ||
+        f.key === 'trackingNumber' ||
+        f.key === 'courierName'
+    );
+  }, [schema, fieldsArray]);
+
+  const isHardwareReadyForm = useMemo(() => {
+    const schemaKey = (schema as any)?.key || (schema as any)?.nodeKey;
+    if (schemaKey === 'HARDWARE_READY') return true;
+    return fieldsArray.some(
+      (f) =>
+        f.type === 'hardwareReadySection' ||
+        f.type === 'hardwareReady' ||
+        f.type === 'hardwareReadyView' ||
+        f.key === 'schoolHardwareReady' ||
+        f.key === 'allHardwareReceived'
+    );
+  }, [schema, fieldsArray]);
+
   if (fieldsArray.length === 0) {
     return (
       <div className="flex items-center gap-2 text-xs text-[#4a5462] italic py-3">
@@ -125,14 +178,40 @@ export function DynamicFormRenderer({
     );
   }
 
+  const isDirty = useMemo(() => {
+    return JSON.stringify(formData) !== lastSavedSnapshot;
+  }, [formData, lastSavedSnapshot]);
+
+  useEffect(() => {
+    if (onDirtyChange) {
+      onDirtyChange(isDirty);
+    }
+  }, [isDirty, onDirtyChange]);
+
+  useEffect(() => {
+    if (formRef) {
+      formRef.current = {
+        submitForm: async () => {
+          await onSubmit(formData);
+          setLastSavedSnapshot(JSON.stringify(formData));
+          setJustSaved(true);
+          if (onDirtyChange) onDirtyChange(false);
+          setTimeout(() => setJustSaved(false), 3000);
+        },
+        isDirty: () => JSON.stringify(formData) !== lastSavedSnapshot,
+        getFormData: () => formData
+      };
+    }
+  }, [formRef, formData, lastSavedSnapshot, onSubmit, onDirtyChange]);
+
   const handleChange = (fieldName: string, value: any) => {
     setFormData((prev) => ({ ...prev, [fieldName]: value }));
     setSuccessMsg(null);
     setError(null);
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (submitting) return;
 
     const currentSnapshot = JSON.stringify(formData);
@@ -148,9 +227,15 @@ export function DynamicFormRenderer({
       setSuccessMsg(null);
       await onSubmit(formData);
       setLastSavedSnapshot(currentSnapshot);
+      setJustSaved(true);
+      if (onDirtyChange) onDirtyChange(false);
       setSuccessMsg('Stage data saved successfully.');
+      setTimeout(() => {
+        setJustSaved(false);
+      }, 3000);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save stage form data.');
+      throw err;
     } finally {
       setSubmitting(false);
     }
@@ -284,6 +369,53 @@ export function DynamicFormRenderer({
           project={project}
           allFormData={allFormData}
         />
+      ) : isHardwareStockCheckForm ? (
+        <HardwareStockCheck
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+          allFormData={allFormData}
+          employees={employees}
+          project={project}
+        />
+      ) : isHardwarePurchaseForm ? (
+        <HardwarePurchaseSection
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+          allFormData={allFormData}
+        />
+      ) : isHardwareConsignmentForm ? (
+        <HardwareConsignmentSection
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+          allFormData={allFormData}
+          project={project}
+        />
+      ) : isHardwareReadyForm ? (
+        <HardwareReadySection
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+          allFormData={allFormData}
+        />
       ) : (
         /* Grid of Dynamic Form Fields */
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -320,6 +452,18 @@ export function DynamicFormRenderer({
                   </div>
                 </div>
               );
+            }
+
+            if (
+              (fieldKey === 'damagedItems' || fieldKey === 'readyForInstallation') &&
+              fieldsArray.some(
+                (f) =>
+                  f.key === 'allHardwareReceived' ||
+                  f.key === 'schoolHardwareReady' ||
+                  f.type === 'hardwareReadySection'
+              )
+            ) {
+              return null;
             }
 
             return (
@@ -398,10 +542,16 @@ export function DynamicFormRenderer({
                         allFormData.orderRequirement?.schoolInformation?.schools ||
                         []
                       }
-                      allFormData={allFormData}
+                      allFormData={{
+                        ...allFormData,
+                        project,
+                        orderRequirement: (project as any)?.orderRequirement || allFormData.orderRequirement,
+                        stage3SolutionsData: allFormData.stage3SolutionsData || (project as any)?.orderRequirement?.solutionSelection || {},
+                        stage3SchoolWiseSolutions: allFormData.stage3SchoolWiseSolutions || (project as any)?.orderRequirement?.solutionSelection?.schoolWiseSolutions || {}
+                      }}
                     />
                   </div>
-                ) : field.type === 'hardwareStockCheck' ? (
+                ) : field.type === 'hardwareStockCheck' || fieldKey === 'stockCheck' ? (
                   <div>
                     <label className="block text-xs font-bold text-[#3a7d84] mb-1">
                       {field.label || 'Hardware Stock Verification'}
@@ -412,9 +562,10 @@ export function DynamicFormRenderer({
                       disabled={disabled || submitting}
                       allFormData={allFormData}
                       employees={employees}
+                      project={project}
                     />
                   </div>
-                ) : field.type === 'hardwarePurchaseSection' || field.type === 'hardwarePurchaseView' ? (
+                ) : field.type === 'hardwarePurchaseSection' || field.type === 'hardwarePurchaseView' || fieldKey === 'productProcurements' ? (
                   <div>
                     <HardwarePurchaseSection
                       value={value}
@@ -423,11 +574,25 @@ export function DynamicFormRenderer({
                       allFormData={allFormData}
                     />
                   </div>
-                ) : field.type === 'hardwareConsignmentSection' ? (
+                ) : field.type === 'hardwareConsignmentSection' || fieldKey === 'productConsignments' ? (
                   <div>
                     <HardwareConsignmentSection
                       value={value}
                       onChange={(val) => handleChange(fieldKey, val)}
+                      disabled={disabled || submitting}
+                      allFormData={allFormData}
+                      project={project}
+                    />
+                  </div>
+                ) : field.type === 'hardwareReadySection' || field.type === 'hardwareReady' || field.type === 'hardwareReadyView' || fieldKey === 'schoolHardwareReady' || fieldKey === 'allHardwareReceived' ? (
+                  <div>
+                    <HardwareReadySection
+                      value={value || formData}
+                      onChange={(val) => {
+                        setFormData((prev) => ({ ...prev, ...val, [fieldKey]: val }));
+                        setSuccessMsg(null);
+                        setError(null);
+                      }}
                       disabled={disabled || submitting}
                       allFormData={allFormData}
                     />
@@ -520,23 +685,38 @@ export function DynamicFormRenderer({
         </div>
       )}
 
-      {/* Save / Submit Footer */}
-      {!disabled && !isProjectReviewForm && (
-        <div className="pt-3 border-t border-[#b9c0cb]/30 flex justify-end">
+      {/* Sticky Save / Submit Footer */}
+      {!disabled && !isProjectReviewForm && !hideFooter && (
+        <div className="sticky bottom-0 z-20 py-3 px-6 bg-white/95 backdrop-blur-sm border-t border-[#b9c0cb]/30 flex items-center justify-end gap-3 shadow-xs -mx-6 -mb-6 mt-6">
           <button
             type="submit"
-            disabled={submitting}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#51a8b1] text-white hover:bg-[#3a7d84] active:scale-95 disabled:opacity-50 transition-all shadow-xs cursor-pointer"
+            disabled={submitting || (!isDirty && !justSaved)}
+            className={`inline-flex items-center gap-1.5 px-6 py-2 rounded-xl text-xs font-bold transition-all shadow-xs ml-auto ${justSaved
+                ? 'bg-[#a8cf45] text-white border border-[#a8cf45] shadow-xs cursor-default'
+                : isDirty
+                  ? 'bg-[#51a8b1] hover:bg-[#3a7d84] text-white border border-[#51a8b1] shadow-xs hover:shadow-md cursor-pointer active:scale-95'
+                  : 'bg-slate-100 border border-slate-200 text-slate-400 cursor-default opacity-80'
+              }`}
           >
             {submitting ? (
               <>
-                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                <span>Saving Data...</span>
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                <span className="text-white font-bold">Saving...</span>
+              </>
+            ) : justSaved ? (
+              <>
+                <Check className="w-3.5 h-3.5 text-white" />
+                <span className="text-white font-bold">Saved!</span>
+              </>
+            ) : isDirty ? (
+              <>
+                <Save className="w-3.5 h-3.5 text-white" />
+                <span className="text-white font-bold">Save</span>
               </>
             ) : (
               <>
-                <Save className="w-3.5 h-3.5" />
-                <span>Save Stage Information</span>
+                <Check className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-slate-500 font-bold">Saved</span>
               </>
             )}
           </button>

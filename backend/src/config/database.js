@@ -36,20 +36,7 @@ const connectDB = async () => {
       console.log(`✅ MongoDB Connected to Embedded Local Engine: ${conn.connection.host}`);
     }
 
-    // Check if seeding is needed
-    try {
-      const Employee = require('../modules/employees/employee.model');
-      const count = await Employee.countDocuments();
-      if (count === 0) {
-        console.log('🌱 No employees found. Auto-seeding Digitoppers team data...');
-        const seedDatabase = require('../utils/seed');
-        await seedDatabase();
-      } else {
-        console.log(`👥 Database already populated with ${count} employees.`);
-      }
-    } catch (seedErr) {
-      console.error('⚠️ Auto-seed notice:', seedErr.message);
-    }
+    // Connection Event Listeners
 
     mongoose.connection.on('error', (err) => {
       console.error('MongoDB runtime error:', err.message);

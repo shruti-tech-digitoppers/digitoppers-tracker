@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useMemo } from 'react';
 import { usePermissionContext } from '../../context/PermissionContext';
 import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/timeline';
 import { IUser } from '../../types/auth';
@@ -10,6 +10,7 @@ import { useClickOutside } from '../../hooks/useClickOutside';
 import { getStageTheme } from './utils/stageColorThemes';
 import {
   X,
+  Check,
   CheckCircle2,
   Clock,
   AlertCircle,
@@ -21,8 +22,16 @@ import {
   ShieldAlert,
   Sparkles,
   Layers,
-  Building2
+  Building2,
+  ChevronLeft,
+  ChevronRight,
+  ArrowLeft,
+  ArrowRight,
+  AlertTriangle,
+  Save,
+  Loader2
 } from 'lucide-react';
+import { formatTimelineDate, formatTimeAgo } from './utils/timeFormat';
 
 interface NodeInspectorDrawerProps {
   node: ITimelineNode | null;
@@ -42,6 +51,8 @@ interface NodeInspectorDrawerProps {
   onAssigneeChange?: (employeeId: string, targetNodeId?: string) => Promise<void>;
   onAssignmentChange?: (employeeId: string, targetNodeId?: string) => Promise<void>;
   onFormSubmit: (formData: Record<string, any>) => Promise<void>;
+  onSelectNode?: (node: ITimelineNode) => void;
+  onNavigateNode?: (node: ITimelineNode) => void;
   canModifyStatus?: boolean;
   canEditStatus?: boolean;
   canModifyAssignment?: boolean;
@@ -67,15 +78,110 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   onAssigneeChange,
   onAssignmentChange,
   onFormSubmit,
+  onSelectNode,
+  onNavigateNode,
   canModifyStatus,
   canEditStatus,
   canModifyAssignment,
   canAssign,
   allNodes = [],
 }) => {
+  const handleNavigate = onSelectNode || onNavigateNode;
+
+  const [isFormDirty, setIsFormDirty] = React.useState<boolean>(false);
+  const [showUnsavedWarning, setShowUnsavedWarning] = React.useState<boolean>(false);
+  const [pendingAction, setPendingAction] = React.useState<{ type: 'CLOSE' } | { type: 'NAVIGATE'; targetNode: ITimelineNode } | null>(null);
+  const formRef = React.useRef<{ submitForm: () => Promise<void>; isDirty: () => boolean; getFormData: () => Record<string, any> } | null>(null);
+
+  // Reset dirty state when switching node
+  React.useEffect(() => {
+    setIsFormDirty(false);
+    setShowUnsavedWarning(false);
+    setPendingAction(null);
+  }, [node?._id]);
+
+  const requestClose = () => {
+    if (isFormDirty) {
+      setPendingAction({ type: 'CLOSE' });
+      setShowUnsavedWarning(true);
+    } else {
+      onClose();
+    }
+  };
+
+  const requestNavigate = (targetNode: ITimelineNode) => {
+    if (isFormDirty) {
+      setPendingAction({ type: 'NAVIGATE', targetNode });
+      setShowUnsavedWarning(true);
+    } else if (handleNavigate) {
+      handleNavigate(targetNode);
+    }
+  };
+
   const modalRef = useClickOutside<HTMLDivElement>(() => {
-    onClose();
+    requestClose();
   }, { enabled: Boolean(node) });
+
+  // Native browser prompt on tab close / reload if dirty
+  React.useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (isFormDirty) {
+        e.preventDefault();
+        e.returnValue = '';
+      }
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [isFormDirty]);
+
+  const flatNodes = React.useMemo(() => {
+    const result: ITimelineNode[] = [];
+    const traverse = (list: ITimelineNode[]) => {
+      for (const item of list) {
+        if (!item) continue;
+        if (item.key === 'PI_REQUEST') continue;
+        result.push(item);
+        if (item.children && Array.isArray(item.children) && item.children.length > 0) {
+          traverse(item.children);
+        }
+      }
+    };
+    traverse(allNodes);
+    return result;
+  }, [allNodes]);
+
+  const currentIndex = React.useMemo(() => {
+    if (!node) return -1;
+    return flatNodes.findIndex(
+      (n) => n._id === node._id || (node.key && n.key === node.key)
+    );
+  }, [flatNodes, node]);
+
+  const prevNode = currentIndex > 0 ? flatNodes[currentIndex - 1] : null;
+  const nextNode = currentIndex >= 0 && currentIndex < flatNodes.length - 1 ? flatNodes[currentIndex + 1] : null;
+
+  // Keyboard navigation shortcuts: Alt + ArrowLeft / Alt + ArrowRight or Arrow keys when not typing
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+
+      if ((e.altKey && e.key === 'ArrowLeft') || e.key === 'ArrowLeft') {
+        if (prevNode && handleNavigate) {
+          e.preventDefault();
+          requestNavigate(prevNode);
+        }
+      } else if ((e.altKey && e.key === 'ArrowRight') || e.key === 'ArrowRight') {
+        if (nextNode && handleNavigate) {
+          e.preventDefault();
+          requestNavigate(nextNode);
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [prevNode, nextNode, handleNavigate, isFormDirty]);
 
   if (!node || !currentUser) return null;
 
@@ -200,8 +306,13 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
 
   // Extract stage 03 and stage 04 context for seamless cross-stage data flow
   const findNodeRecursive = (list: ITimelineNode[], targetKey: string): ITimelineNode | null => {
+    if (!Array.isArray(list)) return null;
     for (const item of list) {
-      if (item.key === targetKey) return item;
+      const k = (item.key || '').toUpperCase();
+      const target = targetKey.toUpperCase();
+      if (k === target || k.includes(target) || (target === 'SCHOOL_ONBOARDING_INFORMATION' && (k.includes('SCHOOL') || (item.name || '').toLowerCase().includes('school')))) {
+        return item;
+      }
       if (item.children && item.children.length > 0) {
         const found = findNodeRecursive(item.children, targetKey);
         if (found) return found;
@@ -210,25 +321,49 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     return null;
   };
 
-  const stage3SchoolNode = findNodeRecursive(allNodes, 'SCHOOL_ONBOARDING_INFORMATION');
-  const stage3SolNode = findNodeRecursive(allNodes, 'SOLUTION_SELECTION');
-  const stage3HwNode = findNodeRecursive(allNodes, 'HARDWARE_REQUIREMENT');
-  const stage4StockNode = findNodeRecursive(allNodes, 'REQ_AND_STOCK_CHECK');
-  const stage4TechNode = findNodeRecursive(allNodes, 'PROJECT_CONFIG_AND_IMPLEMENTATION');
+  const stage3SchoolNode = useMemo(() => findNodeRecursive(allNodes, 'SCHOOL_ONBOARDING_INFORMATION'), [allNodes]);
+  const stage3SolNode = useMemo(() => findNodeRecursive(allNodes, 'SOLUTION_SELECTION'), [allNodes]);
+  const stage3HwNode = useMemo(() => findNodeRecursive(allNodes, 'HARDWARE_REQUIREMENT'), [allNodes]);
+  const stage4StockNode = useMemo(() => findNodeRecursive(allNodes, 'REQ_AND_STOCK_CHECK'), [allNodes]);
+  const stage4TechNode = useMemo(() => findNodeRecursive(allNodes, 'PROJECT_CONFIG_AND_IMPLEMENTATION'), [allNodes]);
 
-  const resolvedSchools = 
-    stage3SchoolNode?.formData?.schools || 
-    (project as any)?.orderRequirement?.schoolInformation?.schools || 
-    (project as any)?.schools || 
-    (stage3SchoolNode?.formData?.schoolName ? [{
-      id: 'school-1',
-      schoolName: stage3SchoolNode.formData.schoolName,
-      address: stage3SchoolNode.formData.address || '',
-      classes: stage3SchoolNode.formData.classes || [],
-      pocName: stage3SchoolNode.formData.pocName || stage3SchoolNode.formData.contactPerson || '',
-      phone: stage3SchoolNode.formData.phone || '',
-      email: stage3SchoolNode.formData.email || ''
-    }] : []);
+  const resolvedSchools = useMemo(() => {
+    // 1. Check stage3SchoolNode.formData.schools
+    if (Array.isArray(stage3SchoolNode?.formData?.schools) && stage3SchoolNode.formData.schools.length > 0) {
+      return stage3SchoolNode.formData.schools;
+    }
+    // 2. Check current formData.schools (if user is in school node or has schools)
+    if (Array.isArray(formData?.schools) && formData.schools.length > 0) {
+      return formData.schools;
+    }
+    // 3. Check project orderRequirement
+    const projSchools =
+      (project as any)?.orderRequirement?.schoolInformation?.schools ||
+      (project as any)?.orderRequirement?.schools ||
+      (project as any)?.schools;
+    if (Array.isArray(projSchools) && projSchools.length > 0) {
+      return projSchools;
+    }
+    // 4. Single school fallback
+    const singleName =
+      stage3SchoolNode?.formData?.schoolName ||
+      formData?.schoolName ||
+      (project as any)?.orderRequirement?.schoolInformation?.schoolName ||
+      (project as any)?.projectName ||
+      (project as any)?.title;
+    if (singleName) {
+      return [{
+        id: 'school-1',
+        schoolName: singleName,
+        address: stage3SchoolNode?.formData?.addressContact || stage3SchoolNode?.formData?.address || formData?.addressContact || '',
+        classes: stage3SchoolNode?.formData?.classes || formData?.classes || [],
+        pocName: stage3SchoolNode?.formData?.pocName || stage3SchoolNode?.formData?.contactPerson || formData?.pocName || '',
+        phone: stage3SchoolNode?.formData?.pocContact || stage3SchoolNode?.formData?.phone || formData?.phone || '',
+        email: stage3SchoolNode?.formData?.email || formData?.email || ''
+      }];
+    }
+    return [];
+  }, [stage3SchoolNode, formData, project]);
 
   const combinedAllFormData: Record<string, any> = {
     ...(formData || {}),
@@ -240,16 +375,40 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     stage3HardwareKeys: stage3HwNode?.formData?.activeHardwareKeys || stage3HwNode?.formData?.hardwareRequirements?.activeHardwareKeys || (project as any)?.orderRequirement?.hardwareRequirement?.activeHardwareKeys || [],
     stage3SchoolWiseHardware: stage3HwNode?.formData?.schoolWiseHardware || stage3HwNode?.formData?.hardwareRequirements?.schoolWiseHardware || (project as any)?.orderRequirement?.hardwareRequirement?.schoolWiseHardware || {},
     stage3HardwareItems: stage3HwNode?.formData?.hardwareRequirements?.items || stage3HwNode?.formData?.hardware?.items || stage3HwNode?.formData?.items || (project as any)?.orderRequirement?.hardwareRequirement?.items || {},
-    stage4StockItems: stage4StockNode?.formData?.stockCheck?.items || stage4StockNode?.formData?.items || {},
+    // REQ_AND_STOCK_CHECK saves as: { stockCheck: { items: { IFP_PANEL: { stockDecision, purchaseQty, ... } } } }
+    // Resolve all possible paths to get the stock check items
+    stage4StockItems: (
+      stage4StockNode?.formData?.stockCheck?.items ||
+      stage4StockNode?.formData?.items ||
+      stage4StockNode?.formData?.stockCheckItems ||
+      (project as any)?.execution?.hardware?.reqAndStockCheck?.stockCheck?.items ||
+      {}
+    ),
+    // Raw full formData of REQ_AND_STOCK_CHECK node for direct access
+    stage4StockNodeFormData: stage4StockNode?.formData || {},
     techApkFileUrl: stage4TechNode?.formData?.apkFileUrl || stage4TechNode?.formData?.appFileUrl || stage4TechNode?.formData?.fileUrl || '',
     techFormData: stage4TechNode?.formData || {},
+  };
+
+  const [justSaved, setJustSaved] = React.useState<boolean>(false);
+
+  const handleFooterSave = async () => {
+    if (!formRef.current || isCurrentlyMutating) return;
+    try {
+      await formRef.current.submitForm();
+      setIsFormDirty(false);
+      setJustSaved(true);
+      setTimeout(() => setJustSaved(false), 3000);
+    } catch {
+      // Handled inside form
+    }
   };
 
   return (
     <div className="fixed inset-0 z-50 overflow-y-auto flex items-center justify-center p-3 sm:p-6 md:p-8 font-sans">
       {/* Backdrop */}
       <div
-        onClick={onClose}
+        onClick={requestClose}
         className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity animate-in fade-in duration-200"
       />
 
@@ -275,11 +434,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   </span>
                 </div>
               )}
-              {/* Stage Title with Stage Color Family Badges */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${stageTheme.drawerBadgeBg} ${stageTheme.drawerBadgeText} ${stageTheme.drawerBadgeBorder}`}>
-                  {node.key}
-                </span>
+              {/* Stage / Task Title */}
+              <div className="flex items-center gap-2.5 flex-wrap">
                 <h3 className="font-heading font-extrabold text-base sm:text-lg text-[#1f2937] leading-tight truncate">
                   {node.name}
                 </h3>
@@ -315,7 +471,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
 
               {/* Close Modal Button */}
               <button
-                onClick={onClose}
+                onClick={requestClose}
                 className="w-9 h-9 rounded-xl flex items-center justify-center text-[#4a5462] hover:text-[#333333] hover:bg-[#f1f3f6] border border-[#b9c0cb]/40 hover:border-[#51a8b1]/50 bg-white transition cursor-pointer shrink-0 shadow-2xs"
                 title="Close modal"
               >
@@ -366,6 +522,45 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Row 3: Quick Prev / Next Navigation Pill directly under Assigned To */}
+            {flatNodes.length > 1 && handleNavigate && (
+              <div className="inline-flex items-center gap-1 bg-white/95 backdrop-blur-xs border border-[#b9c0cb]/50 rounded-xl p-0.5 shadow-2xs justify-end mt-0.5">
+                <button
+                  type="button"
+                  disabled={!prevNode || isCurrentlyMutating}
+                  onClick={() => prevNode && requestNavigate(prevNode)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    prevNode && !isCurrentlyMutating
+                      ? 'text-[#2f4154] hover:bg-[#f0f8f9] hover:text-[#3a7d84] border border-transparent hover:border-[#b6e0e4] cursor-pointer active:scale-95'
+                      : 'text-[#94a3b8] opacity-40 cursor-not-allowed border border-transparent'
+                  }`}
+                  title={prevNode ? `Previous: ${prevNode.name} (Alt+←)` : 'No previous stage/task'}
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Prev</span>
+                </button>
+
+                <span className="text-[10px] font-mono font-extrabold px-2 py-0.5 rounded bg-[#f1f3f6] text-[#4a5462]">
+                  {currentIndex >= 0 ? `${currentIndex + 1}/${flatNodes.length}` : '—'}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={!nextNode || isCurrentlyMutating}
+                  onClick={() => nextNode && requestNavigate(nextNode)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${
+                    nextNode && !isCurrentlyMutating
+                      ? 'text-[#2f4154] hover:bg-[#f0f8f9] hover:text-[#3a7d84] border border-transparent hover:border-[#b6e0e4] cursor-pointer active:scale-95'
+                      : 'text-[#94a3b8] opacity-40 cursor-not-allowed border border-transparent'
+                  }`}
+                  title={nextNode ? `Next: ${nextNode.name} (Alt+→)` : 'No next stage/task'}
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -469,11 +664,6 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                                 {childStatus}
                               </span>
                             </div>
-                            <div className="mt-0.5">
-                              <span className="text-[10px] font-mono font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-1.5 py-0.5 rounded-md">
-                                {child.key || 'TASK'}
-                              </span>
-                            </div>
                           </div>
                         </div>
 
@@ -535,10 +725,205 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               project={project}
               currentUser={currentUser}
               onStatusChange={onStatusChange}
+              onDirtyChange={(dirty) => setIsFormDirty(dirty)}
+              formRef={formRef}
+              hideFooter={true}
             />
           </div>
         </div>
+
+        {/* Unified Modal Footer with Previous, Timestamp Info, Save Action & Next Navigation */}
+        <div className="px-6 py-3.5 bg-[#f8fafc]/95 backdrop-blur-xs border-t border-[#e2e8f0] shadow-[0_-4px_16px_rgba(0,0,0,0.03)] flex flex-wrap items-center justify-between gap-3 shrink-0">
+          {/* Left: Previous Stage / Task Button */}
+          {flatNodes.length > 1 && handleNavigate ? (
+            <button
+              type="button"
+              disabled={!prevNode || isCurrentlyMutating}
+              onClick={() => prevNode && requestNavigate(prevNode)}
+              className={`h-[42px] inline-flex items-center gap-2.5 px-3.5 rounded-xl text-xs font-bold transition-all border ${
+                prevNode && !isCurrentlyMutating
+                  ? 'bg-white text-[#1e293b] border-[#cbd5e1] hover:bg-[#f0f8f9] hover:text-[#3a7d84] hover:border-[#51a8b1] shadow-2xs hover:shadow-xs cursor-pointer active:scale-95'
+                  : 'bg-white/60 text-[#94a3b8] border-[#e2e8f0] opacity-40 cursor-not-allowed'
+              }`}
+              title={prevNode ? `Previous: ${prevNode.name} (Alt+←)` : 'No previous stage/task'}
+            >
+              <div className="w-6 h-6 rounded-lg bg-[#51a8b1]/10 flex items-center justify-center text-[#3a7d84] shrink-0">
+                <ChevronLeft className="w-4 h-4" />
+              </div>
+              <div className="flex flex-col items-start text-left min-w-0">
+                <span className="text-[9px] uppercase font-mono font-bold tracking-wider text-[#64748b]">Previous</span>
+                <span className="font-bold text-[#0f172a] text-[11.5px] truncate max-w-[130px] sm:max-w-[180px]">
+                  {prevNode ? prevNode.name : 'First Stage'}
+                </span>
+              </div>
+            </button>
+          ) : <div />}
+
+          {/* Right Group: Save Button + Next Stage / Task Button */}
+          <div className="flex items-center gap-2.5 ml-auto">
+            {/* Save Button */}
+            <button
+              type="button"
+              disabled={isCurrentlyMutating || (!isFormDirty && !justSaved)}
+              onClick={handleFooterSave}
+              className={`h-[42px] inline-flex items-center gap-2 px-4 rounded-xl text-xs font-bold transition-all border ${
+                justSaved
+                  ? 'bg-[#10b981] text-white border-[#10b981] shadow-xs cursor-default'
+                  : isFormDirty
+                    ? 'bg-[#51a8b1] hover:bg-[#3a7d84] text-white border-[#51a8b1] shadow-xs hover:shadow-md cursor-pointer active:scale-95'
+                    : 'bg-white border-[#cbd5e1]/80 text-[#64748b] cursor-default shadow-2xs'
+              }`}
+            >
+              {isCurrentlyMutating ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin !text-white" style={{ color: '#ffffff' }} />
+                  <span className="!text-white font-bold" style={{ color: '#ffffff' }}>Saving...</span>
+                </>
+              ) : justSaved ? (
+                <>
+                  <Check className="w-3.5 h-3.5 !text-white" style={{ color: '#ffffff' }} />
+                  <span className="!text-white font-bold" style={{ color: '#ffffff' }}>Saved!</span>
+                </>
+              ) : isFormDirty ? (
+                <>
+                  <Save className="w-3.5 h-3.5 !text-white" style={{ color: '#ffffff' }} />
+                  <span className="!text-white font-bold" style={{ color: '#ffffff' }}>Save Changes</span>
+                </>
+              ) : (
+                <>
+                  <Check className="w-3.5 h-3.5 text-[#10b981]" />
+                  <span className="text-[#334155] font-bold">Saved</span>
+                </>
+              )}
+            </button>
+
+            {/* Next Stage / Task Button with Guaranteed White Typography */}
+            {flatNodes.length > 1 && handleNavigate && (
+              <button
+                type="button"
+                disabled={!nextNode || isCurrentlyMutating}
+                onClick={() => nextNode && requestNavigate(nextNode)}
+                className={`h-[42px] inline-flex items-center gap-2.5 px-4 rounded-xl text-xs font-bold transition-all border ${
+                  nextNode && !isCurrentlyMutating
+                    ? 'bg-gradient-to-r from-[#51a8b1] to-[#3a7d84] !text-white border-[#3a7d84] shadow-xs hover:shadow-md cursor-pointer active:scale-95 hover:opacity-95'
+                    : 'bg-white/60 text-[#94a3b8] border-[#e2e8f0] opacity-40 cursor-not-allowed'
+                }`}
+                title={nextNode ? `Next: ${nextNode.name} (Alt+→)` : 'No next stage/task'}
+                style={nextNode && !isCurrentlyMutating ? { color: '#ffffff', backgroundColor: '#3a7d84' } : undefined}
+              >
+                <div className="flex flex-col items-end text-right min-w-0">
+                  <span
+                    className="text-[9px] uppercase font-mono font-bold tracking-wider !text-white opacity-90"
+                    style={{ color: '#ffffff' }}
+                  >
+                    Next
+                  </span>
+                  <span
+                    className="font-bold text-[11.5px] !text-white truncate max-w-[130px] sm:max-w-[180px]"
+                    style={{ color: '#ffffff' }}
+                  >
+                    {nextNode ? nextNode.name : 'Last Stage'}
+                  </span>
+                </div>
+                <div className="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-white shrink-0">
+                  <ChevronRight className="w-4 h-4 !text-white" style={{ color: '#ffffff' }} />
+                </div>
+              </button>
+            )}
+          </div>
+        </div>
       </div>
+
+      {/* ── Unsaved Changes Confirmation Dialog Modal ── */}
+      {showUnsavedWarning && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-in fade-in duration-150 font-sans">
+          <div className="relative w-full max-w-md bg-white border border-[#b9c0cb]/60 shadow-2xl rounded-3xl p-6 flex flex-col gap-4 animate-in zoom-in-95 duration-150">
+            {/* Header */}
+            <div className="flex items-start gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-amber-600 flex items-center justify-center shrink-0 shadow-2xs">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1 min-w-0">
+                <h4 className="font-heading font-extrabold text-base text-[#1f2937] leading-snug">
+                  Unsaved Changes in Form
+                </h4>
+                <p className="text-xs text-[#556987] leading-relaxed">
+                  You have unsaved modifications in <strong className="text-[#1f2937]">{node.name}</strong>. If you leave without saving, your changes will be lost.
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-3 border-t border-[#f1f3f6]">
+              {/* Keep Editing */}
+              <button
+                type="button"
+                onClick={() => {
+                  setShowUnsavedWarning(false);
+                  setPendingAction(null);
+                }}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold text-[#4a5462] bg-[#f8fafb] hover:bg-[#f1f3f6] border border-[#b9c0cb]/40 transition cursor-pointer"
+              >
+                Keep Editing
+              </button>
+
+              {/* Discard & Leave */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsFormDirty(false);
+                  setShowUnsavedWarning(false);
+                  if (pendingAction?.type === 'CLOSE') {
+                    onClose();
+                  } else if (pendingAction?.type === 'NAVIGATE' && pendingAction.targetNode && handleNavigate) {
+                    handleNavigate(pendingAction.targetNode);
+                  }
+                  setPendingAction(null);
+                }}
+                className="w-full sm:w-auto px-4 py-2 rounded-xl text-xs font-bold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 transition cursor-pointer"
+              >
+                Discard & Leave
+              </button>
+
+              {/* Save & Proceed */}
+              <button
+                type="button"
+                disabled={isCurrentlyMutating}
+                onClick={async () => {
+                  if (formRef.current) {
+                    try {
+                      await formRef.current.submitForm();
+                      setIsFormDirty(false);
+                      setShowUnsavedWarning(false);
+                      if (pendingAction?.type === 'CLOSE') {
+                        onClose();
+                      } else if (pendingAction?.type === 'NAVIGATE' && pendingAction.targetNode && handleNavigate) {
+                        handleNavigate(pendingAction.targetNode);
+                      }
+                    } catch {
+                      // Error handled by form
+                    }
+                  }
+                  setPendingAction(null);
+                }}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#51a8b1] hover:bg-[#3a7d84] border border-[#51a8b1] shadow-xs cursor-pointer"
+              >
+                {isCurrentlyMutating ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
+                    <span>Saving...</span>
+                  </>
+                ) : (
+                  <>
+                    <Save className="w-3.5 h-3.5 text-white" />
+                    <span>Save & Proceed</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

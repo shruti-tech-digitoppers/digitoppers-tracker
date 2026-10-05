@@ -70,31 +70,12 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('accessToken')) : null;
 
       if (!token) {
-        // Guest mode: fetch projects and generate project activity feeds
+        // Guest mode: fetch public projects only (no assignments/notifications)
         const res = await projectsApi.getProjects();
         const projectList = res.projects || [];
         setProjects(projectList);
         setEmployees([]);
-
-        // Generate lively timeline updates & assignments from active projects for demonstration
-        const nowIso = new Date().toISOString();
-        const guestNotifications: INotificationItem[] = projectList.slice(0, 5).map((p, idx) => ({
-          _id: `guest-notif-${p._id || idx}`,
-          recipient: 'guest',
-          title: `Project Update: ${p.projectName || (p as any).title || 'Project'}`,
-          message: `Current Status: ${(p as any).currentStage || p.status || 'Active'} is in progress with real-time tracking enabled.`,
-          type: idx === 0 ? 'ASSIGNMENT' : idx === 1 ? 'TASK_ASSIGNED' : 'STATUS_UPDATE',
-          isRead: idx > 1,
-          createdAt: new Date(Date.now() - idx * 3600000).toISOString(),
-          updatedAt: nowIso,
-          metadata: {
-            projectId: p._id,
-            projectName: p.projectName || p.title,
-            projectCustomId: p.projectId,
-            targetUrl: `/tracker?projectId=${p._id}`
-          }
-        }));
-        setNotifications(guestNotifications);
+        setNotifications([]);
 
         setExpandedMap((prev) => {
           const next: Record<string, boolean> = {};
@@ -376,94 +357,200 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
         onSelectFilter={setStatusFilter}
       />
 
-      {/* ── Main Dual Partition Workspace Helpers & Render ── */}
+      {/* ── Top Dual Toggle Buttons (Sized according to text with compact padding) ── */}
       {(() => {
-        const renderTimelineCard = (compact: boolean) => (
-          <div className="bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs hover:shadow-sm overflow-hidden flex flex-col transition-all duration-200">
-            {/* Timeline Card Header */}
-            <div className="p-4 sm:p-4.5 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] border-b border-[#b6e0e4]/50 flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-[#3a7d84] flex items-center justify-center shadow-2xs shrink-0">
-                  <Layers className="w-5 h-5" />
-                </div>
-                <div className="flex items-center gap-2">
-                  <h3 className="font-heading font-bold text-sm sm:text-base text-[#2d6b73] tracking-tight">
-                    Projects Timeline
-                  </h3>
-                  <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]">
-                    {filteredProjects.length}
-                  </span>
-                </div>
+        const unreadCount = notifications.filter((n) => !n.isRead).length;
+
+        return (
+          <div className="flex flex-wrap items-center justify-between gap-4 w-full">
+            {/* Projects Timeline Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setIsTimelineOpen((prev) => !prev)}
+              style={{
+                backgroundColor: isTimelineOpen ? '#2d6b73' : '#ffffff',
+                color: isTimelineOpen ? '#ffffff' : '#2d6b73',
+                borderColor: '#2d6b73',
+              }}
+              className="inline-flex items-center gap-2.5 px-3.5 py-2 sm:px-4 sm:py-2 rounded-xl border transition-all duration-200 cursor-pointer select-none shadow-2xs hover:shadow-xs active:scale-[0.98] group"
+            >
+              <div
+                style={{
+                  backgroundColor: isTimelineOpen ? '#ffffff' : '#2d6b73',
+                  color: isTimelineOpen ? '#2d6b73' : '#ffffff',
+                }}
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 shrink-0"
+              >
+                <Layers className="w-4 h-4" />
               </div>
 
-              {/* Scope Filters (All / Me) + Card Actions */}
-              <div className="flex items-center gap-2 ml-auto flex-wrap">
-                {/* Scope filter */}
-                <div className="flex items-center bg-[#f0f8f9]/80 p-1 rounded-xl border border-[#b6e0e4]/60 text-xs gap-1 shadow-inner">
-                  <button
-                    type="button"
-                    onClick={() => setScopeFilter('ALL')}
-                    className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
-                      scopeFilter === 'ALL'
-                        ? 'bg-white text-[#2d6b73] shadow-xs border border-[#b6e0e4] font-bold'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    <span>All</span>
-                    <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-md bg-slate-200/70 text-slate-700 font-bold">
-                      {projects.length}
-                    </span>
-                  </button>
+              <span
+                style={{ color: isTimelineOpen ? '#ffffff' : '#2d6b73' }}
+                className="font-heading font-extrabold text-xs sm:text-sm tracking-tight"
+              >
+                Projects Timeline
+              </span>
 
-                  {currentUser && (
-                    <button
-                      type="button"
-                      onClick={() => setScopeFilter('ME')}
-                      className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
-                        scopeFilter === 'ME'
-                          ? 'bg-gradient-to-r from-[#3a7d84] to-[#51a8b1] text-white shadow-xs font-bold'
-                          : 'text-slate-600 hover:text-slate-900'
+              <span
+                style={{
+                  backgroundColor: isTimelineOpen ? '#ffffff' : '#2d6b73',
+                  color: isTimelineOpen ? '#2d6b73' : '#ffffff',
+                }}
+                className="font-mono text-xs font-bold px-2 py-0.5 rounded-full shadow-2xs"
+              >
+                {filteredProjects.length}
+              </span>
+
+              <div
+                style={{
+                  backgroundColor: isTimelineOpen ? '#ffffff' : '#2d6b73',
+                  color: isTimelineOpen ? '#2d6b73' : '#ffffff',
+                }}
+                className="w-6 h-6 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 ml-0.5"
+              >
+                {isTimelineOpen ? (
+                  <ChevronUp className="w-3.5 h-3.5" />
+                ) : (
+                  <ChevronDown className="w-3.5 h-3.5" />
+                )}
+              </div>
+            </button>
+
+            {/* Assignments & Notifications Toggle Button (Only when logged in) */}
+            {currentUser && (
+              <button
+                type="button"
+                onClick={() => setIsNotificationsOpen((prev) => !prev)}
+                style={{
+                  backgroundColor: isNotificationsOpen ? '#2d6b73' : '#ffffff',
+                  color: isNotificationsOpen ? '#ffffff' : '#2d6b73',
+                  borderColor: '#2d6b73',
+                }}
+                className="inline-flex items-center gap-2.5 px-3.5 py-2 sm:px-4 sm:py-2 rounded-xl border transition-all duration-200 cursor-pointer select-none shadow-2xs hover:shadow-xs active:scale-[0.98] group"
+              >
+                <div
+                  style={{
+                    backgroundColor: isNotificationsOpen ? '#ffffff' : '#2d6b73',
+                    color: isNotificationsOpen ? '#2d6b73' : '#ffffff',
+                  }}
+                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 shrink-0 relative"
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 && (
+                    <span
+                      className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${
+                        isNotificationsOpen
+                          ? 'bg-rose-500 border-[#2d6b73]'
+                          : 'bg-rose-500 border-white'
                       }`}
-                    >
-                      <UserCheck className="w-3 h-3" />
-                      <span>Me</span>
-                      <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md font-bold ${
-                        scopeFilter === 'ME' ? 'bg-[#2d6b73] text-white' : 'bg-slate-200/70 text-slate-700'
-                      }`}>
-                        {stats.assignedToMe}
-                      </span>
-                    </button>
+                    />
                   )}
                 </div>
 
-                <div className="hidden xl:flex items-center gap-1 pr-1 border-r border-[#b6e0e4]/50">
-                  <button
-                    type="button"
-                    onClick={expandAll}
-                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs"
-                  >
-                    Expand All
-                  </button>
-                  <button
-                    type="button"
-                    onClick={collapseAll}
-                    className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs"
-                  >
-                    Collapse All
-                  </button>
-                </div>
+                <span
+                  style={{ color: isNotificationsOpen ? '#ffffff' : '#2d6b73' }}
+                  className="font-heading font-extrabold text-xs sm:text-sm tracking-tight"
+                >
+                  Assignments &amp; Notifications
+                </span>
 
-                {/* Collapse Arrow Toggle (Only for logged-in users) */}
+                {unreadCount > 0 ? (
+                  <span
+                    className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white shadow-2xs"
+                  >
+                    {unreadCount} new
+                  </span>
+                ) : (
+                  <span
+                    style={{
+                      backgroundColor: isNotificationsOpen ? '#ffffff' : '#2d6b73',
+                      color: isNotificationsOpen ? '#2d6b73' : '#ffffff',
+                    }}
+                    className="font-mono text-xs font-bold px-2 py-0.5 rounded-full shadow-2xs"
+                  >
+                    {notifications.length}
+                  </span>
+                )}
+
+                <div
+                  style={{
+                    backgroundColor: isNotificationsOpen ? '#ffffff' : '#2d6b73',
+                    color: isNotificationsOpen ? '#2d6b73' : '#ffffff',
+                  }}
+                  className="w-6 h-6 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 ml-0.5"
+                >
+                  {isNotificationsOpen ? (
+                    <ChevronUp className="w-3.5 h-3.5" />
+                  ) : (
+                    <ChevronDown className="w-3.5 h-3.5" />
+                  )}
+                </div>
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* ── Main Expanded Content Area (Separated in UI) ── */}
+      {(() => {
+        const renderTimelineCard = (compact: boolean) => (
+          <div className="bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs hover:shadow-sm overflow-hidden flex flex-col transition-all duration-200">
+            {/* Timeline Controls Toolbar */}
+            <div className="p-3 sm:p-3.5 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] border-b border-[#b6e0e4]/50 flex items-center justify-between gap-3 flex-wrap">
+              {/* Scope filter */}
+              <div className="flex items-center bg-[#f0f8f9]/80 p-1 rounded-xl border border-[#b6e0e4]/60 text-xs gap-1 shadow-inner">
+                <button
+                  type="button"
+                  onClick={() => setScopeFilter('ALL')}
+                  className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                    scopeFilter === 'ALL'
+                      ? 'bg-white text-[#2d6b73] shadow-xs border border-[#b6e0e4] font-bold'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <span>All Projects</span>
+                  <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-md bg-slate-200/70 text-slate-700 font-bold">
+                    {projects.length}
+                  </span>
+                </button>
+
                 {currentUser && (
                   <button
                     type="button"
-                    onClick={() => setIsTimelineOpen(false)}
-                    className="w-8 h-8 rounded-xl bg-[#f0f8f9] hover:bg-[#3a7d84] text-[#3a7d84] hover:text-white border border-[#b6e0e4] shadow-2xs transition-all duration-200 flex items-center justify-center cursor-pointer group/btn"
-                    title="Collapse Projects Timeline"
+                    onClick={() => setScopeFilter('ME')}
+                    className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
+                      scopeFilter === 'ME'
+                        ? 'bg-gradient-to-r from-[#3a7d84] to-[#51a8b1] text-white shadow-xs font-bold'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
                   >
-                    <ChevronUp className="w-4 h-4 transition-transform duration-200 group-hover/btn:-translate-y-0.5" />
+                    <UserCheck className="w-3 h-3" />
+                    <span>Assigned to Me</span>
+                    <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md font-bold ${
+                      scopeFilter === 'ME' ? 'bg-[#2d6b73] text-white' : 'bg-slate-200/70 text-slate-700'
+                    }`}>
+                      {stats.assignedToMe}
+                    </span>
                   </button>
                 )}
+              </div>
+
+              {/* Action Buttons: Expand All & Collapse All */}
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={expandAll}
+                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs"
+                >
+                  Expand All
+                </button>
+                <button
+                  type="button"
+                  onClick={collapseAll}
+                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs"
+                >
+                  Collapse All
+                </button>
               </div>
             </div>
 
@@ -500,66 +587,16 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           />
         );
 
-        const renderCollapsedTimelineDock = () => (
-          <div
-            onClick={() => setIsTimelineOpen(true)}
-            className="w-full bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs p-3.5 sm:p-4 px-5 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-[#51a8b1] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 group select-none"
-          >
-            <div className="flex items-center gap-3.5">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] flex items-center justify-center text-[#3a7d84] shadow-2xs group-hover:bg-[#3a7d84] group-hover:text-white group-hover:border-[#3a7d84] transition-all duration-200">
-                <Layers className="w-5 h-5" />
-              </div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-[#2d6b73] group-hover:text-[#1e4a50] transition-colors">
-                  Projects Timeline
-                </h4>
-                <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]">
-                  {filteredProjects.length}
-                </span>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="w-8 h-8 rounded-xl bg-[#f0f8f9] group-hover:bg-[#3a7d84] text-[#3a7d84] group-hover:text-white border border-[#b6e0e4] group-hover:border-[#3a7d84] flex items-center justify-center shadow-2xs transition-all duration-200"
-              title="Open Projects Timeline"
-            >
-              <ChevronDown className="w-4 h-4 transition-transform duration-200 group-hover:translate-y-0.5" />
-            </button>
-          </div>
-        );
-
-        const renderCollapsedNotificationsDock = () => (
-          <div
-            onClick={() => setIsNotificationsOpen(true)}
-            className="w-full bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs p-3.5 sm:p-4 px-5 flex items-center justify-between cursor-pointer hover:shadow-md hover:border-[#51a8b1] hover:scale-[1.01] active:scale-[0.99] transition-all duration-200 group select-none"
-          >
-            <div className="flex items-center gap-3.5">
-              <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] flex items-center justify-center text-[#3a7d84] shadow-2xs group-hover:bg-[#3a7d84] group-hover:text-white group-hover:border-[#3a7d84] transition-all duration-200">
-                <Bell className="w-5 h-5" />
-              </div>
-              <div className="flex items-center gap-2">
-                <h4 className="text-sm font-bold text-[#2d6b73] group-hover:text-[#1e4a50] transition-colors">
-                  Assignments &amp; Notifications
-                </h4>
-              </div>
-            </div>
-            <button
-              type="button"
-              className="w-8 h-8 rounded-xl bg-[#f0f8f9] group-hover:bg-[#3a7d84] text-[#3a7d84] group-hover:text-white border border-[#b6e0e4] group-hover:border-[#3a7d84] flex items-center justify-center shadow-2xs transition-all duration-200"
-              title="Open Assignments & Notifications"
-            >
-              <ChevronDown className="w-4 h-4 transition-transform duration-200 group-hover:translate-y-0.5" />
-            </button>
-          </div>
-        );
-
-        // For unauthenticated users (without login): ONLY Stats Cards + Timeline are shown
+        // For unauthenticated users (without login): only show the full-width Timeline Card
         if (!currentUser) {
-          return (
-            <div className="w-full min-w-0 transition-all duration-300">
-              {renderTimelineCard(false)}
-            </div>
-          );
+          if (isTimelineOpen) {
+            return (
+              <div className="w-full min-w-0 transition-all duration-300">
+                {renderTimelineCard(false)}
+              </div>
+            );
+          }
+          return null;
         }
 
         // Case 1: Both Open (70% Timeline / 30% Notifications side-by-side)
@@ -576,37 +613,26 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           );
         }
 
-        // Case 2: Only Timeline Open (Collapsed Notifications Dock sits ABOVE, Timeline takes 100% space)
+        // Case 2: Only Timeline Open (Takes 100% full space)
         if (isTimelineOpen && !isNotificationsOpen) {
           return (
-            <div className="space-y-4 transition-all duration-300">
-              {renderCollapsedNotificationsDock()}
-              <div className="w-full min-w-0 transition-all duration-300">
-                {renderTimelineCard(false)}
-              </div>
+            <div className="w-full min-w-0 transition-all duration-300">
+              {renderTimelineCard(false)}
             </div>
           );
         }
 
-        // Case 3: Only Notifications Open (Collapsed Timeline Dock sits ABOVE, Notifications takes 100% space)
+        // Case 3: Only Notifications Open (Takes 100% full space)
         if (!isTimelineOpen && isNotificationsOpen) {
           return (
-            <div className="space-y-4 transition-all duration-300">
-              {renderCollapsedTimelineDock()}
-              <div className="w-full min-w-0 transition-all duration-300">
-                {renderNotificationsCard()}
-              </div>
+            <div className="w-full min-w-0 transition-all duration-300">
+              {renderNotificationsCard()}
             </div>
           );
         }
 
-        // Case 4: Both Collapsed (Render side-by-side summary docks)
-        return (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 transition-all duration-300">
-            {renderCollapsedTimelineDock()}
-            {renderCollapsedNotificationsDock()}
-          </div>
-        );
+        // Case 4: Both Collapsed
+        return null;
       })()}
 
       {/* ── Project Creation Request Modal ────────────── */}

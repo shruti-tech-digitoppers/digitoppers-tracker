@@ -445,7 +445,7 @@ export function MultiPiInvoiceSection({
             <div className="flex items-center gap-2">
               <FileText className="w-4 h-4 text-[#3a7d84]" />
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] font-heading">
-                1. Proforma Invoices ({piList.length})
+                Proforma Invoices ({piList.length})
               </h4>
               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
                 PDF / Image • Max 2MB
@@ -723,7 +723,7 @@ export function MultiPiInvoiceSection({
             <div className="flex items-center gap-2">
               <Receipt className="w-4 h-4 text-[#b45309]" />
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#b45309] font-heading">
-                2. Tax Invoices & E-Way ({taxInvoiceList.length})
+                Tax Invoices & E-Way ({taxInvoiceList.length})
               </h4>
               <span className="text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-[#fdfaf6] text-[#b45309] border border-[#fed7aa]">
                 PDF / Image • Max 2MB

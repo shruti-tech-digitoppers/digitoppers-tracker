@@ -240,7 +240,7 @@ export function InstallationSection({
           const resolvedHw = resolveOrderHardwareForSchool(allFormData, s.id || s._id, idx, s.schoolName || s.name, project);
           return {
             schoolId: s.id || s._id || `sch_${idx}`,
-            schoolName: s.schoolName || s.name || `School Branch #${idx + 1}`,
+            schoolName: s.schoolName || s.name || (upstreamSchools.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
             schoolCode: s.schoolCode || `SCH-00${idx + 1}`,
             address: s.address || '',
             hardwareItems: resolvedHw,
@@ -318,7 +318,7 @@ export function InstallationSection({
     const resolvedHw = resolveOrderHardwareForSchool(allFormData, `sch_${newSchoolNum}`, newSchoolNum - 1, undefined, project);
     const newSchool: ISchoolInstallationData = {
       schoolId: `sch_${newSchoolNum}`,
-      schoolName: `School Branch #${newSchoolNum}`,
+      schoolName: '',
       schoolCode: `SCH-00${newSchoolNum}`,
       hardwareItems: resolvedHw,
       image1Url: '',
@@ -769,8 +769,8 @@ export function InstallationSection({
           <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 flex flex-col justify-between space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 font-heading">
-                <span className="w-4 h-4 rounded-full bg-[#3a7d84] text-white font-mono font-bold text-[9px] flex items-center justify-center">1</span>
-                Image 1
+                <Camera className="w-3.5 h-3.5 text-[#3a7d84]" />
+                Photo 1 (Front View)
               </span>
               {currentSchool.image1Url && (
                 <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded flex items-center gap-0.5">
@@ -832,7 +832,7 @@ export function InstallationSection({
                 ) : (
                   <>
                     <Upload className="w-5 h-5 text-[#3a7d84]" />
-                    <span className="text-xs font-bold text-slate-800">Upload Image 1</span>
+                    <span className="text-xs font-bold text-slate-800">Upload Photo 1</span>
                     <span className="text-[10px] text-slate-400">Click to browse / upload</span>
                   </>
                 )}
@@ -844,8 +844,8 @@ export function InstallationSection({
           <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 flex flex-col justify-between space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 font-heading">
-                <span className="w-4 h-4 rounded-full bg-[#3a7d84] text-white font-mono font-bold text-[9px] flex items-center justify-center">2</span>
-                Image 2
+                <Camera className="w-3.5 h-3.5 text-[#3a7d84]" />
+                Photo 2 (Room Interior)
               </span>
               {currentSchool.image2Url && (
                 <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded flex items-center gap-0.5">
@@ -907,7 +907,7 @@ export function InstallationSection({
                 ) : (
                   <>
                     <Upload className="w-5 h-5 text-[#3a7d84]" />
-                    <span className="text-xs font-bold text-slate-800">Upload Image 2</span>
+                    <span className="text-xs font-bold text-slate-800">Upload Photo 2</span>
                     <span className="text-[10px] text-slate-400">Click to browse / upload</span>
                   </>
                 )}
@@ -919,8 +919,8 @@ export function InstallationSection({
           <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 flex flex-col justify-between space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 font-heading">
-                <span className="w-4 h-4 rounded-full bg-[#3a7d84] text-white font-mono font-bold text-[9px] flex items-center justify-center">3</span>
-                Image 3
+                <Camera className="w-3.5 h-3.5 text-[#3a7d84]" />
+                Photo 3 (Setup Area)
               </span>
               {currentSchool.image3Url && (
                 <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded flex items-center gap-0.5">

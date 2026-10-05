@@ -103,11 +103,11 @@ export function HardwareConfigSection({
         </div>
       )}
 
-      {/* Hardware Products Catalog */}
+      {/* Hardware Products */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between">
           <p className="text-xs font-bold text-[#333333] font-heading">
-            Select Hardware Equipment ({DEFAULT_HARDWARE_ITEMS.length} Catalog Items)
+            Select Hardware Equipment ({DEFAULT_HARDWARE_ITEMS.length} Products)
           </p>
           <span className="text-[10px] font-bold text-[#51a8b1] bg-[#f0f8f9] px-2.5 py-0.5 rounded-full border border-[#b6e0e4]">
             {selectedList.length} Selected ({totalUnits} Units)

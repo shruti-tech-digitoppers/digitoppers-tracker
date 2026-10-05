@@ -284,34 +284,8 @@ export function RecentTimelineNotificationsBox({
 
   return (
     <div className="bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs hover:shadow-sm overflow-hidden font-sans flex flex-col h-[calc(100vh-180px)] min-h-[620px] max-h-[850px] transition-all duration-200">
-      {/* ── Header Section ─────────────────────────────────── */}
-      <div className="p-4 sm:p-4.5 border-b border-[#b6e0e4]/50 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          {/* Title & Icon */}
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-[#3a7d84] flex items-center justify-center shadow-2xs shrink-0">
-              <Bell className="w-4 h-4" />
-            </div>
-            <h2 className="font-heading font-bold text-sm text-[#2d6b73] tracking-tight truncate">
-              Assignments &amp; Notifications
-            </h2>
-          </div>
-
-          {/* Header Action Buttons (Shrink toggle) */}
-          <div className="flex items-center gap-1.5 shrink-0">
-            {onToggleShrink && (
-              <button
-                type="button"
-                onClick={onToggleShrink}
-                className="w-7 h-7 rounded-lg bg-[#f0f8f9] hover:bg-[#3a7d84] text-[#3a7d84] hover:text-white border border-[#b6e0e4] shadow-2xs transition-all duration-200 flex items-center justify-center cursor-pointer group/btn"
-                title="Collapse Notifications"
-              >
-                <ChevronUp className="w-3.5 h-3.5 transition-transform duration-200 group-hover/btn:-translate-y-0.5" />
-              </button>
-            )}
-          </div>
-        </div>
-
+      {/* ── Filter Tabs & Action Controls ─────────────────────────────────── */}
+      <div className="p-3 sm:p-4 border-b border-[#b6e0e4]/50 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] space-y-2.5">
         {/* ── Main Filter Tabs (Assignments / Requests / Updates) ── */}
         <div className="flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-[11px] sm:text-xs shadow-inner gap-1">
           <button

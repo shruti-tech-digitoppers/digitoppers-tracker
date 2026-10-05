@@ -13,9 +13,13 @@ import {
   extractEffectiveSchools,
   getClassPreset
 } from '../utils/formHelpers';
+import { useSolutionsAndHardware, MasterSolution } from '@/lib/hooks/useSolutionsAndHardware';
+import { InstitutionalSchoolSelector } from '../common/InstitutionalSchoolSelector';
+import { StepSectionHeader } from '../common/StepSectionHeader';
 import {
   Check,
   School,
+  Building2,
   BookOpen,
   ChevronDown,
   Search,
@@ -137,11 +141,10 @@ function ClassesMultiSelectDropdown({
       {/* Trigger Button */}
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full min-h-[38px] px-3 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${
-          isOpen
+        className={`w-full min-h-[38px] px-3 py-1.5 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${isOpen
             ? 'border-[#51a8b1] ring-2 ring-[#51a8b1]/25 shadow-xs'
             : 'border-slate-200 hover:border-[#51a8b1]/70'
-        } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : ''}`}
+          } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : ''}`}
       >
         <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0 py-0.5">
           {selectedClasses.length === 0 ? (
@@ -194,9 +197,8 @@ function ClassesMultiSelectDropdown({
             </button>
           )}
           <ChevronDown
-            className={`w-4 h-4 text-[#51a8b1] transition-transform duration-200 ${
-              isOpen ? 'rotate-180' : ''
-            }`}
+            className={`w-4 h-4 text-[#51a8b1] transition-transform duration-200 ${isOpen ? 'rotate-180' : ''
+              }`}
           />
         </div>
       </div>
@@ -297,11 +299,10 @@ function ClassesMultiSelectDropdown({
                             type="button"
                             key={cls}
                             onClick={() => toggleClass(cls)}
-                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${
-                              isSelected
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${isSelected
                                 ? 'bg-[#3a7d84] text-white border-[#3a7d84]'
                                 : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
-                            }`}
+                              }`}
                           >
                             <span className="truncate">{cls}</span>
                             {isSelected ? (
@@ -330,11 +331,10 @@ function ClassesMultiSelectDropdown({
                             type="button"
                             key={cls}
                             onClick={() => toggleClass(cls)}
-                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${
-                              isSelected
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${isSelected
                                 ? 'bg-[#3a7d84] text-white border-[#3a7d84]'
                                 : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
-                            }`}
+                              }`}
                           >
                             <span className="truncate">{cls}</span>
                             {isSelected ? (
@@ -363,11 +363,10 @@ function ClassesMultiSelectDropdown({
                             type="button"
                             key={cls}
                             onClick={() => toggleClass(cls)}
-                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${
-                              isSelected
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${isSelected
                                 ? 'bg-[#3a7d84] text-white border-[#3a7d84]'
                                 : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
-                            }`}
+                              }`}
                           >
                             <span className="truncate">{cls}</span>
                             {isSelected ? (
@@ -396,11 +395,10 @@ function ClassesMultiSelectDropdown({
                             type="button"
                             key={cls}
                             onClick={() => toggleClass(cls)}
-                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${
-                              isSelected
+                            className={`px-2 py-1 rounded-lg text-xs font-medium border flex items-center justify-between transition cursor-pointer text-left ${isSelected
                                 ? 'bg-[#3a7d84] text-white border-[#3a7d84]'
                                 : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
-                            }`}
+                              }`}
                           >
                             <span className="truncate">{cls}</span>
                             {isSelected ? (
@@ -441,6 +439,7 @@ function ClassesMultiSelectDropdown({
 interface SchoolSolutionsDropdownProps {
   selectedKeys: string[];
   schoolName: string;
+  solutions?: MasterSolution[];
   onToggleSolution: (key: string) => void;
   onSelectAll: () => void;
   onClearAll: () => void;
@@ -450,6 +449,7 @@ interface SchoolSolutionsDropdownProps {
 function SchoolSolutionsMultiSelectDropdown({
   selectedKeys,
   schoolName,
+  solutions = DEFAULT_SOLUTIONS,
   onToggleSolution,
   onSelectAll,
   onClearAll,
@@ -474,13 +474,13 @@ function SchoolSolutionsMultiSelectDropdown({
   }, [isOpen]);
 
   const filteredSolutions = useMemo(() =>
-    DEFAULT_SOLUTIONS.filter(
+    solutions.filter(
       (item) =>
         item.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        item.desc.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (item.desc || item.description || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
         item.key.toLowerCase().includes(searchQuery.toLowerCase())
     ),
-    [searchQuery]
+    [solutions, searchQuery]
   );
 
   return (
@@ -488,11 +488,10 @@ function SchoolSolutionsMultiSelectDropdown({
       {/* Main Trigger Dropdown Field */}
       <div
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full min-h-[46px] px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${
-          isOpen
+        className={`w-full min-h-[46px] px-3.5 py-2 rounded-xl border transition-all cursor-pointer flex items-center justify-between gap-2 bg-white ${isOpen
             ? 'border-[#51a8b1] ring-2 ring-[#51a8b1]/20 shadow-xs'
             : 'border-slate-300 hover:border-[#51a8b1] shadow-2xs'
-        } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : ''}`}
+          } ${disabled ? 'opacity-60 cursor-not-allowed bg-slate-50' : ''}`}
       >
         <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0 py-0.5">
           {selectedKeys.length === 0 ? (
@@ -501,7 +500,7 @@ function SchoolSolutionsMultiSelectDropdown({
             </span>
           ) : (
             selectedKeys.map((key) => {
-              const sol = DEFAULT_SOLUTIONS.find((s) => s.key === key);
+              const sol = solutions.find((s) => s.key === key) || DEFAULT_SOLUTIONS.find((s) => s.key === key);
               return (
                 <span
                   key={key}
@@ -541,9 +540,8 @@ function SchoolSolutionsMultiSelectDropdown({
             </button>
           )}
           <ChevronDown
-            className={`w-4 h-4 transition-transform duration-200 ${
-              isOpen ? 'rotate-180' : ''
-            }`}
+            className={`w-4 h-4 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''
+              }`}
           />
         </div>
       </div>
@@ -611,11 +609,10 @@ function SchoolSolutionsMultiSelectDropdown({
                   <div
                     key={sol.key}
                     onClick={() => onToggleSolution(sol.key)}
-                    className={`px-3 py-2 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${
-                      isSelected
+                    className={`px-3 py-2 rounded-xl border transition-all cursor-pointer select-none flex items-center justify-between gap-3 ${isSelected
                         ? 'bg-[#f0f8f9] border-[#51a8b1] ring-1 ring-[#51a8b1] shadow-2xs'
                         : 'bg-white border-slate-200 hover:border-[#51a8b1] hover:bg-slate-50'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-2 min-w-0">
                       <h5 className="text-xs font-bold text-slate-800 truncate font-heading">
@@ -624,11 +621,10 @@ function SchoolSolutionsMultiSelectDropdown({
                     </div>
 
                     <div
-                      className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] transition-colors shrink-0 ${
-                        isSelected
+                      className={`w-4 h-4 rounded flex items-center justify-center border text-[10px] transition-colors shrink-0 ${isSelected
                           ? 'bg-[#3a7d84] border-[#3a7d84] text-white'
                           : 'border-slate-300 bg-white'
-                      }`}
+                        }`}
                     >
                       {isSelected && <Check className="w-3 h-3 stroke-[3]" />}
                     </div>
@@ -665,30 +661,15 @@ export function SolutionsConfigTable({
   schools = [],
   allFormData = {},
 }: SolutionsConfigTableProps) {
+  const { solutions: masterSolutions } = useSolutionsAndHardware();
+  const catalogSolutions = masterSolutions;
+
   // 1. Determine effective schools list
   const effectiveSchools = useMemo<EffectiveSchoolItem[]>(() => {
     return extractEffectiveSchools(schools, allFormData, value);
   }, [schools, allFormData, value]);
 
   const [activeSchoolIndex, setActiveSchoolIndex] = useState<number>(0);
-  const [isSchoolDropdownOpen, setIsSchoolDropdownOpen] = useState<boolean>(false);
-  const [schoolSearchQuery, setSchoolSearchQuery] = useState<string>('');
-  const schoolDropdownRef = useRef<HTMLDivElement>(null);
-
-  // Close school dropdown when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (schoolDropdownRef.current && !schoolDropdownRef.current.contains(event.target as Node)) {
-        setIsSchoolDropdownOpen(false);
-      }
-    }
-    if (isSchoolDropdownOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [isSchoolDropdownOpen]);
 
   const currentSchool =
     effectiveSchools[Math.min(activeSchoolIndex, effectiveSchools.length - 1)] ||
@@ -711,10 +692,10 @@ export function SolutionsConfigTable({
         const classesArr = Array.isArray(legacy.targetClasses)
           ? legacy.targetClasses
           : typeof legacy.targetClasses === 'string' && legacy.targetClasses
-          ? legacy.targetClasses.split(',').map((c: string) => c.trim()).filter(Boolean)
-          : ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'];
+            ? legacy.targetClasses.split(',').map((c: string) => c.trim()).filter(Boolean)
+            : ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'];
 
-        const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+        const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
         initialMap[sch.id][solKey] = {
           solutionKey: solKey,
           solutionName: legacy.solutionName || defObj?.label || solKey,
@@ -726,7 +707,7 @@ export function SolutionsConfigTable({
       });
     });
     return initialMap;
-  }, [value, effectiveSchools]);
+  }, [value, effectiveSchools, catalogSolutions]);
 
   // Synchronize changes up to parent
   const emitUpdate = useCallback((
@@ -742,7 +723,7 @@ export function SolutionsConfigTable({
 
     const legacyTopLevel: Record<string, any> = {};
     allActiveKeys.forEach((solKey) => {
-      const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+      const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
       let aggregatedQty = 0;
       const allClassesSet = new Set<string>();
 
@@ -768,7 +749,7 @@ export function SolutionsConfigTable({
       schoolWiseSolutions: updatedSchoolMap,
       ...legacyTopLevel,
     });
-  }, [value, onChange]);
+  }, [value, onChange, catalogSolutions]);
 
   // Toggle solution for the ACTIVE school
   const handleToggleSchoolSolution = useCallback((solKey: string) => {
@@ -779,7 +760,7 @@ export function SolutionsConfigTable({
     if (nextSchoolMap[schoolId][solKey]) {
       delete nextSchoolMap[schoolId][solKey];
     } else {
-      const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+      const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
       nextSchoolMap[schoolId][solKey] = {
         solutionKey: solKey,
         solutionName: defObj?.label || solKey,
@@ -791,14 +772,14 @@ export function SolutionsConfigTable({
     }
 
     emitUpdate(nextSchoolMap);
-  }, [currentSchool.id, schoolAllocations, emitUpdate]);
+  }, [currentSchool.id, schoolAllocations, emitUpdate, catalogSolutions]);
 
   const handleSelectAllForSchool = useCallback(() => {
     const schoolId = currentSchool.id;
     const nextSchoolMap = { ...schoolAllocations };
     nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
 
-    DEFAULT_SOLUTIONS.forEach((sol) => {
+    catalogSolutions.forEach((sol) => {
       if (!nextSchoolMap[schoolId][sol.key]) {
         nextSchoolMap[schoolId][sol.key] = {
           solutionKey: sol.key,
@@ -812,7 +793,7 @@ export function SolutionsConfigTable({
     });
 
     emitUpdate(nextSchoolMap);
-  }, [currentSchool.id, schoolAllocations, emitUpdate]);
+  }, [currentSchool.id, schoolAllocations, emitUpdate, catalogSolutions]);
 
   const handleClearAllForSchool = useCallback(() => {
     const schoolId = currentSchool.id;
@@ -829,7 +810,7 @@ export function SolutionsConfigTable({
   ) => {
     const nextSchoolMap = { ...schoolAllocations };
     nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
-    const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+    const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
 
     const existing = nextSchoolMap[schoolId][solKey] || {
       solutionKey: solKey,
@@ -871,20 +852,18 @@ export function SolutionsConfigTable({
 
   // Active school's selected solution keys
   const activeSchoolSolutions = useMemo(() => {
-    return schoolAllocations[currentSchool.id] || {};
-  }, [schoolAllocations, currentSchool.id]);
+    return (
+      schoolAllocations[currentSchool.id] ||
+      schoolAllocations[(currentSchool as any).schoolId] ||
+      schoolAllocations[(currentSchool as any)._id] ||
+      schoolAllocations[`school-${activeSchoolIndex + 1}`] ||
+      {}
+    );
+  }, [schoolAllocations, currentSchool, activeSchoolIndex]);
 
   const activeSchoolKeys = useMemo(() => {
     return Object.keys(activeSchoolSolutions);
   }, [activeSchoolSolutions]);
-
-  // Filter schools for the dropdown search
-  const filteredSchoolsList = useMemo(() => {
-    return effectiveSchools.map((sch, idx) => ({ sch, originalIndex: idx })).filter(({ sch }) =>
-      sch.name.toLowerCase().includes(schoolSearchQuery.toLowerCase()) ||
-      (sch.address && sch.address.toLowerCase().includes(schoolSearchQuery.toLowerCase()))
-    );
-  }, [effectiveSchools, schoolSearchQuery]);
 
   // Total summary across all schools
   const totalUnitsAcrossSchools = useMemo(() => {
@@ -899,199 +878,34 @@ export function SolutionsConfigTable({
 
   return (
     <div className="space-y-4 font-sans">
-      {/* ── STEP 1: SELECT SCHOOL CAMPUS ── */}
-      <div className="bg-white p-4 rounded-2xl border border-[#b6e0e4] shadow-2xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-          {/* Step 1 Title */}
-          <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
-              1
-            </span>
-            <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900">
-              Step 1: Select School Campus
-            </h4>
-          </div>
-
-          <div className="flex items-center gap-2 shrink-0">
-            <span className="text-[11px] font-bold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-1 rounded-xl">
-              Total Across Schools: <strong>{totalUnitsAcrossSchools} Labs</strong>
-            </span>
-            {effectiveSchools.length > 1 && !disabled && (
-              <button
-                type="button"
-                onClick={handleApplyToAllSchools}
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white hover:bg-[#e0f3f5] text-[#3a7d84] border border-[#b6e0e4] text-xs font-bold transition shadow-2xs cursor-pointer"
-                title="Copy current school's solutions to all other campuses"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Apply to All</span>
-              </button>
-            )}
-          </div>
-        </div>
-
-        {/* Searchable School Dropdown Component */}
-        <div className="relative" ref={schoolDropdownRef}>
-          <button
-            type="button"
-            onClick={() => setIsSchoolDropdownOpen((prev) => !prev)}
-            className="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl bg-[#f0f8f9] hover:bg-[#e4f3f5] border border-[#b6e0e4] text-[#2d6b73] text-xs font-bold transition shadow-2xs cursor-pointer text-left select-none"
-          >
-            <div className="flex items-center gap-2 min-w-0">
-              <School className="w-4 h-4 text-[#3a7d84] shrink-0" />
-              <span className="truncate font-heading text-slate-800 text-sm">
-                {currentSchool.name || `School Branch #${activeSchoolIndex + 1}`}
-              </span>
-              <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-white border border-[#b6e0e4] text-[#3a7d84] shrink-0">
-                #{activeSchoolIndex + 1} of {effectiveSchools.length}
-              </span>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0 text-[#3a7d84]">
-              <span className="text-[10.5px] font-bold bg-white px-2 py-0.5 rounded-md border border-[#b6e0e4]">
-                {activeSchoolKeys.length} solutions configured
-              </span>
-              <ChevronDown className={`w-4 h-4 transition-transform duration-200 ${isSchoolDropdownOpen ? 'rotate-180' : ''}`} />
-            </div>
-          </button>
-
-          {/* School Dropdown Popover */}
-          {isSchoolDropdownOpen && (
-            <div className="absolute left-0 right-0 top-full mt-1.5 z-50 bg-white rounded-2xl border border-[#b6e0e4] shadow-xl p-2.5 space-y-2 animate-in fade-in zoom-in-95 duration-150">
-              {/* Search Input */}
-              <div className="relative">
-                <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
-                <input
-                  type="text"
-                  autoFocus
-                  value={schoolSearchQuery}
-                  onChange={(e) => setSchoolSearchQuery(e.target.value)}
-                  placeholder="Search school by name or address..."
-                  className="w-full pl-8 pr-7 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:bg-white focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] font-medium"
-                />
-                {schoolSearchQuery && (
-                  <button
-                    type="button"
-                    onClick={() => setSchoolSearchQuery('')}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
-                  >
-                    <X className="w-3 h-3" />
-                  </button>
-                )}
-              </div>
-
-              {/* School Items List */}
-              <div className="max-h-56 overflow-y-auto space-y-1 scrollbar-thin">
-                {filteredSchoolsList.length === 0 ? (
-                  <div className="p-3 text-center text-xs text-slate-400 font-medium">
-                    No schools match &ldquo;{schoolSearchQuery}&rdquo;
-                  </div>
-                ) : (
-                  filteredSchoolsList.map(({ sch, originalIndex }) => {
-                    const isSelected = originalIndex === activeSchoolIndex;
-                    const solCount = Object.keys(schoolAllocations[sch.id] || {}).length;
-
-                    return (
-                      <div
-                        key={sch.id || originalIndex}
-                        onClick={() => {
-                          setActiveSchoolIndex(originalIndex);
-                          setIsSchoolDropdownOpen(false);
-                        }}
-                        className={`flex items-center justify-between gap-2 p-2 rounded-xl text-xs transition cursor-pointer select-none ${
-                          isSelected
-                            ? 'bg-[#f0f8f9] text-[#2d6b73] font-bold border border-[#b6e0e4]'
-                            : 'hover:bg-slate-50 text-slate-700 border border-transparent'
-                        }`}
-                      >
-                        <div className="flex items-center gap-2 min-w-0">
-                          <span className={`w-5 h-5 rounded-lg text-[10px] font-mono font-bold flex items-center justify-center shrink-0 ${
-                            isSelected ? 'bg-[#3a7d84] text-white' : 'bg-slate-100 text-slate-600'
-                          }`}>
-                            {originalIndex + 1}
-                          </span>
-                          <div className="min-w-0">
-                            <p className="truncate text-xs font-semibold text-slate-900">
-                              {sch.name || `School Branch #${originalIndex + 1}`}
-                            </p>
-                            {sch.address && (
-                              <p className="text-[10px] text-slate-400 truncate">
-                                {sch.address}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-white border border-[#b6e0e4] text-[#3a7d84]">
-                            {solCount} sol.
-                          </span>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-[#3a7d84]" />}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Quick Horizontal School Pills */}
-        {effectiveSchools.length > 1 && (
-          <div className="bg-slate-50/80 p-1.5 rounded-2xl flex items-center gap-1.5 overflow-x-auto scrollbar-thin border border-slate-200/80">
-            {effectiveSchools.map((school, idx) => {
-              const isActive = idx === activeSchoolIndex;
-              const schSolCount = Object.keys(schoolAllocations[school.id] || {}).length;
-
-              return (
-                <button
-                  type="button"
-                  key={school.id || idx}
-                  className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl text-xs transition-all duration-200 cursor-pointer shrink-0 select-none border ${
-                    isActive
-                      ? 'bg-white text-[#2d6b73] border-[#51a8b1]/60 shadow-sm ring-2 ring-[#51a8b1]/20 font-bold'
-                      : 'bg-transparent hover:bg-white/80 text-slate-600 border-transparent hover:border-slate-200 font-medium'
-                  }`}
-                  onClick={() => setActiveSchoolIndex(idx)}
-                >
-                  <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md ${
-                    isActive ? 'bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]' : 'bg-slate-200/70 text-slate-500'
-                  }`}>
-                    #{idx + 1}
-                  </span>
-                  <span className="max-w-[280px] sm:max-w-[380px] truncate text-slate-800" title={school.name || `School #${idx + 1}`}>
-                    {school.name || `School #${idx + 1}`}
-                  </span>
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                    isActive ? 'bg-[#3a7d84] text-white shadow-2xs' : 'bg-slate-200/80 text-slate-600'
-                  }`}>
-                    {schSolCount} sol.
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* ── STEP 1: Institutional School Master-Card Selector ────── */}
+      <InstitutionalSchoolSelector
+        schools={effectiveSchools}
+        activeIndex={activeSchoolIndex}
+        onSelectIndex={setActiveSchoolIndex}
+        activeItemCount={activeSchoolKeys.length}
+        itemTypeLabel="Solutions"
+        totalAcrossSchoolsText={`Total Across Schools: ${totalUnitsAcrossSchools} Labs`}
+        getItemCountForSchool={(schoolId) => Object.keys(schoolAllocations[schoolId] || {}).length}
+        onApplyToAll={handleApplyToAllSchools}
+        disabled={disabled}
+      />
 
       {/* ── STEP 2: SELECT SOLUTIONS FOR THE ACTIVE SCHOOL ── */}
-      <div 
+      <div
         key={currentSchool.id || `school-solutions-${activeSchoolIndex}`}
         className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3 animate-in fade-in-50 duration-200"
       >
-        <div className="flex items-center gap-2">
-          <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
-            2
-          </span>
-          <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900 truncate">
-            Step 2: Select Solutions for {currentSchool.name}
-          </h4>
-        </div>
+        <StepSectionHeader
+          stepNumber={2}
+          title={`Select Solutions for ${currentSchool.name || (effectiveSchools.length > 1 ? `Untitled School ${activeSchoolIndex + 1}` : 'Untitled School')}`}
+        />
 
         {/* Dropdown to pick solutions */}
         <SchoolSolutionsMultiSelectDropdown
           selectedKeys={activeSchoolKeys}
           schoolName={currentSchool.name}
+          solutions={catalogSolutions}
           onToggleSolution={handleToggleSchoolSolution}
           onSelectAll={handleSelectAllForSchool}
           onClearAll={handleClearAllForSchool}
@@ -1101,20 +915,11 @@ export function SolutionsConfigTable({
 
       {/* ── STEP 3: CONFIGURE QUANTITIES (NO.) & DETAILS FOR SELECTED SOLUTIONS ── */}
       <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-2xs space-y-3">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <span className="w-6 h-6 rounded-lg bg-[#2d6b73] text-white text-xs font-black flex items-center justify-center shrink-0">
-              3
-            </span>
-            <h4 className="font-heading text-xs font-bold uppercase tracking-wider text-slate-900">
-              Step 3: Solution Quantity (No.) &amp; Class Details
-            </h4>
-          </div>
-
-          <span className="text-xs font-bold text-[#3a7d84] bg-[#f0f8f9] px-2.5 py-1 rounded-lg border border-[#b6e0e4]">
-            {activeSchoolKeys.length} Solutions Active
-          </span>
-        </div>
+        <StepSectionHeader
+          stepNumber={3}
+          title="Solution Quantity (No.) & Class Details"
+          badgeText={`${activeSchoolKeys.length} Solutions Active`}
+        />
 
         {/* If no solutions selected yet */}
         {activeSchoolKeys.length === 0 ? (
@@ -1127,7 +932,7 @@ export function SolutionsConfigTable({
         ) : (
           <div className="space-y-3 pt-1">
             {activeSchoolKeys.map((solKey) => {
-              const defObj = DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+              const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
               const item = activeSchoolSolutions[solKey] || {
                 solutionKey: solKey,
                 solutionName: defObj?.label || solKey,

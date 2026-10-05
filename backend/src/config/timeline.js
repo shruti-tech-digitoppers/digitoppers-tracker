@@ -115,7 +115,7 @@ module.exports = {
               { key: 'overallResult', label: '3.0 Overall School Result', type: 'text' },
               // 3. Infrastructure
               { key: 'totalClassrooms', label: '3.1 Total number of classroom in the school', type: 'number' },
-              { key: 'classroomCondition', label: '3.2 Condition of classroom', type: 'select', options: ['Pucca (पक्का)', 'Semi-Pucca (आंशिक रूप से पक्का)', 'Kutcha (कच्चा)', 'Tent (तंबू)'] },
+              { key: 'classroomCondition', label: '3.2 Condition of classroom', type: 'select', options: ['Permanent', 'Semi-Permanent', 'Temporary', 'Tent / Temporary Shelter'] },
               { key: 'additionalRooms', label: '3.3 Additional rooms (Music/Computer lab/Sports/Library)', type: 'text' },
               { key: 'spareRooms', label: '3.4 Any spare rooms for classes', type: 'text' },
               { key: 'electricityInternetAvailability', label: '3.5 Availability of electricity / Internet', type: 'text' },
@@ -303,10 +303,12 @@ module.exports = {
               order: 5,
               formSchema: {
                 fields: [
-                  { key: 'allHardwareReceived', label: 'All Hardware Received & Verified?', type: 'select', options: ['YES', 'NO'], required: true },
-                  { key: 'damagedItems', label: 'Damaged / Missing Items (if any)', type: 'textarea' },
-                  { key: 'readyForInstallation', label: 'Ready for Installation?', type: 'select', options: ['YES', 'NO'] },
-                  { key: 'remarks', label: 'Remarks', type: 'textarea' }
+                  {
+                    key: 'schoolHardwareReady',
+                    label: 'School-wise Hardware Verification & Readiness',
+                    type: 'hardwareReadySection',
+                    hint: 'Verify delivery, serial tag numbers, and installation sign-off for each school location'
+                  }
                 ]
               }
             }

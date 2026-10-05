@@ -624,6 +624,7 @@ export function ProjectRoadmapCard({
           isMutating={mutating}
           error={mutationError}
           allNodes={nodes}
+          onSelectNode={handleNodeSelect}
         />
       )}
     </div>

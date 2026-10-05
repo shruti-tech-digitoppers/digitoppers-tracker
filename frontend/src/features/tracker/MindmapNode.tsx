@@ -22,6 +22,7 @@ import {
   ShieldAlert,
   UserCheck
 } from 'lucide-react';
+import { formatTimeAgo, formatTimelineDate } from './utils/timeFormat';
 
 interface MindmapNodeProps {
   node: ITimelineNode;
@@ -314,9 +315,9 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
                 </select>
               </div>
             ) : (
-              /* ── STAGE / SUB-TASK: read-only assignee display ── */
-              <div className="flex items-center justify-between text-[9.5px] text-[#4a5462]">
-                <div className="flex items-center gap-1.5 truncate max-w-[140px]">
+              /* ── STAGE / SUB-TASK: read-only assignee display + updated timestamp ── */
+              <div className="flex items-center justify-between text-[9.5px] text-[#4a5462] gap-1">
+                <div className="flex items-center gap-1.5 truncate max-w-[115px]">
                   {currentAssigneeName ? (
                     <>
                       {/* Avatar initial chip */}
@@ -335,16 +336,24 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
                   )}
                 </div>
 
-                {hasChildren && onToggleExpand && (
-                  <button
-                    type="button"
-                    onClick={(e) => onToggleExpand(node._id, e)}
-                    className="p-0.5 hover:bg-[#f0f8f9] rounded text-[#51a8b1] transition cursor-pointer shrink-0"
-                    title={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
-                  >
-                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </button>
-                )}
+                <div className="flex items-center gap-1 shrink-0">
+                  {(node.updatedAt || node.createdAt) && (
+                    <span className="text-[8px] font-mono text-[#556987]/80 flex items-center gap-0.5" title={`Last updated: ${formatTimelineDate(node.updatedAt || node.createdAt)}`}>
+                      <Clock className="w-2 h-2 text-[#51a8b1]" />
+                      {formatTimeAgo(node.updatedAt || node.createdAt)}
+                    </span>
+                  )}
+                  {hasChildren && onToggleExpand && (
+                    <button
+                      type="button"
+                      onClick={(e) => onToggleExpand(node._id, e)}
+                      className="p-0.5 hover:bg-[#f0f8f9] rounded text-[#51a8b1] transition cursor-pointer shrink-0"
+                      title={isExpanded ? 'Collapse subtasks' : 'Expand subtasks'}
+                    >
+                      {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                    </button>
+                  )}
+                </div>
               </div>
             )}
 

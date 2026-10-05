@@ -3,6 +3,32 @@ const notificationService = require('../notifications/notifications.service');
 const activityService = require('../activity/activity.service');
 const Project = require('../projects/project.model');
 
+/**
+ * Deep merge two plain objects. Arrays are replaced (not concatenated) to
+ * keep the saved array authoritative. Mixed/Map fields like purchaseIfNeeded.items
+ * need this so individual hardware-keyed entries don't overwrite each other.
+ */
+function deepMerge(target = {}, source = {}) {
+  const output = { ...target };
+  for (const key of Object.keys(source)) {
+    const srcVal = source[key];
+    const tgtVal = target[key];
+    if (
+      srcVal !== null &&
+      typeof srcVal === 'object' &&
+      !Array.isArray(srcVal) &&
+      tgtVal !== null &&
+      typeof tgtVal === 'object' &&
+      !Array.isArray(tgtVal)
+    ) {
+      output[key] = deepMerge(tgtVal, srcVal);
+    } else {
+      output[key] = srcVal;
+    }
+  }
+  return output;
+}
+
 async function getProjectRequirements(projectId) {
   const requirement = await Requirement.findOne({ project: projectId }).populate('updatedBy', 'name email');
   return requirement;
@@ -19,14 +45,21 @@ async function upsertRequirements(projectId, updateData, employeeId) {
     });
   } else {
     for (const key of Object.keys(updateData || {})) {
-      if (typeof updateData[key] === 'object' && updateData[key] !== null && !Array.isArray(updateData[key])) {
-        const existingVal = requirement[key] ? (requirement[key].toObject ? requirement[key].toObject() : requirement[key]) : {};
-        requirement[key] = {
-          ...existingVal,
-          ...updateData[key]
-        };
+      const incoming = updateData[key];
+      const existing = requirement[key]
+        ? (requirement[key].toObject ? requirement[key].toObject() : requirement[key])
+        : {};
+
+      if (
+        typeof incoming === 'object' &&
+        incoming !== null &&
+        !Array.isArray(incoming)
+      ) {
+        // Deep merge: recursively merge nested objects so individual sub-keys
+        // (e.g. hardware item entries in purchaseIfNeeded.items) don't overwrite each other
+        requirement[key] = deepMerge(existing, incoming);
       } else {
-        requirement[key] = updateData[key];
+        requirement[key] = incoming;
       }
       requirement.markModified(key);
     }

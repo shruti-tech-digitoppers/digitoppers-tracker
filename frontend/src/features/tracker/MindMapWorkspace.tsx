@@ -492,6 +492,7 @@ export function MindMapWorkspace() {
               canModifyStatus={canModifyStatus}
               canModifyAssignment={canModifyAssignment}
               allNodes={nodes}
+              onSelectNode={handleNodeSelect}
             />
           )}
 
