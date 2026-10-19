@@ -1,9 +1,10 @@
 const dotenv = require('dotenv');
 dotenv.config();
 
-const mongoUri = process.env.MONGODB_URI || process.env.MONGO_URI_DEV || process.env.MONGO_URI_PROD || 'mongodb://localhost:27017/digitoppers_db';
-const jwtSecret = process.env.JWT_SECRET || 'super_secret_jwt_key_digitoppers_core_2026';
-const jwtRefreshSecret = process.env.JWT_REFRESH_SECRET || 'super_secret_refresh_key_digitoppers_core_2026';
+const rawMongoUri = process.env.MONGODB_URI || process.env.MONGO_URI_DEV || process.env.MONGO_URI_PROD || 'mongodb://localhost:27017/digitoppers_db';
+const mongoUri = rawMongoUri ? rawMongoUri.trim().replace(/^["']|["']$/g, '') : rawMongoUri;
+const jwtSecret = (process.env.JWT_SECRET || 'super_secret_jwt_key_digitoppers_core_2026').trim().replace(/^["']|["']$/g, '');
+const jwtRefreshSecret = (process.env.JWT_REFRESH_SECRET || 'super_secret_refresh_key_digitoppers_core_2026').trim().replace(/^["']|["']$/g, '');
 
 if (!mongoUri) {
   console.error('FATAL ERROR: MongoDB connection URI is missing.');
