@@ -25,6 +25,9 @@ const TYPE_CONFIG = {
 // In-memory cache for resolved Slack users: employeeId / email -> { id, name, email, mention }
 const memberCache = new Map();
 
+// In-memory deduplication cache: drops identical messages dispatched within 6 seconds
+const recentDispatches = new Map();
+
 /**
  * Resolve an employee reference to a Slack Member Mention (<@USER_ID>)
  * Resolution hierarchy:
@@ -191,6 +194,23 @@ async function sendSlackNotification({
   if (!webhookUrl && !botToken) {
     // Slack not configured
     return { success: false, skipped: true, reason: 'Neither SLACK_WEBHOOK_URL nor SLACK_BOT_TOKEN configured' };
+  }
+
+  // Deduplication guard: ignore identical notification dispatches within 6 seconds
+  const dedupeKey = `${title}|${projectId || projectName || ''}|${(typeof message === 'string' ? message.slice(0, 50) : '')}`;
+  const now = Date.now();
+  if (recentDispatches.has(dedupeKey)) {
+    const lastDispatched = recentDispatches.get(dedupeKey);
+    if (now - lastDispatched < 6000) {
+      return { success: true, skipped: true, reason: 'Duplicate dispatch ignored' };
+    }
+  }
+  recentDispatches.set(dedupeKey, now);
+
+  if (recentDispatches.size > 150) {
+    for (const [k, ts] of recentDispatches.entries()) {
+      if (now - ts > 60000) recentDispatches.delete(k);
+    }
   }
 
   const config = TYPE_CONFIG[type] || TYPE_CONFIG.GENERAL;

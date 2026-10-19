@@ -217,14 +217,15 @@ class RequestService {
       }
     });
 
-    // ── Notify Admins if requester or approver is not Admin ────────
+    // ── In-App Notifications for Admins (Bell Icon only, strictly no Slack) ──
     const admins = await Employee.find({ globalRole: 'ADMIN', isActive: true });
+    const adminDocs = [];
     for (const admin of admins) {
       if (
         admin._id.toString() !== data.requestedTo.toString() &&
         admin._id.toString() !== creatorEmployeeId.toString()
       ) {
-        await Notification.create({
+        adminDocs.push({
           recipient: admin._id,
           title: 'New Project Request Received',
           message: `${creator ? creator.name : 'Employee'} submitted project request ${request.requestId} (${request.title}) assigned to ${requestedToEmp.name} for confirmation.`,
@@ -233,6 +234,9 @@ class RequestService {
           _skipSlack: true
         });
       }
+    }
+    if (adminDocs.length > 0) {
+      await Notification.insertMany(adminDocs);
     }
 
     // ── Activity Log ───────────────────────────────────────────────

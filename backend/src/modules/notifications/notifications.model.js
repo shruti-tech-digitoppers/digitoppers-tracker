@@ -44,6 +44,10 @@ const notificationSchema = new mongoose.Schema({
   isRead: {
     type: Boolean,
     default: false
+  },
+  _skipSlack: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
@@ -53,7 +57,8 @@ notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 
 // Post-save hook for standalone Notification.create calls
 notificationSchema.post('save', function (doc) {
-  if (!doc || doc._skipSlack) return;
+  // Never broadcast generic in-app copies or explicitly skipped notifications to Slack
+  if (!doc || doc._skipSlack || doc.type === 'GENERAL' || doc.type === 'UPDATE') return;
   try {
     const { sendSlackNotification } = require('./slack.service');
     sendSlackNotification({
