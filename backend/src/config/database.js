@@ -5,7 +5,8 @@ let memoryServer = null;
 
 const connectDB = async () => {
   try {
-    console.log('📡 Attempting MongoDB connection...');
+    const masked = mongoUri ? mongoUri.replace(/\/\/([^:]+):([^@]+)@/, (match, user) => `//${user}:****@`) : 'NONE';
+    console.log(`📡 Attempting MongoDB connection to: ${masked}`);
     
     // First try connecting to configured URI
     let connected = false;
@@ -14,12 +15,31 @@ const connectDB = async () => {
         const conn = await mongoose.connect(mongoUri, {
           autoIndex: true,
           family: 4,
-          serverSelectionTimeoutMS: 3500
+          serverSelectionTimeoutMS: 6000
         });
         console.log(`✅ MongoDB Connected to Remote/Primary: ${conn.connection.host}`);
         connected = true;
       } catch (remoteErr) {
-        console.warn(`⚠️ Primary MongoDB connection failed (${remoteErr.message}). Switching to Embedded Memory Server...`);
+        // If auth failed and authSource wasn't specified, try with authSource=admin
+        if (mongoUri.startsWith('mongodb+srv://') && !mongoUri.includes('authSource=')) {
+          const separator = mongoUri.includes('?') ? '&' : '?';
+          const adminAuthUri = `${mongoUri}${separator}authSource=admin`;
+          try {
+            console.log('🔄 Retrying MongoDB connection with authSource=admin...');
+            const conn = await mongoose.connect(adminAuthUri, {
+              autoIndex: true,
+              family: 4,
+              serverSelectionTimeoutMS: 6000
+            });
+            console.log(`✅ MongoDB Connected to Remote/Primary with authSource=admin: ${conn.connection.host}`);
+            connected = true;
+          } catch (retryErr) {
+            console.warn(`⚠️ authSource=admin retry failed: ${retryErr.message}`);
+          }
+        }
+        if (!connected) {
+          console.warn(`⚠️ Primary MongoDB connection failed (${remoteErr.message}). Switching to Embedded Memory Server...`);
+        }
       }
     }
 
