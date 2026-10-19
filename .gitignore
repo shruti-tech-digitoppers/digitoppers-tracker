@@ -32,8 +32,14 @@ pnpm-debug.log*
 Thumbs.db
 .vscode/
 .idea/
+# Uploads & local scripts
 scratch/
 uploads/
 **/uploads/**
 backend/uploads/
 *.bat
+
+# Seed scripts with internal/seed data
+backend/src/utils/seed*.js
+backend/src/utils/cleanDatabase.js
+

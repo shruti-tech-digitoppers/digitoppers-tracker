@@ -24,6 +24,11 @@ const connectDB = async () => {
     }
 
     if (!connected) {
+      if (process.env.NODE_ENV === 'production') {
+        console.error('❌ CRITICAL PRODUCTION ERROR: Primary MongoDB connection failed. Memory-server fallback is disabled in production.');
+        console.error('👉 Please verify your MONGODB_URI and ensure 0.0.0.0/0 (or your server IP) is allowed in MongoDB Atlas Network Access.');
+        process.exit(1);
+      }
       const { MongoMemoryReplSet } = require('mongodb-memory-server');
       memoryServer = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
       const memUri = memoryServer.getUri();

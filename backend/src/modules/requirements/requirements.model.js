@@ -7,6 +7,128 @@ const mongoose = require('mongoose');
 |--------------------------------------------------------------------------
 */
 
+// Subschema: Individual hardware item lifecycle inside school hardware array
+const hardwareExecutionItemSchema = new mongoose.Schema(
+  {
+    hardwareKey: { type: String, required: true },
+    itemName: { type: String, required: true },
+    quantity: { type: Number, default: 1 },
+    qty: { type: Number, default: 1 },
+    specNotes: { type: String, default: '' },
+    spec: { type: String, default: '' },
+    serialNotes: { type: String, default: '' },
+    solutionKey: { type: String, default: '' },
+    solutionName: { type: String, default: '' },
+
+    stockCheck: {
+      requiredQty: { type: Number, default: 0 },
+      inStockQty: { type: Number, default: 0 },
+      purchaseQty: { type: Number, default: 0 },
+      stockStatus: {
+        type: String,
+        enum: ['IN_STOCK', 'PARTIALLY_AVAILABLE', 'NOT_IN_STOCK', null],
+        default: 'IN_STOCK'
+      },
+      assignedTo: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
+      verifiedAt: { type: Date },
+      remarks: { type: String, default: '' }
+    },
+
+    poAndPi: {
+      vendorName: { type: String, default: '' },
+      purchaseOrders: [
+        {
+          poNumber: String,
+          poDate: Date,
+          uploadDate: { type: Date, default: Date.now },
+          poDocumentUrl: String,
+          issuingOrganization: String,
+          remarks: String,
+          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
+          submittedAt: { type: Date, default: Date.now }
+        }
+      ],
+      proformaInvoices: [
+        {
+          piNumber: String,
+          piDate: Date,
+          uploadDate: { type: Date, default: Date.now },
+          ewayBillNumber: String,
+          paymentStatus: {
+            type: String,
+            enum: ['PAID', 'PARTIALLY_PAID', 'PENDING', 'UNPAID', null],
+            default: 'PENDING'
+          },
+          piDocumentUrl: String,
+          paymentTerms: String,
+          remarks: String,
+          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
+          submittedAt: { type: Date, default: Date.now }
+        }
+      ],
+      paymentStatus: {
+        type: String,
+        enum: ['PAID', 'PARTIALLY_PAID', 'PENDING', 'UNPAID', null],
+        default: 'PENDING'
+      },
+      overallRemarks: { type: String, default: '' }
+    },
+
+    consignmentTracking: {
+      courierName: { type: String, default: '' },
+      trackingNumber: { type: String, default: '' },
+      dispatchDate: { type: Date },
+      expectedDeliveryDate: { type: Date },
+      deliveryStatus: {
+        type: String,
+        enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'PARTIALLY_DELIVERED', null],
+        default: 'PENDING'
+      },
+      actualDeliveryDate: { type: Date },
+      proofOfDeliveryUrl: { type: String, default: '' },
+      consignments: { type: mongoose.Schema.Types.Mixed, default: [] },
+      remarks: { type: String, default: '' }
+    },
+
+    hardwareReady: {
+      received: { type: Boolean, default: false },
+      receivedQty: { type: Number, default: 0 },
+      damagedItems: { type: String, default: '' },
+      readyForInstallation: {
+        type: String,
+        enum: ['YES', 'NO', 'PENDING', null],
+        default: 'PENDING'
+      },
+      deliveryDate: { type: Date },
+      remarks: { type: String, default: '' }
+    },
+
+    stockCheckStatus: { type: String, default: 'IN_STOCK' },
+    inStockQty: { type: Number, default: 0 },
+    purchaseQty: { type: Number, default: 0 },
+    purchaseOrders: { type: mongoose.Schema.Types.Mixed, default: [] },
+    proformaInvoices: { type: mongoose.Schema.Types.Mixed, default: [] }
+  },
+  { _id: false }
+);
+
+// Subschema: School-level execution record with an array of hardware items
+const schoolHardwareExecutionSchema = new mongoose.Schema(
+  {
+    schoolId: { type: String },
+    schoolName: { type: String },
+    address: { type: String, default: '' },
+    contactPerson: { type: String, default: '' },
+    phone: { type: String, default: '' },
+    readyForInstallation: { type: String, default: 'NO' },
+    allHardwareReceived: { type: String, default: 'NO' },
+    deliveryDate: { type: Date },
+    hardware: [hardwareExecutionItemSchema],
+    hardwareMap: { type: mongoose.Schema.Types.Mixed, default: {} }
+  },
+  { _id: false }
+);
+
 const requirementSchema = new mongoose.Schema(
   {
     project: {
@@ -172,90 +294,18 @@ const requirementSchema = new mongoose.Schema(
         remarks: String,
         submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
         submittedAt: Date
+      },
+      contentConfiguration: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
       }
     },
 
     // ─── 06 — EXECUTION ──────────────────────────────────────────────────
     execution: {
-      hardware: {
-        schoolWiseHardware: {
-          type: mongoose.Schema.Types.Mixed,
-          default: {}
-        },
-        reqAndStockCheck: {
-          items: {
-            type: mongoose.Schema.Types.Mixed,
-            default: {}
-          },
-          stockCheck: {
-            type: mongoose.Schema.Types.Mixed,
-            default: {}
-          },
-          checked: Boolean,
-          stockSummary: String,
-          stockStatus: { type: String, enum: ['IN_STOCK', 'PARTIALLY_AVAILABLE', 'NOT_IN_STOCK'] },
-          remarks: String,
-          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-          submittedAt: Date
-        },
-        // Per-hardware purchase: keyed by hardware type (e.g. IFP_PANEL, NETWORKING_ROUTER)
-        // Each entry has: vendorName, purchaseOrders[], proformaInvoices[], overallRemarks
-        // purchaseOrders[]: { id, poNumber, poDate, poDocumentUrl, poFileName, remarks }
-        // proformaInvoices[]: { id, piNumber, piDate, piDocumentUrl, piFileName, ewayBillNumber, paymentStatus, remarks }
-        purchaseIfNeeded: {
-          // items is a Mixed map: { [hardwareKey]: { vendorName, purchaseQty, purchaseOrders[], proformaInvoices[], overallRemarks } }
-          items: {
-            type: mongoose.Schema.Types.Mixed,
-            default: {}
-          },
-          overallProcurementRemarks: String,
-          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-          submittedAt: Date
-        },
-        consignmentTracking: {
-          items: {
-            type: mongoose.Schema.Types.Mixed,
-            default: {}
-          },
-          courierName: String,
-          trackingNumber: String,
-          dispatchDate: Date,
-          expectedDeliveryDate: Date,
-          remarks: String,
-          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-          submittedAt: Date
-        },
-        addressConfirmation: {
-          deliveryAddress: String,
-          contactPerson: String,
-          phone: String,
-          addressConfirmed: { type: String, enum: ['YES', 'NO', null], default: null },
-          remarks: String,
-          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-          submittedAt: Date
-        },
-        deliveryAndTracking: {
-          dispatchDate: Date,
-          deliveryDate: Date,
-          deliveryStatus: { type: String, enum: ['PENDING', 'IN_TRANSIT', 'DELIVERED', 'PARTIALLY_DELIVERED'] },
-          proofOfDeliveryUrl: String,
-          remarks: String,
-          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-          submittedAt: Date
-        },
-        hardwareReady: {
-          allHardwareReceived: { type: String, enum: ['YES', 'NO', null], default: null },
-          deliveryDate: Date,
-          schoolWiseVerification: {
-            type: mongoose.Schema.Types.Mixed,
-            default: {}
-          },
-          damagedItems: String,
-          readyForInstallation: { type: String, enum: ['YES', 'NO', null], default: null },
-          remarks: String,
-          submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-          submittedAt: Date
-        }
+      schoolWiseHardware: {
+        type: mongoose.Schema.Types.Mixed,
+        default: {}
       },
       tech: {
         technicalSetup: {
@@ -311,6 +361,10 @@ const requirementSchema = new mongoose.Schema(
           submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
           submittedAt: Date
         },
+        sheetReadiness: {
+          type: mongoose.Schema.Types.Mixed,
+          default: {}
+        },
         contentReady: {
           ready: { type: String, enum: ['YES', 'NO', null], default: null },
           remarks: String,
@@ -355,23 +409,14 @@ const requirementSchema = new mongoose.Schema(
     // ─── 08 — INSTALLATION ───────────────────────────────────────────────
     installation: {
       installationPlanning: {
-        installationDate: Date,
-        teamMembers: String,
-        siteContact: String,
-        remarks: String,
-        submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-        submittedAt: Date
-      },
-      installationExecution: {
-        installationStarted: Boolean,
-        installedItems: String,
-        remarks: String,
-        submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-        submittedAt: Date
-      },
-      installationTesting: {
-        testResult: { type: String, enum: ['PASS', 'FAIL', 'PARTIAL', null], default: null },
-        issues: String,
+        installationPlanning: mongoose.Schema.Types.Mixed,
+        plannedSchools: mongoose.Schema.Types.Mixed,
+        schoolWiseInstallationPlans: mongoose.Schema.Types.Mixed,
+        technicalPerson: String,
+        technicalPersonId: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
+        contactNumber: String,
+        leadEngineer: String,
+        phone: String,
         remarks: String,
         submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
         submittedAt: Date
@@ -385,39 +430,7 @@ const requirementSchema = new mongoose.Schema(
       }
     },
 
-    // ─── 09 — TRAINING ───────────────────────────────────────────────────
-    training: {
-      trainingPlanning: {
-        trainingType: String,
-        participantsCount: Number,
-        remarks: String,
-        submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-        submittedAt: Date
-      },
-      trainingSchedule: {
-        trainingDate: Date,
-        mode: { type: String, enum: ['ONLINE', 'OFFLINE', 'HYBRID'] },
-        trainerName: String,
-        remarks: String,
-        submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-        submittedAt: Date
-      },
-      trainingExecution: {
-        attendance: Number,
-        topicsCovered: String,
-        trainingPhotosUrl: String,
-        remarks: String,
-        submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-        submittedAt: Date
-      },
-      trainingCompleted: {
-        completed: { type: String, enum: ['YES', 'NO', null], default: null },
-        feedbackSummary: String,
-        remarks: String,
-        submittedBy: { type: mongoose.Schema.ObjectId, ref: 'Employee' },
-        submittedAt: Date
-      }
-    },
+
 
     // ─── 10 — PROJECT CLOSURE ────────────────────────────────────────────
     projectClosure: {

@@ -6,9 +6,15 @@
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
+    "clean:db": "node src/utils/cleanDatabase.js",
+    "init:catalogs": "node src/utils/initMasterCatalogs.js",
+    "seed:employees": "node src/utils/seedRealEmployees.js",
+    "seed:project": "node src/utils/seedSingleProject.js",
+    "seed:second-project": "node src/utils/seedSecondProject.js",
+    "seed:completed-project": "node src/utils/seedCompletedProject.js",
     "seed": "node src/utils/seed.js",
-    "seed:employees": "node src/utils/seedEmployees.js",
-    "seed:dashboard": "node src/utils/seedFromDashboard.js",
+    "seed:master": "node src/utils/seedMasterDatabase.js",
+    "check:data": "node scripts/inspectDb.js",
     "check:connection": "node src/utils/checkConnection.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

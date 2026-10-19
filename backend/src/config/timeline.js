@@ -201,6 +201,21 @@ module.exports = {
               { key: 'remarks', label: 'Remarks / Notes', type: 'textarea' }
             ]
           }
+        },
+        {
+          key: 'CONTENT_CONFIGURATION',
+          name: 'Content Configuration',
+          order: 4,
+          formSchema: {
+            fields: [
+              {
+                key: 'contentSets',
+                label: 'Board, Language, Class & Category Sets',
+                type: 'contentConfigSection'
+              },
+              { key: 'remarks', label: 'Configuration Remarks', type: 'textarea' }
+            ]
+          }
         }
       ]
     },
@@ -355,24 +370,9 @@ module.exports = {
           isBranch: true,
           nested: [
             {
-              key: 'CONTENT_CONFIGURATION',
-              name: 'Content Configuration',
-              order: 1,
-              formSchema: {
-                fields: [
-                  {
-                    key: 'contentSets',
-                    label: 'Board, Language, Class & Category Sets',
-                    type: 'contentConfigSection'
-                  },
-                  { key: 'remarks', label: 'Configuration Remarks', type: 'textarea' }
-                ]
-              }
-            },
-            {
               key: 'CONTENT_REVIEW_QA',
               name: 'Content Review & QA',
-              order: 2,
+              order: 1,
               formSchema: {
                 fields: [
                   { key: 'reviewDone', label: 'Content Review & QA Done?', type: 'select', options: ['YES', 'NO'], defaultValue: 'YES', required: true },
@@ -383,9 +383,15 @@ module.exports = {
             {
               key: 'SHEET_READINESS',
               name: 'Sheet Readiness',
-              order: 3,
+              order: 2,
               formSchema: {
                 fields: [
+                  {
+                    key: 'sheetMatrix',
+                    label: 'Curriculum & Medium Sheets',
+                    type: 'sheetReadinessSection',
+                    hint: 'Configure and link Google Sheets according to the relationships of curriculum subjects and language mediums'
+                  },
                   { key: 'sheetReady', label: 'Sheet Readiness Completed?', type: 'select', options: ['YES', 'NO'], defaultValue: 'YES', required: true },
                   { key: 'remarks', label: 'Sheet Readiness Remarks', type: 'textarea' }
                 ]
@@ -394,7 +400,7 @@ module.exports = {
             {
               key: 'DUMP_READINESS',
               name: 'Dump Readiness',
-              order: 4,
+              order: 3,
               formSchema: {
                 fields: [
                   { key: 'dumpReady', label: 'Dump Readiness Completed?', type: 'select', options: ['YES', 'NO'], defaultValue: 'YES', required: true },
@@ -405,7 +411,7 @@ module.exports = {
             {
               key: 'CONTENT_READY',
               name: 'Content Ready',
-              order: 5,
+              order: 4,
               formSchema: {
                 fields: [
                   { key: 'contentReady', label: 'Content Ready & Verified?', type: 'select', options: ['YES', 'NO'], defaultValue: 'YES', required: true },
@@ -472,10 +478,12 @@ module.exports = {
           order: 1,
           formSchema: {
             fields: [
-              { key: 'installationDate', label: 'Planned Installation Date', type: 'date' },
-              { key: 'teamMembers', label: 'Field Engineers / Team Members', type: 'textarea' },
-              { key: 'siteContact', label: 'Site Contact Person', type: 'text' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
+              {
+                key: 'installationPlanning',
+                label: 'School-Wise Installation Planning',
+                type: 'installationPlanningSection',
+                hint: 'Select school to assign technical person, contact number and date planned for installation'
+              }
             ]
           }
         },
@@ -486,39 +494,40 @@ module.exports = {
           formSchema: {
             fields: [
               {
-                key: 'installationSection',
-                label: 'Hardware Serial Numbers & 3 Installation Images',
-                type: 'installationSection'
+                key: 'installationExecution',
+                label: 'School-Wise Installation Execution & Site Photos',
+                type: 'installationSection',
+                hint: 'Manage hardware installation, serial numbers, and upload 3 installation photos (Max 2MB each)'
               }
-            ]
-          }
-        },
-        {
-          key: 'INSTALLATION_TESTING',
-          name: 'Installation Testing',
-          order: 3,
-          formSchema: {
-            fields: [
-              { key: 'testResult', label: 'Site Test Result', type: 'select', options: ['PASS', 'FAIL', 'PARTIAL'], required: true },
-              { key: 'issues', label: 'Issues Encountered', type: 'textarea' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
             ]
           }
         },
         {
           key: 'INSTALLATION_COMPLETED',
           name: 'Installation Completed',
-          order: 4,
+          order: 3,
           formSchema: {
             fields: [
               {
-                key: 'installationSection',
-                label: 'School-wise Installation, Hardware Serial Numbers & 3 Site Images',
-                type: 'installationSection'
+                key: 'completed',
+                label: 'Installation Completed?',
+                type: 'select',
+                options: ['YES', 'NO'],
+                defaultValue: 'NO',
+                required: true
               },
-              { key: 'completed', label: 'Installation Completed?', type: 'select', options: ['YES', 'NO'], required: true },
-              { key: 'installationReportUrl', label: 'Installation Report (PDF/Photo)', type: 'file', hint: 'Upload signed installation report' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
+              {
+                key: 'installationReportUrl',
+                label: 'Upload Installation Report',
+                type: 'file',
+                hint: 'Upload signed installation report (PDF / Images • Max 5MB)'
+              },
+              {
+                key: 'remarks',
+                label: 'Remarks',
+                type: 'textarea',
+                placeholder: 'Enter installation completion remarks...'
+              }
             ]
           }
         }
@@ -528,54 +537,66 @@ module.exports = {
       key: 'TRAINING',
       name: '07 — TRAINING',
       order: 7,
+      department: 'TRAINING',
+      primaryDepartment: 'TRAINING',
       substages: [
         {
           key: 'TRAINING_PLANNING',
-          name: 'Training Planning',
+          name: 'Planning and Scheduling',
           order: 1,
+          department: 'TRAINING',
+          primaryDepartment: 'TRAINING',
           formSchema: {
             fields: [
-              { key: 'trainingType', label: 'Training Type', type: 'select', options: ['Teacher Training', 'Admin Training', 'Student Demo', 'Full Training', 'Other'] },
-              { key: 'participantsCount', label: 'Expected Participants', type: 'number' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
-            ]
-          }
-        },
-        {
-          key: 'TRAINING_SCHEDULE',
-          name: 'Training Schedule',
-          order: 2,
-          formSchema: {
-            fields: [
-              { key: 'trainingDate', label: 'Training Date', type: 'date' },
-              { key: 'mode', label: 'Training Mode', type: 'select', options: ['ONLINE', 'OFFLINE', 'HYBRID'] },
-              { key: 'trainerName', label: 'Trainer Name', type: 'text' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
+              {
+                key: 'trainingPlanning',
+                label: 'School-Wise Trainer Rollout & Capacity Building Planning',
+                type: 'trainingPlanningSection',
+                hint: 'Select school, set training plan out date, assign trainer(s) with dynamic + Add Trainer'
+              },
+              { key: 'trainingType', label: 'Training Type', type: 'select', options: ['Teacher Training', 'Admin Training', 'Student Demo', 'Full Training', 'Other'], defaultValue: 'Teacher Training' },
+              { key: 'expectedParticipants', label: 'Expected Total Participants', type: 'number' },
+              { key: 'trainingRosterUrl', label: 'Training Schedule / Modules Roster (PDF)', type: 'file', hint: 'Upload training syllabus or schedule roster' },
+              { key: 'remarks', label: 'Planning and Scheduling Remarks', type: 'textarea' }
             ]
           }
         },
         {
           key: 'TRAINING_EXECUTION',
           name: 'Training Execution',
-          order: 3,
+          order: 2,
+          department: 'TRAINING',
+          primaryDepartment: 'TRAINING',
           formSchema: {
             fields: [
-              { key: 'attendance', label: 'Actual Attendance Count', type: 'number' },
-              { key: 'topicsCovered', label: 'Topics Covered', type: 'textarea' },
-              { key: 'trainingPhotosUrl', label: 'Training Photos / Report', type: 'file', hint: 'Upload training report / photos' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
+              {
+                key: 'trainingExecutionSection',
+                label: 'School-Wise Training Execution & Sign-off Documentation',
+                type: 'trainingExecutionSection',
+                hint: 'School-wise document upload (Delivery Confirmation Sheet, Appreciation Letter, Work Completion Letter, Teachers Details) and interactive sign-off checklist'
+              },
+              { key: 'issuesNoted', label: 'Issues Noted', type: 'textarea', placeholder: 'Enter any technical, school, or connectivity issues observed...' },
+              { key: 'onGroundFeedback', label: 'On Ground Feedback', type: 'textarea', placeholder: 'Enter direct teacher/principal feedback from ground...' },
+              { key: 'remarks', label: 'Training Execution Remarks', type: 'textarea', placeholder: 'Enter general training execution notes or observations...' }
             ]
           }
         },
         {
           key: 'TRAINING_COMPLETED',
           name: 'Training Completed',
-          order: 4,
+          order: 3,
+          department: 'TRAINING',
+          primaryDepartment: 'TRAINING',
           formSchema: {
             fields: [
-              { key: 'completed', label: 'Training Completed & Signed off?', type: 'select', options: ['YES', 'NO'], required: true },
-              { key: 'feedbackSummary', label: 'Feedback Summary', type: 'textarea' },
-              { key: 'remarks', label: 'Remarks', type: 'textarea' }
+              {
+                key: 'trainingCompletedSection',
+                label: 'School-Wise Training Completion Sign-off',
+                type: 'trainingCompletedSection',
+                hint: 'Mark training completed (Yes/No) school-wise with remarks'
+              },
+              { key: 'completed', label: 'Training Completed & Signed off?', type: 'select', options: ['YES', 'NO'], defaultValue: 'YES', required: true },
+              { key: 'remarks', label: 'Overall Completion Remarks', type: 'textarea' }
             ]
           }
         }

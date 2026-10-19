@@ -11,6 +11,9 @@ router.get('/', optionalProtect, projectController.getAll);
 // GET /api/v1/projects/:id (public project details for tracker view)
 router.get('/:id', optionalProtect, projectController.getById);
 
+// GET /api/v1/projects/:projectId/members/by-department (Recipe 2: team grouped by department)
+router.get('/:projectId/members/by-department', optionalProtect, projectController.getMembersGrouped);
+
 // All other project management routes require authentication
 router.use(protect);
 

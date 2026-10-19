@@ -38,6 +38,7 @@ const getHardware = async (req, res) => {
 
     const hardwareList = await Hardware.find(filter)
       .populate('solutions', 'key label name icon')
+      .populate('department', 'name code description')
       .sort({ index: 1, createdAt: 1 });
 
     res.status(200).json({
@@ -54,7 +55,9 @@ const getHardware = async (req, res) => {
  */
 const getHardwareById = async (req, res) => {
   try {
-    const item = await Hardware.findById(req.params.id).populate('solutions', 'key label name icon');
+    const item = await Hardware.findById(req.params.id)
+      .populate('solutions', 'key label name icon')
+      .populate('department', 'name code description');
     if (!item) {
       return res.status(404).json({ success: false, message: 'Hardware item not found' });
     }

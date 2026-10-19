@@ -7,6 +7,7 @@ import { ParallelStreamColumn } from './ParallelStreamColumn';
 import { Split, GitMerge, ChevronRight } from 'lucide-react';
 import { getStageTheme } from '../utils/stageColorThemes';
 import { IUser } from '../../../types/auth';
+import { IProject } from '../../../types/project';
 
 interface ExecutionParallelContainerProps {
   executionStage: ITimelineNode;
@@ -19,6 +20,8 @@ interface ExecutionParallelContainerProps {
   employees?: IUser[];
   onAssign?: (nodeId: string, empId: string) => void;
   isClickable?: boolean;
+  allNodes?: ITimelineNode[];
+  project?: IProject | null;
 }
 
 export function ExecutionParallelContainer({
@@ -32,6 +35,8 @@ export function ExecutionParallelContainer({
   employees = [],
   onAssign,
   isClickable = true,
+  allNodes = [],
+  project = null,
 }: ExecutionParallelContainerProps) {
   const hardwareStream = executionStage?.children?.find(
     (c) => (c.key || '').toUpperCase().includes('HARDWARE') || (c.name || '').toLowerCase().includes('hardware')
@@ -108,6 +113,8 @@ export function ExecutionParallelContainer({
                   employees={employees}
                   onAssign={onAssign}
                   isClickable={isClickable}
+                  allNodes={allNodes}
+                  project={project}
                 />
 
                 {/* Tech Stream Column */}
@@ -123,6 +130,8 @@ export function ExecutionParallelContainer({
                   employees={employees}
                   onAssign={onAssign}
                   isClickable={isClickable}
+                  allNodes={allNodes}
+                  project={project}
                 />
 
                 {/* Content Stream Column */}
@@ -138,6 +147,8 @@ export function ExecutionParallelContainer({
                   employees={employees}
                   onAssign={onAssign}
                   isClickable={isClickable}
+                  allNodes={allNodes}
+                  project={project}
                 />
 
                 {/* Other Custom Streams if any */}

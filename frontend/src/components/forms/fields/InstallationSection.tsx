@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import { 
   Building2, 
   Camera, 
@@ -16,10 +16,26 @@ import {
   Cpu,
   Hash,
   Sparkles,
-  Layers
+  Layers,
+  KeyRound,
+  Copy,
+  Check,
+  ShieldCheck,
+  ShieldAlert,
+  ExternalLink
 } from 'lucide-react';
 import { IUser } from '../../../types/auth';
-import { DEFAULT_HARDWARE_ITEMS } from '../utils/formHelpers';
+import { DEFAULT_HARDWARE_ITEMS, extractEffectiveSchools, EffectiveSchoolItem } from '../utils/formHelpers';
+import { apiClient } from '../../../lib/api/client';
+
+export interface IHardwareUnitLicense {
+  unitIndex: number;
+  licenseKey?: string;
+  status?: string;
+  isRegistered?: boolean;
+  registeredTo?: string;
+  serialNumber?: string;
+}
 
 export interface IHardwareInstalledItem {
   id?: string;
@@ -29,6 +45,7 @@ export interface IHardwareInstalledItem {
   quantity: number;
   serialNumbers: string;
   individualSerials?: string[];
+  unitLicenses?: IHardwareUnitLicense[];
   roomLocation?: string;
   status?: 'INSTALLED' | 'IN_PROGRESS' | 'PENDING';
 }
@@ -54,9 +71,108 @@ interface InstallationSectionProps {
   employees?: IUser[];
   allFormData?: Record<string, any>;
   project?: any;
+  schools?: any[];
+  isTrainingContext?: boolean;
 }
 
-// Helper to extract hardware list selected in Hardware Requirements / Stage 03 for a specific school
+// Helper to match a school object to allocation records from SchoolHardwareLicense collection
+function matchAllocationsForSchool(school: any, allocations: any[]): any[] {
+  if (!school || !Array.isArray(allocations) || allocations.length === 0) return [];
+  const sId = String(school.schoolId || school._id || school.id || '').trim();
+  const sName = String(school.schoolName || school.name || '').trim().toLowerCase();
+
+  return allocations.filter((a) => {
+    // 1. By School ObjectId / Id
+    const aSchoolId = String(a.schoolId?._id || a.schoolId || '').trim();
+    if (sId && aSchoolId && sId === aSchoolId) return true;
+
+    // 2. By School Name
+    const aName = String(a.schoolName || a.schoolId?.name || '').trim().toLowerCase();
+    if (sName && aName && (sName === aName || sName.includes(aName) || aName.includes(sName))) return true;
+
+    return false;
+  });
+}
+
+// Helper to group raw license allocations into hardware items with unit-wise licenses
+function groupAllocationsToHardwareItems(
+  allocs: any[],
+  existingHw: IHardwareInstalledItem[] = []
+): IHardwareInstalledItem[] {
+  if (!allocs || allocs.length === 0) return existingHw;
+
+  const map: Record<
+    string,
+    {
+      itemKey: string;
+      productName: string;
+      specifications: string;
+      quantity: number;
+      unitLicenses: IHardwareUnitLicense[];
+      serials: string[];
+    }
+  > = {};
+
+  allocs.forEach((a) => {
+    const key = (a.hardwareKey || 'DEVICE').toUpperCase();
+    if (!map[key]) {
+      const def = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === key);
+      map[key] = {
+        itemKey: key,
+        productName: a.hardwareName || def?.label || key,
+        specifications: a.remarks || def?.desc || '',
+        quantity: 0,
+        unitLicenses: [],
+        serials: [],
+      };
+    }
+    map[key].quantity += 1;
+    const uIdx = a.unitIndex || map[key].unitLicenses.length + 1;
+    const rawReg = a.registeredTo || '';
+    const cleanReg = rawReg ? rawReg.replace(/\s*\(.*\)/, '').replace(/^SN-[A-Z]+-/, '').trim() : '';
+
+    map[key].unitLicenses.push({
+      unitIndex: uIdx,
+      licenseKey: a.licenseKey,
+      status: a.status || (a.isRegistered ? 'REGISTERED' : 'ALLOCATED'),
+      isRegistered: !!a.isRegistered,
+      registeredTo: a.registeredTo || undefined,
+      serialNumber: cleanReg,
+    });
+    map[key].serials.push(cleanReg || '');
+  });
+
+  return Object.values(map).map((group) => {
+    // If user already typed serial numbers in existing items, preserve them!
+    const matchedExisting = existingHw.find(
+      (e) =>
+        (e.itemKey && e.itemKey.toUpperCase() === group.itemKey) ||
+        (e.productName && e.productName.toLowerCase() === group.productName.toLowerCase())
+    );
+
+    const mergedSerials = group.serials.map((s, idx) => {
+      const fromExisting =
+        matchedExisting?.individualSerials?.[idx] ||
+        (matchedExisting?.serialNumbers ? matchedExisting.serialNumbers.split(',')[idx]?.trim() : '');
+      return fromExisting || s;
+    });
+
+    return {
+      itemKey: group.itemKey,
+      productName: group.productName,
+      specifications: group.specifications,
+      quantity: group.quantity,
+      individualSerials: mergedSerials,
+      serialNumbers: mergedSerials.filter(Boolean).join(', '),
+      unitLicenses: group.unitLicenses.map((lic, idx) => ({
+        ...lic,
+        serialNumber: mergedSerials[idx] || lic.serialNumber || '',
+      })),
+    };
+  });
+}
+
+// Fallback helper to extract hardware list selected in Stage 03 for a specific school
 function resolveOrderHardwareForSchool(
   allFormData: Record<string, any> = {},
   schoolId?: string,
@@ -177,16 +293,16 @@ function resolveOrderHardwareForSchool(
   // 4. Default fallback package
   return [
     {
-      itemKey: 'IFP',
-      productName: 'IFP',
+      itemKey: 'IFP_75',
+      productName: '75" 4K UHD Interactive Flat Panel',
       specifications: 'Interactive Flat Panel Touch Display',
       quantity: 1,
       serialNumbers: '',
       individualSerials: [''],
     },
     {
-      itemKey: 'OPS',
-      productName: 'OPS',
+      itemKey: 'OPS_I5',
+      productName: 'OPS Windows 11 Pro i5 16GB/512GB PC',
       specifications: 'Open Pluggable Specification PC Module',
       quantity: 1,
       serialNumbers: '',
@@ -201,13 +317,46 @@ export function InstallationSection({
   disabled = false,
   allFormData = {},
   project,
+  schools = [],
+  isTrainingContext = false,
 }: InstallationSectionProps) {
   const [activeSchoolIndex, setActiveSchoolIndex] = useState(0);
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
-  // Extract upstream schools from Stage 01 / Stage 03 School Info
+  // License Allocations from backend collection
+  const [allocations, setAllocations] = useState<any[]>([]);
+  const [isLoadingAllocations, setIsLoadingAllocations] = useState<boolean>(false);
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  const projectId = project?._id || project?.projectId || project?.id;
+
+  // 1. Fetch license allocations for current project from database
+  const fetchAllocations = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      setIsLoadingAllocations(true);
+      const res = await apiClient.get(`/licenses/allocations?projectId=${encodeURIComponent(projectId)}`);
+      if (res.data?.success && Array.isArray(res.data?.data)) {
+        setAllocations(res.data.data);
+      }
+    } catch (err) {
+      console.warn('Failed to load license allocations:', err);
+    } finally {
+      setIsLoadingAllocations(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    fetchAllocations();
+  }, [fetchAllocations]);
+
+  // Extract upstream schools using unified extractEffectiveSchools helper
   const upstreamSchools = useMemo(() => {
+    const effective = extractEffectiveSchools(schools, allFormData, value);
+    if (effective && effective.length > 0) {
+      return effective;
+    }
     if (allFormData?.stage3Schools && Array.isArray(allFormData.stage3Schools) && allFormData.stage3Schools.length > 0) {
       return allFormData.stage3Schools;
     }
@@ -221,7 +370,7 @@ export function InstallationSection({
       return project.schools;
     }
     return [];
-  }, [allFormData, project]);
+  }, [schools, allFormData, value, project]);
 
   // Normalize initial data and ensure individualSerials array matches quantity
   const schoolsList: ISchoolInstallationData[] = useMemo(() => {
@@ -299,6 +448,53 @@ export function InstallationSection({
 
   const currentSchool = schoolsList[activeSchoolIndex] || schoolsList[0];
 
+  // Matched database allocations for the active school
+  const currentSchoolAllocations = useMemo(() => {
+    return matchAllocationsForSchool(currentSchool, allocations);
+  }, [currentSchool, allocations]);
+
+  // Compute active hardware items: combine currentSchool.hardwareItems with database allocations
+  const activeHardwareItems: IHardwareInstalledItem[] = useMemo(() => {
+    if (!currentSchool) return [];
+
+    const existingHw = currentSchool.hardwareItems || [];
+    if (existingHw.length > 0 && currentSchoolAllocations.length > 0) {
+      // Merge unitLicenses from allocations into existing hardware items
+      return existingHw.map((item) => {
+        const key = (item.itemKey || '').toUpperCase();
+        const matched = currentSchoolAllocations.filter(
+          (a) => (a.hardwareKey || '').toUpperCase() === key
+        );
+
+        if (matched.length > 0) {
+          const qty = Number(item.quantity) || matched.length;
+          const unitLicenses: IHardwareUnitLicense[] = matched.map((a, idx) => ({
+            unitIndex: a.unitIndex || idx + 1,
+            licenseKey: a.licenseKey,
+            status: a.status || (a.isRegistered ? 'REGISTERED' : 'ALLOCATED'),
+            isRegistered: !!a.isRegistered,
+            registeredTo: a.registeredTo || undefined,
+            serialNumber: item.individualSerials?.[idx] || (a.registeredTo ? a.registeredTo.replace(/\s*\(.*\)/, '').trim() : ''),
+          }));
+
+          return {
+            ...item,
+            quantity: qty,
+            unitLicenses,
+          };
+        }
+        return item;
+      });
+    }
+
+    // If current school has no hardware items, auto-group directly from database allocations!
+    if (existingHw.length === 0 && currentSchoolAllocations.length > 0) {
+      return groupAllocationsToHardwareItems(currentSchoolAllocations, []);
+    }
+
+    return existingHw;
+  }, [currentSchool, currentSchoolAllocations]);
+
   const updateCurrentSchool = useCallback((updates: Partial<ISchoolInstallationData>) => {
     if (disabled) return;
     const nextSchools = schoolsList.map((s, idx) => (idx === activeSchoolIndex ? { ...s, ...updates } : s));
@@ -311,6 +507,14 @@ export function InstallationSection({
       installedItems: nextSchools.map(s => `${s.schoolName}: ${(s.hardwareItems || []).map(h => `${h.productName} (S/N: ${h.serialNumbers || 'Pending'})`).join(', ')}`).join(' | '),
     });
   }, [disabled, schoolsList, activeSchoolIndex, onChange]);
+
+  // Auto-synchronize activeHardwareItems into form state when allocations are fetched if hardware was empty
+  useEffect(() => {
+    if (!currentSchool) return;
+    if ((!currentSchool.hardwareItems || currentSchool.hardwareItems.length === 0) && activeHardwareItems.length > 0) {
+      updateCurrentSchool({ hardwareItems: activeHardwareItems });
+    }
+  }, [activeHardwareItems, currentSchool, updateCurrentSchool]);
 
   const handleAddSchool = () => {
     if (disabled) return;
@@ -346,9 +550,16 @@ export function InstallationSection({
     });
   };
 
-  // Sync / Refresh hardware items directly from Stage 03 Order Requirements
+  // Sync / Refresh hardware items directly from database allocations & Stage 03 Order Requirements
   const handleSyncHardwareFromOrder = () => {
     if (disabled || !currentSchool) return;
+
+    if (currentSchoolAllocations.length > 0) {
+      const groupedFromDb = groupAllocationsToHardwareItems(currentSchoolAllocations, currentSchool.hardwareItems || []);
+      updateCurrentSchool({ hardwareItems: groupedFromDb });
+      return;
+    }
+
     const orderHw = resolveOrderHardwareForSchool(
       allFormData, 
       currentSchool.schoolId, 
@@ -374,40 +585,81 @@ export function InstallationSection({
     updateCurrentSchool({ hardwareItems: mergedHw });
   };
 
-  // Update a single unit's serial number inside a hardware item
-  const handleUpdateUnitSerial = (hIndex: number, unitIndex: number, serialValue: string) => {
+  // Update a single unit's serial number inside a hardware item and optionally sync with backend
+  const handleUpdateUnitSerial = async (hIndex: number, unitIndex: number, serialValue: string) => {
     if (disabled || !currentSchool) return;
-    const nextHw = (currentSchool.hardwareItems || []).map((item, idx) => {
+    const baseHw = activeHardwareItems.length > 0 ? activeHardwareItems : (currentSchool.hardwareItems || []);
+    
+    const nextHw = baseHw.map((item, idx) => {
       if (idx !== hIndex) return item;
       const qty = Number(item.quantity) || 1;
       const nextSerials = [...(item.individualSerials || Array.from({ length: qty }, () => ''))];
       nextSerials[unitIndex] = serialValue;
+
+      const nextLicenses = (item.unitLicenses || []).map((lic, lIdx) => 
+        lIdx === unitIndex ? { ...lic, serialNumber: serialValue } : lic
+      );
+
       return {
         ...item,
         individualSerials: nextSerials,
-        serialNumbers: nextSerials.filter(s => s.trim().length > 0).join(', ')
+        serialNumbers: nextSerials.filter(s => s.trim().length > 0).join(', '),
+        unitLicenses: nextLicenses
       };
     });
+
     updateCurrentSchool({ hardwareItems: nextHw });
+
+    // Background update to SchoolHardwareLicense collection if licenseKey exists
+    const targetItem = baseHw[hIndex];
+    const unitLic = targetItem?.unitLicenses?.[unitIndex];
+    if (unitLic?.licenseKey && currentSchool.schoolId && projectId) {
+      try {
+        await apiClient.post('/licenses/allocations', {
+          projectId: projectId,
+          schoolId: currentSchool.schoolId,
+          schoolName: currentSchool.schoolName,
+          hardwareKey: targetItem.itemKey || 'DEVICE',
+          hardwareName: targetItem.productName,
+          unitIndex: unitLic.unitIndex || (unitIndex + 1),
+          licenseKey: unitLic.licenseKey,
+          remarks: serialValue ? `Serial No: ${serialValue}` : '',
+        });
+      } catch (err) {
+        console.warn('Silent auto-sync of allocation serial skipped:', err);
+      }
+    }
+  };
+
+  // 1-Click Copy License Key to Clipboard
+  const handleCopyLicense = (licKey: string) => {
+    if (!licKey) return;
+    navigator.clipboard.writeText(licKey);
+    setCopiedKey(licKey);
+    setTimeout(() => {
+      setCopiedKey((prev) => (prev === licKey ? null : prev));
+    }, 2000);
   };
 
   // Add a new custom hardware product row
   const handleAddHardwareRow = () => {
     if (disabled || !currentSchool) return;
+    const baseHw = activeHardwareItems.length > 0 ? activeHardwareItems : (currentSchool.hardwareItems || []);
     const newRow: IHardwareInstalledItem = {
       productName: '',
       quantity: 1,
       serialNumbers: '',
       individualSerials: [''],
     };
-    const nextHw = [...(currentSchool.hardwareItems || []), newRow];
+    const nextHw = [...baseHw, newRow];
     updateCurrentSchool({ hardwareItems: nextHw });
   };
 
   // Update generic fields on hardware item (productName, quantity)
   const handleUpdateHardwareRow = (hIndex: number, field: keyof IHardwareInstalledItem, val: any) => {
     if (disabled || !currentSchool) return;
-    const nextHw = (currentSchool.hardwareItems || []).map((item, idx) => {
+    const baseHw = activeHardwareItems.length > 0 ? activeHardwareItems : (currentSchool.hardwareItems || []);
+    const nextHw = baseHw.map((item, idx) => {
       if (idx !== hIndex) return item;
       if (field === 'quantity') {
         const newQty = Math.max(1, parseInt(val) || 1);
@@ -427,7 +679,8 @@ export function InstallationSection({
 
   const handleDeleteHardwareRow = (hIndex: number) => {
     if (disabled || !currentSchool) return;
-    const nextHw = (currentSchool.hardwareItems || []).filter((_, idx) => idx !== hIndex);
+    const baseHw = activeHardwareItems.length > 0 ? activeHardwareItems : (currentSchool.hardwareItems || []);
+    const nextHw = baseHw.filter((_, idx) => idx !== hIndex);
     updateCurrentSchool({ hardwareItems: nextHw });
   };
 
@@ -445,7 +698,7 @@ export function InstallationSection({
       const uploadFormData = new FormData();
       uploadFormData.append('file', file);
 
-      const baseUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+      const baseUrl = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
       const res = await fetch(`${baseUrl}/upload`, {
         method: 'POST',
         headers: {
@@ -471,34 +724,40 @@ export function InstallationSection({
   if (!currentSchool) return null;
 
   // Calculate total units & serial filled counts
-  const totalUnits = (currentSchool.hardwareItems || []).reduce((acc, h) => acc + (Number(h.quantity) || 1), 0);
-  const totalSerialsFilled = (currentSchool.hardwareItems || []).reduce((acc, h) => {
+  const totalUnits = activeHardwareItems.reduce((acc, h) => acc + (Number(h.quantity) || 1), 0);
+  const totalSerialsFilled = activeHardwareItems.reduce((acc, h) => {
     const filled = (h.individualSerials || []).filter(s => (s || '').trim().length > 0).length;
     return acc + filled;
   }, 0);
+  const totalLicensesCount = activeHardwareItems.reduce((acc, h) => acc + (h.unitLicenses?.length || 0), 0);
   const isAllFilled = totalUnits > 0 && totalSerialsFilled === totalUnits;
 
   return (
     <div className="space-y-6 font-sans">
       
-      {/* ── SCHOOL BRANCH SELECTOR (If multi-school project) ───────── */}
-      {schoolsList.length > 1 && (
-        <div className="bg-[#f0f9fa] border border-[#b6e0e4] rounded-2xl p-3.5 space-y-2">
+      {/* ── SCHOOL BRANCH SELECTOR ───────────────────────────────────── */}
+      {schoolsList.length > 0 && (
+        <div className="bg-[#f0f9fa] border border-[#b6e0e4] rounded-2xl p-4 space-y-2.5 shadow-2xs">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-[#3a7d84] text-white flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-[#3a7d84] text-white flex items-center justify-center shadow-xs">
                 <Building2 className="w-4 h-4" />
               </div>
-              <span className="text-xs font-bold text-[#1f4e53] font-heading">
-                Select School ({schoolsList.length} Schools)
-              </span>
+              <div>
+                <span className="text-xs font-bold text-[#1f4e53] font-heading">
+                  Select School ({schoolsList.length} {schoolsList.length === 1 ? 'School' : 'Schools'})
+                </span>
+                <span className="text-[10.5px] text-[#556987] ml-2 hidden sm:inline">
+                  Click a school to view its allocated hardware &amp; provisioned licenses
+                </span>
+              </div>
             </div>
 
             {!disabled && (
               <button
                 type="button"
                 onClick={handleAddSchool}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-[#2d6b73] border border-[#b6e0e4] hover:bg-[#3a7d84] hover:text-white transition shadow-2xs cursor-pointer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-white text-[#2d6b73] border border-[#b6e0e4] hover:bg-[#3a7d84] hover:text-white transition shadow-2xs cursor-pointer active:scale-95"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>Add School</span>
@@ -506,10 +765,12 @@ export function InstallationSection({
             )}
           </div>
 
-          <div className="flex items-center gap-2 overflow-x-auto pb-1 pt-0.5">
+          <div className="flex items-center gap-2.5 overflow-x-auto pb-1 pt-1">
             {schoolsList.map((s, idx) => {
               const isActive = idx === activeSchoolIndex;
-              const sUnits = (s.hardwareItems || []).reduce((acc, h) => acc + (Number(h.quantity) || 1), 0);
+              const schAllocations = matchAllocationsForSchool(s, allocations);
+              const totalSchLicenses = schAllocations.length;
+              const sUnits = (s.hardwareItems || []).reduce((acc, h) => acc + (Number(h.quantity) || 1), 0) || totalSchLicenses;
               const sFilled = (s.hardwareItems || []).reduce((acc, h) => acc + (h.individualSerials || []).filter(v => (v || '').trim().length > 0).length, 0);
               const sComplete = sUnits > 0 && sFilled === sUnits;
               
@@ -517,28 +778,42 @@ export function InstallationSection({
                 <div
                   key={idx}
                   onClick={() => setActiveSchoolIndex(idx)}
-                  className={`group flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition-all select-none cursor-pointer shrink-0 border ${
+                  className={`group flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all select-none cursor-pointer shrink-0 border shadow-2xs ${
                     isActive
-                      ? 'bg-[#3a7d84] text-white border-[#2d6b73] shadow-xs'
-                      : 'bg-white text-[#334155] border-slate-200 hover:bg-slate-100'
+                      ? 'bg-[#3a7d84] text-white border-[#2d6b73] shadow-xs scale-[1.01]'
+                      : 'bg-white text-[#334155] border-slate-200/90 hover:bg-[#f8fafb] hover:border-[#b6e0e4]'
                   }`}
                 >
-                  <span>{idx + 1}. {s.schoolName || `School #${idx + 1}`}</span>
+                  <span className="truncate max-w-[200px] sm:max-w-[260px]">
+                    {idx + 1}. {s.schoolName || `School #${idx + 1}`}
+                  </span>
+
+                  {totalSchLicenses > 0 && (
+                    <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 ${
+                      isActive 
+                        ? 'bg-white/20 text-white border border-white/30' 
+                        : 'bg-[#f0f9fa] text-[#2d6b73] border border-[#b6e0e4]'
+                    }`}>
+                      <KeyRound className="w-2.5 h-2.5" />
+                      {totalSchLicenses} Lic
+                    </span>
+                  )}
+
                   {sUnits > 0 && (
-                    <span className={`text-[9.5px] px-1.5 py-0.2 rounded-full font-bold ${
+                    <span className={`text-[9.5px] px-1.5 py-0.5 rounded-full font-bold ${
                       isActive 
                         ? (sComplete ? 'bg-emerald-500 text-white' : 'bg-white/20 text-white') 
                         : (sComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700')
                     }`}>
-                      {sFilled} / {sUnits} Serials
+                      {sFilled}/{sUnits} Serials
                     </span>
                   )}
 
-                  {!disabled && (
+                  {!disabled && schoolsList.length > 1 && (
                     <button
                       type="button"
                       onClick={(e) => handleDeleteSchool(idx, e)}
-                      className={`p-0.5 rounded-md hover:bg-rose-600 hover:text-white transition opacity-60 group-hover:opacity-100 ${isActive ? 'text-white' : 'text-slate-500'}`}
+                      className={`p-0.5 rounded-md hover:bg-rose-600 hover:text-white transition opacity-40 group-hover:opacity-100 ${isActive ? 'text-white' : 'text-slate-500'}`}
                       title="Delete school"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
@@ -551,27 +826,38 @@ export function InstallationSection({
         </div>
       )}
 
-      {/* ── 1. HARDWARE SERIAL NUMBERS INPUT LIST ─────────────────────── */}
+      {/* ── 1. HARDWARE & LICENSE ALLOCATION LIST ───────────────────────── */}
       <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-xs space-y-4">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 border-b border-slate-100 pb-3.5">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-[#3a7d84] text-white flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-[#3a7d84] text-white flex items-center justify-center shadow-xs">
                 <Cpu className="w-4 h-4" />
               </div>
               <h4 className="text-sm font-bold text-slate-900 font-heading">
-                Hardware Serial Numbers Entry
+                {isTrainingContext 
+                  ? 'Hardware Verification, Licenses & Serial Numbers'
+                  : 'Hardware Serial Numbers & License Provisioning'}
               </h4>
               <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
                 isAllFilled
                   ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
                   : 'bg-[#f0f9fa] text-[#2d6b73] border-[#b6e0e4]'
               }`}>
-                {totalSerialsFilled} of {totalUnits} Units Recorded {isAllFilled && '✓'}
+                {totalSerialsFilled} of {totalUnits} Serials Recorded {isAllFilled && '✓'}
               </span>
+
+              {totalLicensesCount > 0 && (
+                <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 flex items-center gap-1">
+                  <KeyRound className="w-3 h-3 text-emerald-600" />
+                  {totalLicensesCount} Licenses Linked
+                </span>
+              )}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Hardware Requirements mein select hue sabhi products ke har ek unit ka Serial Number yahan fill karein.
+              {isTrainingContext 
+                ? 'School ke sabhi allocated hardware units verify karein, license keys se software activate karein, aur serial numbers darj karein.' 
+                : 'Select hue sabhi hardware units ke serial number darj karein aur unke mapped active licenses copy karein.'}
             </p>
           </div>
 
@@ -580,18 +866,19 @@ export function InstallationSection({
               <>
                 <button
                   type="button"
-                  onClick={handleSyncHardwareFromOrder}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200 hover:bg-slate-100 transition cursor-pointer"
-                  title="Sync exact hardware requirements from Stage 03"
+                  onClick={fetchAllocations}
+                  disabled={isLoadingAllocations}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-slate-50 text-slate-700 border border-slate-200 hover:bg-[#f0f9fa] hover:text-[#2d6b73] hover:border-[#b6e0e4] transition cursor-pointer active:scale-95"
+                  title="Reload license allocations from Tech Stream"
                 >
-                  <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
-                  <span>Sync Hardware Requirements</span>
+                  <RefreshCw className={`w-3.5 h-3.5 text-slate-500 ${isLoadingAllocations ? 'animate-spin text-[#3a7d84]' : ''}`} />
+                  <span>{isLoadingAllocations ? 'Syncing...' : 'Sync Licenses & Hardware'}</span>
                 </button>
 
                 <button
                   type="button"
                   onClick={handleAddHardwareRow}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#3a7d84] hover:bg-[#2d6b73] text-white transition shadow-2xs cursor-pointer"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#3a7d84] hover:bg-[#2d6b73] text-white transition shadow-2xs cursor-pointer active:scale-95"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   <span>Add Hardware</span>
@@ -602,16 +889,18 @@ export function InstallationSection({
         </div>
 
         {/* Hardware Items List */}
-        {(currentSchool.hardwareItems || []).length === 0 ? (
-          <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 space-y-2">
-            <Cpu className="w-8 h-8 text-slate-400 mx-auto" />
-            <p className="text-xs font-bold text-slate-700">No Hardware Requirements Found for this School</p>
-            <p className="text-[11px] text-slate-500">Click &quot;Sync Hardware Requirements&quot; to auto-import the exact hardware items selected in Stage 03.</p>
+        {activeHardwareItems.length === 0 ? (
+          <div className="p-8 text-center border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50/50 space-y-2.5">
+            <Cpu className="w-9 h-9 text-slate-400 mx-auto" />
+            <p className="text-xs font-bold text-slate-700">No Hardware Requirements or Licenses Found for this School</p>
+            <p className="text-[11px] text-slate-500 max-w-md mx-auto">
+              Click &quot;Sync Licenses &amp; Hardware&quot; to auto-import allocations and licenses provisioned for this school.
+            </p>
             {!disabled && (
               <button
                 type="button"
                 onClick={handleSyncHardwareFromOrder}
-                className="mt-2 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#3a7d84] text-white hover:bg-[#2d6b73] transition cursor-pointer"
+                className="mt-2 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-[#3a7d84] text-white hover:bg-[#2d6b73] transition shadow-xs cursor-pointer active:scale-95"
               >
                 <RefreshCw className="w-3.5 h-3.5" />
                 <span>Sync Hardware from Requirements</span>
@@ -619,124 +908,160 @@ export function InstallationSection({
             )}
           </div>
         ) : (
-          <div className="space-y-4">
-            {(currentSchool.hardwareItems || []).map((item, hIdx) => {
-              const qty = Number(item.quantity) || 1;
-              const serials = item.individualSerials || Array.from({ length: qty }, () => '');
-              const filledInItem = serials.filter(s => (s || '').trim().length > 0).length;
-              const isItemComplete = filledInItem === qty;
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 shadow-2xs">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-[#f8fafc] border-b border-slate-200 text-[#556987] text-[11px] font-bold uppercase tracking-wider font-heading select-none">
+                  <th className="py-3 px-3.5 text-center w-12">#</th>
+                  <th className="py-3 px-4 min-w-[200px]">Hardware Type</th>
+                  <th className="py-3 px-4 min-w-[220px]">Specifications</th>
+                  <th className="py-3 px-4 min-w-[240px]">License ID</th>
+                  <th className="py-3 px-4 min-w-[260px]">Hardware Serial Number</th>
+                  {!disabled && <th className="py-3 px-3 text-center w-14">Action</th>}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white text-xs">
+                {(() => {
+                  let globalUnitIndex = 0;
+                  return activeHardwareItems.flatMap((item, hIdx) => {
+                    const qty = Number(item.quantity) || 1;
+                    const serials = item.individualSerials || Array.from({ length: qty }, () => '');
 
-              return (
-                <div
-                  key={hIdx}
-                  className={`p-4 rounded-2xl border transition-all ${
-                    isItemComplete
-                      ? 'border-emerald-200 bg-emerald-50/15'
-                      : 'border-slate-200 bg-white hover:border-slate-300'
-                  }`}
-                >
-                  {/* Top Bar of Product: Name, Qty & Action */}
-                  <div className="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 mb-3">
-                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
-                      <span className="w-6 h-6 rounded-lg bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4] font-mono font-bold text-xs flex items-center justify-center shrink-0">
-                        {hIdx + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <input
-                          type="text"
-                          disabled={disabled}
-                          value={item.productName || ''}
-                          onChange={(e) => handleUpdateHardwareRow(hIdx, 'productName', e.target.value)}
-                          placeholder="e.g. 75 Inch Interactive Flat Panel"
-                          className="w-full text-xs sm:text-sm font-bold text-slate-900 bg-transparent border-b border-transparent focus:border-slate-300 focus:outline-none truncate"
-                        />
-                        {item.specifications && (
-                          <p className="text-[10.5px] text-slate-500 truncate mt-0.5">{item.specifications}</p>
-                        )}
-                      </div>
-                    </div>
+                    return Array.from({ length: qty }).map((_, unitIdx) => {
+                      globalUnitIndex += 1;
+                      const currentRowNum = globalUnitIndex;
+                      const serialVal = serials[unitIdx] || '';
+                      const hasVal = serialVal.trim().length > 0;
+                      const lic = item.unitLicenses?.[unitIdx];
+                      const isCopied = lic?.licenseKey && copiedKey === lic.licenseKey;
 
-                    <div className="flex items-center gap-2 shrink-0">
-                      <div className="flex items-center gap-1 bg-slate-100 rounded-lg px-2 py-1">
-                        <span className="text-[10px] text-slate-500 font-medium">Qty:</span>
-                        <input
-                          type="number"
-                          min={1}
-                          disabled={disabled}
-                          value={qty}
-                          onChange={(e) => handleUpdateHardwareRow(hIdx, 'quantity', e.target.value)}
-                          className="w-12 text-xs font-bold text-center bg-white border border-slate-200 rounded px-1 py-0.5 font-mono"
-                        />
-                      </div>
-
-                      <span className={`text-[10.5px] font-bold px-2 py-0.5 rounded-md border ${
-                        isItemComplete
-                          ? 'bg-emerald-100 text-emerald-800 border-emerald-300'
-                          : 'bg-amber-50 text-amber-800 border-amber-300'
-                      }`}>
-                        {filledInItem} / {qty} Serials
-                      </span>
-
-                      {!disabled && (
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteHardwareRow(hIdx)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                          title="Remove hardware item"
+                      return (
+                        <tr 
+                          key={`${hIdx}_${unitIdx}`} 
+                          className={`transition-colors hover:bg-[#f0f9fa]/40 ${hasVal ? 'bg-emerald-50/10' : ''}`}
                         >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Individual Unit Serial Inputs */}
-                  <div className="space-y-2">
-                    <div className="text-[11px] font-bold text-slate-700 flex items-center gap-1.5">
-                      <Hash className="w-3.5 h-3.5 text-[#3a7d84]" />
-                      <span>Input Serial Number for each unit:</span>
-                    </div>
-
-                    <div className={`grid gap-2.5 ${qty === 1 ? 'grid-cols-1' : qty <= 4 ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3'}`}>
-                      {Array.from({ length: qty }).map((_, unitIdx) => {
-                        const serialVal = serials[unitIdx] || '';
-                        const hasVal = serialVal.trim().length > 0;
-
-                        return (
-                          <div
-                            key={unitIdx}
-                            className={`flex items-center gap-2 p-2 rounded-xl border transition-all ${
-                              hasVal 
-                                ? 'border-emerald-300 bg-emerald-50/30' 
-                                : 'border-slate-200 bg-slate-50/50 focus-within:border-[#51a8b1] focus-within:bg-white'
-                            }`}
-                          >
-                            <span className="text-[10px] font-mono font-bold px-2 py-1 rounded-md bg-white border border-slate-200 text-slate-600 shrink-0">
-                              #{unitIdx + 1}
+                          {/* 1. Row Index */}
+                          <td className="py-3.5 px-3.5 text-center font-mono font-bold text-slate-500">
+                            <span className="w-6 h-6 rounded-lg bg-slate-100 text-slate-700 text-[11px] font-bold flex items-center justify-center mx-auto shadow-2xs">
+                              {currentRowNum}
                             </span>
-                            
-                            <input
-                              type="text"
-                              disabled={disabled}
-                              value={serialVal}
-                              onChange={(e) => handleUpdateUnitSerial(hIdx, unitIdx, e.target.value)}
-                              placeholder={`Serial No. for Unit #${unitIdx + 1}`}
-                              className="w-full text-xs font-mono font-bold text-slate-900 bg-transparent focus:outline-none placeholder:text-slate-400 placeholder:font-sans"
-                            />
+                          </td>
 
-                            {hasVal ? (
-                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                          {/* 2. Hardware Type */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex flex-col gap-1">
+                              <span className="font-bold text-slate-900 text-xs sm:text-[13px] leading-snug">
+                                {item.productName || 'Hardware Unit'}
+                              </span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                {item.itemKey && (
+                                  <span className="px-2 py-0.5 text-[9.5px] font-mono font-bold rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                                    {item.itemKey}
+                                  </span>
+                                )}
+                                {qty > 1 && (
+                                  <span className="px-2 py-0.5 text-[9.5px] font-mono font-bold rounded-md bg-[#f0f9fa] text-[#2d6b73] border border-[#b6e0e4]">
+                                    Unit #{unitIdx + 1} of {qty}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </td>
+
+                          {/* 3. Specifications */}
+                          <td className="py-3.5 px-4">
+                            <span className="text-[11.5px] text-slate-600 font-medium leading-relaxed">
+                              {item.specifications || DEFAULT_HARDWARE_ITEMS.find(d => d.key === item.itemKey)?.desc || 'Standard interactive classroom equipment'}
+                            </span>
+                          </td>
+
+                          {/* 4. License ID */}
+                          <td className="py-3.5 px-4">
+                            {lic?.licenseKey ? (
+                              <div className="flex flex-col gap-1">
+                                <div className="flex items-center gap-1.5 bg-[#f0f9fa] border border-[#b6e0e4] px-2.5 py-1.5 rounded-xl w-fit shadow-2xs">
+                                  <KeyRound className="w-3.5 h-3.5 text-[#3a7d84] shrink-0" />
+                                  <span className="text-[11.5px] font-mono font-bold text-slate-900 select-all tracking-tight">
+                                    {lic.licenseKey}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleCopyLicense(lic.licenseKey!)}
+                                    className={`p-1 rounded-md border transition cursor-pointer active:scale-95 ${
+                                      isCopied
+                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                        : 'bg-white text-slate-600 border-slate-200 hover:text-[#2d6b73] hover:border-[#b6e0e4]'
+                                    }`}
+                                    title="Copy license key to clipboard"
+                                  >
+                                    {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                                  </button>
+                                  <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
+                                    lic.status === 'REGISTERED' || lic.isRegistered
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                      : 'bg-white text-[#2d6b73] border-[#b6e0e4]'
+                                  }`}>
+                                    {lic.status || (lic.isRegistered ? 'REGISTERED' : 'ALLOCATED')}
+                                  </span>
+                                </div>
+
+                                {lic.registeredTo && (
+                                  <span className="text-[10px] text-emerald-700 flex items-center gap-1 font-mono">
+                                    <ShieldCheck className="w-3 h-3 text-emerald-600 shrink-0" />
+                                    {lic.registeredTo}
+                                  </span>
+                                )}
+                              </div>
                             ) : (
-                              <span className="w-4 h-4 rounded-full border border-dashed border-slate-300 shrink-0" />
+                              <span className="text-[11px] text-slate-400 italic">No license allocated</span>
                             )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+                          </td>
+
+                          {/* 5. Hardware Serial Number Input */}
+                          <td className="py-3.5 px-4">
+                            <div className="flex items-center gap-2">
+                              <div className="relative flex-1">
+                                <input
+                                  type="text"
+                                  disabled={disabled}
+                                  value={serialVal}
+                                  onChange={(e) => handleUpdateUnitSerial(hIdx, unitIdx, e.target.value)}
+                                  placeholder={`Enter S/N (e.g. SN-${item.itemKey || 'HW'}-${String(unitIdx + 1).padStart(2, '0')})`}
+                                  className="w-full text-xs font-mono font-bold text-slate-900 bg-white border border-slate-200 rounded-xl px-3 py-2 focus:border-[#51a8b1] focus:ring-2 focus:ring-[#51a8b1]/20 focus:outline-none placeholder:font-sans placeholder:font-normal placeholder:text-slate-400 shadow-2xs transition-all"
+                                />
+                              </div>
+                              {hasVal ? (
+                                <span className="w-6 h-6 rounded-lg bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0 shadow-2xs" title="Serial Number Recorded">
+                                  <CheckCircle2 className="w-4 h-4" />
+                                </span>
+                              ) : (
+                                <span className="w-6 h-6 rounded-lg border border-dashed border-slate-300 text-slate-400 flex items-center justify-center shrink-0 text-[10px]" title="Serial Number Pending">
+                                  —
+                                </span>
+                              )}
+                            </div>
+                          </td>
+
+                          {/* 6. Action */}
+                          {!disabled && (
+                            <td className="py-3.5 px-3 text-center">
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteHardwareRow(hIdx)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                title="Remove this hardware item"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    });
+                  });
+                })()}
+              </tbody>
+            </table>
           </div>
         )}
       </div>
@@ -746,18 +1071,20 @@ export function InstallationSection({
         <div className="flex items-center justify-between border-b border-slate-100 pb-3.5">
           <div>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-xl bg-[#3a7d84] text-white flex items-center justify-center">
+              <div className="w-7 h-7 rounded-xl bg-[#3a7d84] text-white flex items-center justify-center shadow-xs">
                 <Camera className="w-4 h-4" />
               </div>
               <h4 className="text-sm font-bold text-slate-900 font-heading">
-                Installation Area Images (3 Photos)
+                {isTrainingContext ? 'Training Session & Verification Images (3 Photos)' : 'Installation Area Images (3 Photos)'}
               </h4>
               <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#f0f9fa] text-[#2d6b73] border border-[#b6e0e4]">
                 {[currentSchool.image1Url, currentSchool.image2Url, currentSchool.image3Url].filter(Boolean).length} / 3 Uploaded
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Installation area ki 3 photos upload karein (PNG, JPG, WebP • Max 2MB each).
+              {isTrainingContext 
+                ? 'Teacher training workshop, interactive screen hands-on demo, and signed attendance report upload (Max 2MB each).' 
+                : 'Upload 3 installation site photos (PNG, JPG, WebP • Max 2MB each).'}
             </p>
           </div>
         </div>
@@ -770,10 +1097,10 @@ export function InstallationSection({
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 font-heading">
                 <Camera className="w-3.5 h-3.5 text-[#3a7d84]" />
-                Photo 1 (Front View)
+                {isTrainingContext ? 'Photo 1 (Training Session)' : 'Photo 1 (Front View / Smartboard)'}
               </span>
               {currentSchool.image1Url && (
-                <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                   <CheckCircle2 className="w-2.5 h-2.5" /> Uploaded
                 </span>
               )}
@@ -833,7 +1160,7 @@ export function InstallationSection({
                   <>
                     <Upload className="w-5 h-5 text-[#3a7d84]" />
                     <span className="text-xs font-bold text-slate-800">Upload Photo 1</span>
-                    <span className="text-[10px] text-slate-400">Click to browse / upload</span>
+                    <span className="text-[10px] text-slate-400">PNG, JPG, WebP • Max 2MB</span>
                   </>
                 )}
               </label>
@@ -845,10 +1172,10 @@ export function InstallationSection({
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 font-heading">
                 <Camera className="w-3.5 h-3.5 text-[#3a7d84]" />
-                Photo 2 (Room Interior)
+                {isTrainingContext ? 'Photo 2 (Hardware Hands-on)' : 'Photo 2 (Classroom Interior View)'}
               </span>
               {currentSchool.image2Url && (
-                <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                   <CheckCircle2 className="w-2.5 h-2.5" /> Uploaded
                 </span>
               )}
@@ -908,7 +1235,7 @@ export function InstallationSection({
                   <>
                     <Upload className="w-5 h-5 text-[#3a7d84]" />
                     <span className="text-xs font-bold text-slate-800">Upload Photo 2</span>
-                    <span className="text-[10px] text-slate-400">Click to browse / upload</span>
+                    <span className="text-[10px] text-slate-400">PNG, JPG, WebP • Max 2MB</span>
                   </>
                 )}
               </label>
@@ -920,10 +1247,10 @@ export function InstallationSection({
             <div className="flex items-center justify-between">
               <span className="text-xs font-bold text-slate-800 flex items-center gap-1.5 font-heading">
                 <Camera className="w-3.5 h-3.5 text-[#3a7d84]" />
-                Photo 3 (Setup Area)
+                {isTrainingContext ? 'Photo 3 (Attendance / Sign-off)' : 'Photo 3 (Hardware Mounted / Setup Area)'}
               </span>
               {currentSchool.image3Url && (
-                <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.2 rounded flex items-center gap-0.5">
+                <span className="text-[9.5px] font-bold text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded flex items-center gap-0.5">
                   <CheckCircle2 className="w-2.5 h-2.5" /> Uploaded
                 </span>
               )}
@@ -982,8 +1309,8 @@ export function InstallationSection({
                 ) : (
                   <>
                     <Upload className="w-5 h-5 text-[#3a7d84]" />
-                    <span className="text-xs font-bold text-slate-800">Upload Image 3</span>
-                    <span className="text-[10px] text-slate-400">Click to browse / upload</span>
+                    <span className="text-xs font-bold text-slate-800">Upload Photo 3</span>
+                    <span className="text-[10px] text-slate-400">PNG, JPG, WebP • Max 2MB</span>
                   </>
                 )}
               </label>
@@ -1028,3 +1355,5 @@ export function InstallationSection({
     </div>
   );
 }
+
+export { TrainingExecutionSection } from './TrainingExecutionSection';

@@ -390,7 +390,7 @@ export function getStageOrder(stageKey?: string, order?: number): number {
   const key = stageKey.toUpperCase();
   if (key.includes('PROJECT_REVIEW') || key.includes('PROJECT_CREATED') || key.includes('LEAD')) return 1;
   if (key.includes('PO_AND_PI') || key.includes('PO_') || key.includes('PI_')) return 2;
-  if (key.includes('ORDER_REQUIREMENT') || key.includes('SCHOOL_') || key.includes('SOLUTION') || key.includes('HARDWARE_REQUIREMENT')) return 3;
+  if (key.includes('ORDER_REQUIREMENT') || key.includes('SCHOOL_') || key.includes('SOLUTION') || key.includes('HARDWARE_REQUIREMENT') || key.includes('CONTENT_CONFIGURATION')) return 3;
   if (key.includes('EXECUTION') || key.includes('HARDWARE_STREAM') || key.includes('TECH_STREAM') || key.includes('CONTENT_STREAM')) return 4;
   if (key.includes('TECH_AND_CONTENT_TESTING') || key.includes('TESTING_') || key.includes('INTEGRATION_TESTING')) return 5;
   if (key.includes('INSTALLATION')) return 6;

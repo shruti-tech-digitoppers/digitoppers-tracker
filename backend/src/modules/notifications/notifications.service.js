@@ -77,7 +77,12 @@ async function notifyWithAdminsAndPMs(data = {}) {
 
     let projectDoc = null;
     if (projectId) {
-      projectDoc = await Project.findById(projectId);
+      const mongoose = require('mongoose');
+      if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
+        projectDoc = await Project.findById(projectId);
+      } else {
+        projectDoc = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+      }
       if (projectDoc && projectDoc.projectManager) {
         const pmId = typeof projectDoc.projectManager === 'object'
           ? projectDoc.projectManager._id || projectDoc.projectManager.id

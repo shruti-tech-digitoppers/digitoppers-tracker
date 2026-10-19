@@ -16,5 +16,7 @@ activitySchema.index({ project: 1, createdAt: -1 });
 activitySchema.index({ createdAt: -1 });
 activitySchema.index({ action: 1, createdAt: -1 });
 
+activitySchema.index({ project: 1, actor: 1 });
+
 module.exports = mongoose.model('Activity', activitySchema);
 

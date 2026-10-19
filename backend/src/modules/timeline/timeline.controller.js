@@ -10,6 +10,16 @@ class TimelineController {
     } catch (err) { next(err); }
   }
 
+  async getRoadmap(req, res, next) {
+    try {
+      const Timeline = require('./timeline.model');
+      const project = await timelineService._findProject(req.params.projectId);
+      const pId = project ? project._id : req.params.projectId;
+      const timeline = await Timeline.findOne({ project: pId }).lean();
+      res.status(200).json({ success: true, data: timeline });
+    } catch (err) { next(err); }
+  }
+
   async getNode(req, res, next) {
     try {
       const node = await timelineService.getNodeById(req.params.projectId, req.params.nodeId);

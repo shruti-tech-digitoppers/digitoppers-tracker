@@ -42,8 +42,17 @@ class ActivityService {
     const { limit = 100, page = 1, action, resourceType } = options;
     const filter = {};
 
-    if (mongoose.Types.ObjectId.isValid(projectId)) {
-      filter.project = projectId;
+    let targetId = null;
+    if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
+      targetId = projectId;
+    } else if (projectId) {
+      const Project = require('../projects/project.model');
+      const proj = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+      if (proj) targetId = proj._id;
+    }
+
+    if (targetId) {
+      filter.project = targetId;
     }
 
     if (action) filter.action = action;

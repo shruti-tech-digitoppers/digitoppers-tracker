@@ -38,6 +38,18 @@ const hardwareSchema = new mongoose.Schema(
         ref: 'Solution',
       },
     ],
+    department: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Department',
+      default: null,
+      index: true,
+    },
+    departmentCode: {
+      type: String,
+      enum: ['OPS', 'TECH', 'CONTENT', 'FIN', 'SALES', 'INSTALLATION', 'TRAINING', null],
+      default: 'OPS',
+      index: true,
+    },
     index: {
       type: Number,
       default: 0,

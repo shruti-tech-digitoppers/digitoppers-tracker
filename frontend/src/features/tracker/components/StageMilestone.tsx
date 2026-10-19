@@ -39,7 +39,7 @@ export function StageMilestone({
   const isSelected = selectedNodeId === stage._id;
   const isExpanded = isNodeExpanded(stage._id);
   const subtasks = (stage.children || [])
-    .filter(c => c.key !== 'PI_REQUEST')
+    .filter(c => c.key !== 'PI_REQUEST' && c.key !== 'INSTALLATION_TESTING')
     .filter(matchesFilter);
   const hasSubstages = Boolean(subtasks.length > 0);
   const theme = getStageTheme(orderNumber || stage.order || stage.key);

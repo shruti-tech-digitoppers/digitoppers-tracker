@@ -13,6 +13,7 @@ import {
   extractEffectiveSchools,
   getClassPreset
 } from '../utils/formHelpers';
+import { isGradeSelected } from '@/types/grade';
 import { useSolutionsAndHardware, MasterSolution } from '@/lib/hooks/useSolutionsAndHardware';
 import { InstitutionalSchoolSelector } from '../common/InstitutionalSchoolSelector';
 import { StepSectionHeader } from '../common/StepSectionHeader';
@@ -92,8 +93,8 @@ function ClassesMultiSelectDropdown({
   }, [isOpen]);
 
   const toggleClass = useCallback((cls: string) => {
-    if (selectedClasses.includes(cls)) {
-      onChange(selectedClasses.filter((c) => c !== cls));
+    if (isGradeSelected(selectedClasses, cls)) {
+      onChange(selectedClasses.filter((c) => !isGradeSelected([c], cls)));
     } else {
       onChange([...selectedClasses, cls]);
     }
@@ -285,15 +286,16 @@ function ClassesMultiSelectDropdown({
               </div>
             ) : (
               <>
-                {/* 1. Foundational & Primary */}
+                {/* 1. Primary (1 - 5) */}
                 {filteredFoundational.length > 0 && (
                   <div className="space-y-1">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                      Foundational &amp; Primary
+                      Primary (1 - 5)
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                       {filteredFoundational.map((cls) => {
-                        const isSelected = selectedClasses.includes(cls);
+                        const isSelected = isGradeSelected(selectedClasses, cls);
+                        const displayLabel = !isNaN(Number(cls)) ? `Class ${cls}` : cls;
                         return (
                           <button
                             type="button"
@@ -304,7 +306,7 @@ function ClassesMultiSelectDropdown({
                                 : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
                               }`}
                           >
-                            <span className="truncate">{cls}</span>
+                            <span className="truncate">{displayLabel}</span>
                             {isSelected ? (
                               <Check className="w-3 h-3 text-white shrink-0 ml-1" />
                             ) : (
@@ -317,15 +319,16 @@ function ClassesMultiSelectDropdown({
                   </div>
                 )}
 
-                {/* 2. Middle & Secondary */}
+                {/* 2. Middle & Secondary (6 - 10) */}
                 {filteredMiddle.length > 0 && (
                   <div className="space-y-1">
                     <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-1">
-                      Middle &amp; Secondary (Class 6 - 10)
+                      Middle &amp; Secondary (6 - 10)
                     </div>
                     <div className="grid grid-cols-2 sm:grid-cols-3 gap-1">
                       {filteredMiddle.map((cls) => {
-                        const isSelected = selectedClasses.includes(cls);
+                        const isSelected = isGradeSelected(selectedClasses, cls);
+                        const displayLabel = !isNaN(Number(cls)) ? `Class ${cls}` : cls;
                         return (
                           <button
                             type="button"
@@ -336,7 +339,7 @@ function ClassesMultiSelectDropdown({
                                 : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
                               }`}
                           >
-                            <span className="truncate">{cls}</span>
+                            <span className="truncate">{displayLabel}</span>
                             {isSelected ? (
                               <Check className="w-3 h-3 text-white shrink-0 ml-1" />
                             ) : (
@@ -357,7 +360,7 @@ function ClassesMultiSelectDropdown({
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                       {filtered11.map((cls) => {
-                        const isSelected = selectedClasses.includes(cls);
+                        const isSelected = isGradeSelected(selectedClasses, cls);
                         return (
                           <button
                             type="button"
@@ -389,7 +392,7 @@ function ClassesMultiSelectDropdown({
                     </div>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-1">
                       {filtered12.map((cls) => {
-                        const isSelected = selectedClasses.includes(cls);
+                        const isSelected = isGradeSelected(selectedClasses, cls);
                         return (
                           <button
                             type="button"

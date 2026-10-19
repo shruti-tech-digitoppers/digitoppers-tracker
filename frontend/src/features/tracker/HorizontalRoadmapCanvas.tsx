@@ -106,7 +106,6 @@ export function HorizontalRoadmapCanvas({
       'HARDWARE_READY',
       'PROJECT_CONFIG_AND_IMPLEMENTATION',
       'TECH_TESTING',
-      'CONTENT_CONFIGURATION',
       'CONTENT_REVIEW_QA',
       'SHEET_READINESS',
       'DUMP_READINESS',
@@ -261,6 +260,8 @@ export function HorizontalRoadmapCanvas({
                 employees={employees}
                 onAssign={onAssign}
                 isClickable={isClickable}
+                allNodes={nodes}
+                project={project}
               />
             )}
 

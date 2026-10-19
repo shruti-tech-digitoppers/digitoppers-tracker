@@ -45,4 +45,17 @@ export const notificationsApi = {
     const response = await apiClient.patch<{ success: boolean }>('/notifications/read-all');
     return response.data;
   },
+
+  sendNotification: async (payload: {
+    recipients?: string[];
+    assignedTo?: string;
+    projectId?: string;
+    title: string;
+    message: string;
+    type?: string;
+    metadata?: Record<string, any>;
+  }): Promise<{ success: boolean; count: number; message: string }> => {
+    const response = await apiClient.post<any>('/notifications', payload);
+    return response.data;
+  },
 };

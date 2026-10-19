@@ -151,4 +151,4 @@ projectRequestSchema.pre('save', function (next) {
   next();
 });
 
-module.exports = mongoose.model('ProjectRequest', projectRequestSchema);
+module.exports = mongoose.models.ProjectRequest || mongoose.model('ProjectRequest', projectRequestSchema, 'projectrequests');

@@ -29,17 +29,31 @@ function deepMerge(target = {}, source = {}) {
   return output;
 }
 
+async function resolveProject(projectId) {
+  if (!projectId) return null;
+  const mongoose = require('mongoose');
+  if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
+    const proj = await Project.findById(projectId);
+    if (proj) return proj;
+  }
+  return await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+}
+
 async function getProjectRequirements(projectId) {
-  const requirement = await Requirement.findOne({ project: projectId }).populate('updatedBy', 'name email');
+  const project = await resolveProject(projectId);
+  const pId = project ? project._id : projectId;
+  const requirement = await Requirement.findOne({ project: pId }).populate('updatedBy', 'name email');
   return requirement;
 }
 
 async function upsertRequirements(projectId, updateData, employeeId) {
-  let requirement = await Requirement.findOne({ project: projectId });
+  const project = await resolveProject(projectId);
+  const pId = project ? project._id : projectId;
+  let requirement = await Requirement.findOne({ project: pId });
 
   if (!requirement) {
     requirement = await Requirement.create({
-      project: projectId,
+      project: pId,
       ...updateData,
       updatedBy: employeeId
     });

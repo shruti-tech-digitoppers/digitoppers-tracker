@@ -1,10 +1,29 @@
 export interface EffectiveSchoolItem {
   id: string;
+  _id?: string;
+  schoolId?: string;
   name: string;
   address?: string;
+  district?: string;
   classes?: string[];
   pocName?: string;
   contactPerson?: string;
+  principalName?: string;
+  principalDetails?: string;
+  pocDesignation?: string;
+  schoolCode?: string;
+  pocContact?: string;
+  contactPhone?: string;
+  phone?: string;
+  survey?: any;
+  school?: any;
+  training?: any;
+  installation?: any;
+  trainers?: any[];
+  technicalPersonName?: string;
+  technicalPersonId?: string;
+  contactNumber?: string;
+  planOutDate?: string;
 }
 
 export const DEFAULT_SOLUTIONS = [
@@ -39,45 +58,22 @@ export const DEFAULT_HARDWARE_ITEMS = [
   { key: 'BATTERY', label: 'Battery', icon: '🔋', desc: 'Power Backup Storage Battery' },
 ];
 
-export const FOUNDATIONAL_CLASSES = [
-  'Pre-Primary',
-  'Class 1',
-  'Class 2',
-  'Class 3',
-  'Class 4',
-  'Class 5'
-];
+import {
+  MASTER_GRADES,
+  ALL_GRADE_NAMES,
+  PRIMARY_GRADE_NAMES,
+  MIDDLE_GRADE_NAMES,
+  SECONDARY_GRADE_NAMES,
+  CLASS_11_GRADE_NAMES,
+  CLASS_12_GRADE_NAMES,
+  SR_SECONDARY_GRADE_NAMES,
+} from '@/types/grade';
 
-export const MIDDLE_CLASSES = [
-  'Class 6',
-  'Class 7',
-  'Class 8',
-  'Class 9',
-  'Class 10'
-];
-
-export const CLASS_11_STREAMS = [
-  'Class 11 (Science - PCM)',
-  'Class 11 (Science - PCB)',
-  'Class 11 (Commerce)',
-  'Class 11 (Humanities/Arts)',
-  'Class 11 (Vocational/IT)'
-];
-
-export const CLASS_12_STREAMS = [
-  'Class 12 (Science - PCM)',
-  'Class 12 (Science - PCB)',
-  'Class 12 (Commerce)',
-  'Class 12 (Humanities/Arts)',
-  'Class 12 (Vocational/IT)'
-];
-
-export const ALL_CLASSES = [
-  ...FOUNDATIONAL_CLASSES,
-  ...MIDDLE_CLASSES,
-  ...CLASS_11_STREAMS,
-  ...CLASS_12_STREAMS
-];
+export const FOUNDATIONAL_CLASSES = PRIMARY_GRADE_NAMES; // ['1', '2', '3', '4', '5']
+export const MIDDLE_CLASSES = [...MIDDLE_GRADE_NAMES, ...SECONDARY_GRADE_NAMES]; // ['6', '7', '8', '9', '10']
+export const CLASS_11_STREAMS = CLASS_11_GRADE_NAMES; // ['11 Science', '11 Commerce', '11 Arts']
+export const CLASS_12_STREAMS = CLASS_12_GRADE_NAMES; // ['12 Science', '12 Commerce', '12 Arts']
+export const ALL_CLASSES = ALL_GRADE_NAMES; // 16 Grades matching DB model
 
 export const BOARD_OPTIONS = [
   'CBSE',
@@ -91,26 +87,21 @@ export const BOARD_OPTIONS = [
 export function getClassPreset(presetType: string): string[] {
   switch (presetType) {
     case 'PRIMARY':
-      return ['Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5'];
+      return PRIMARY_GRADE_NAMES;
     case 'MIDDLE':
-      return ['Class 6', 'Class 7', 'Class 8'];
+      return MIDDLE_GRADE_NAMES;
     case 'SECONDARY':
-      return ['Class 9', 'Class 10'];
+      return SECONDARY_GRADE_NAMES;
     case 'SCIENCE_11_12':
-      return [
-        'Class 11 (Science - PCM)',
-        'Class 11 (Science - PCB)',
-        'Class 12 (Science - PCM)',
-        'Class 12 (Science - PCB)',
-      ];
+      return ['11 Science', '12 Science'];
     case 'COMMERCE_11_12':
-      return ['Class 11 (Commerce)', 'Class 12 (Commerce)'];
+      return ['11 Commerce', '12 Commerce'];
     case 'HUMANITIES_11_12':
-      return ['Class 11 (Humanities/Arts)', 'Class 12 (Humanities/Arts)'];
+      return ['11 Arts', '12 Arts'];
     case 'SR_SECONDARY':
-      return [...CLASS_11_STREAMS, ...CLASS_12_STREAMS];
+      return SR_SECONDARY_GRADE_NAMES;
     case 'ALL':
-      return ALL_CLASSES;
+      return ALL_GRADE_NAMES;
     case 'CLEAR':
       return [];
     default:
@@ -128,68 +119,109 @@ export function extractEffectiveSchools(
   value?: any,
   fallbackTitle = 'Untitled School'
 ): EffectiveSchoolItem[] {
+  // Helper to extract fields from a raw school object
+  const mapSchool = (s: any, idx: number, totalLen: number): EffectiveSchoolItem => {
+    // If s is a ProjectSchools deployment unit, s.school is the primary School reference
+    const schoolRefId = s.school?._id || s.school;
+    const resolvedId = String(schoolRefId || s.id || s._id || s.schoolId || `school-${idx + 1}`);
+
+    const sSurvey = s.survey || {};
+    const principalName =
+      s.principalName ||
+      sSurvey.principalName ||
+      (typeof s.contactPerson === 'object' ? s.contactPerson?.name : '') ||
+      '';
+
+    const schoolCode = s.schoolCode || s.code || '';
+
+    const poc =
+      s.pocName ||
+      sSurvey.pocName ||
+      (typeof s.contactPerson === 'object' ? s.contactPerson?.name : (typeof s.contactPerson === 'string' ? s.contactPerson : '')) ||
+      principalName ||
+      '';
+
+    const phone =
+      s.pocContact ||
+      s.contactPhone ||
+      s.phone ||
+      sSurvey.pocContact ||
+      (typeof s.contactPerson === 'object' ? s.contactPerson?.phone : '') ||
+      '';
+
+    const desig =
+      s.pocDesignation ||
+      sSurvey.pocDesignation ||
+      (typeof s.contactPerson === 'object' ? s.contactPerson?.designation : '') ||
+      (principalName ? 'Principal' : '');
+
+    const contactPersonStr = typeof s.contactPerson === 'object' ? s.contactPerson?.name : (s.contactPerson || poc);
+    const contactPhoneStr = typeof s.contactPerson === 'object' ? s.contactPerson?.phone : (s.contactPhone || phone);
+
+    return {
+      id: resolvedId,
+      _id: s._id ? String(s._id) : undefined,
+      schoolId: s.schoolId ? String(s.schoolId) : undefined,
+      name: s.schoolName || s.name || (totalLen > 1 ? `School ${idx + 1}` : 'School'),
+      address: s.address || s.addressContact || sSurvey.address || '',
+      classes: s.classes || sSurvey.classes || [],
+      principalName,
+      principalDetails: s.principalDetails || sSurvey.principalDetails || '',
+      pocName: poc,
+      pocDesignation: desig,
+      contactPerson: contactPersonStr,
+      schoolCode: schoolCode,
+      pocContact: phone,
+      contactPhone: contactPhoneStr,
+      phone: phone,
+      survey: sSurvey,
+      school: s.school,
+      training: s.training,
+      installation: s.installation,
+      trainers: s.trainers || s.training?.trainers,
+      technicalPersonName: s.technicalPersonName || s.training?.trainerName || s.installation?.assignedEngineerName,
+      technicalPersonId: s.technicalPersonId || s.training?.trainer || s.training?.assignedTrainerId || s.installation?.assignedEngineer,
+      contactNumber: s.contactNumber || s.training?.trainerPhone,
+      planOutDate: s.planOutDate || s.training?.planOutDate || s.training?.trainingDate,
+    };
+  };
+
   // 1. Direct schools array prop
   if (Array.isArray(schools) && schools.length > 0) {
-    return schools.map((s, idx) => ({
-      id: s.id || `school-${idx + 1}`,
-      name: s.schoolName || s.name || (schools.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
-      address: s.address || s.addressContact || '',
-      classes: s.classes || [],
-      pocName: s.pocName || s.contactPerson || '',
-    }));
+    return schools.map((s, idx) => mapSchool(s, idx, schools.length));
   }
 
   // 2. allFormData?.stage3Schools
   if (Array.isArray(allFormData?.stage3Schools) && allFormData.stage3Schools.length > 0) {
-    return allFormData.stage3Schools.map((s: any, idx: number) => ({
-      id: s.id || `school-${idx + 1}`,
-      name: s.schoolName || s.name || (allFormData.stage3Schools.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
-      address: s.address || s.addressContact || '',
-      classes: s.classes || [],
-      pocName: s.pocName || s.contactPerson || '',
-    }));
+    return allFormData.stage3Schools.map((s: any, idx: number) => mapSchool(s, idx, allFormData.stage3Schools.length));
   }
 
-  // 3. allFormData?.schools or orderRequirement.schoolInformation.schools
+  // 3. allFormData?.schools
+  if (Array.isArray(allFormData?.schools) && allFormData.schools.length > 0) {
+    return allFormData.schools.map((s: any, idx: number) => mapSchool(s, idx, allFormData.schools.length));
+  }
+
+  // 4. allFormData?.projectSchools
+  if (Array.isArray(allFormData?.projectSchools) && allFormData.projectSchools.length > 0) {
+    return allFormData.projectSchools.map((s: any, idx: number) => mapSchool(s, idx, allFormData.projectSchools.length));
+  }
+
+  // 5. allFormData?.orderRequirement?.schoolInformation?.schools
   const fromAllForm =
-    allFormData?.schools ||
     allFormData?.orderRequirement?.schoolInformation?.schools ||
-    allFormData?.project?.orderRequirement?.schoolInformation?.schools;
+    allFormData?.project?.orderRequirement?.schoolInformation?.schools ||
+    allFormData?.project?.schools;
   if (Array.isArray(fromAllForm) && fromAllForm.length > 0) {
-    return fromAllForm.map((s: any, idx: number) => ({
-      id: s.id || `school-${idx + 1}`,
-      name: s.schoolName || s.name || (fromAllForm.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
-      address: s.address || s.addressContact || '',
-      classes: s.classes || [],
-      pocName: s.pocName || s.contactPerson || '',
-    }));
+    return fromAllForm.map((s: any, idx: number) => mapSchool(s, idx, fromAllForm.length));
   }
 
-  // 4. value?.schools
+  // 6. value?.schools
   if (Array.isArray(value?.schools) && value.schools.length > 0) {
-    return value.schools.map((s: any, idx: number) => ({
-      id: s.id || `school-${idx + 1}`,
-      name: s.schoolName || s.name || (value.schools.length > 1 ? `Untitled School ${idx + 1}` : 'Untitled School'),
-      address: s.address || s.addressContact || '',
-      classes: s.classes || [],
-      pocName: s.pocName || s.contactPerson || '',
-    }));
+    return value.schools.map((s: any, idx: number) => mapSchool(s, idx, value.schools.length));
   }
 
-  const fallbackName =
-    allFormData?.schoolName ||
-    allFormData?.orderRequirement?.schoolInformation?.schoolName ||
-    allFormData?.project?.orderRequirement?.schoolInformation?.schoolName ||
-    value?.schoolName ||
-    fallbackTitle;
-
-  return [{ 
-    id: 'school-1', 
-    name: fallbackName, 
-    address: allFormData?.address || allFormData?.addressContact || '',
-    classes: allFormData?.classes || [],
-    pocName: allFormData?.pocName || allFormData?.contactPerson || '',
-  }];
+  // Return empty list if no schools exist in DB/props (no fake random data)
+  return [];
 }
 
 export function normalizeOption(opt: any): { value: string; label: string } {

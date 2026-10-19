@@ -1,6 +1,6 @@
-const requestService = require('./request.service');
+const requestService = require('./project-request.service');
 
-class RequestController {
+class ProjectRequestController {
   async getNextRequestId(req, res, next) {
     try {
       const nextId = await requestService.generateNextRequestId();
@@ -92,4 +92,4 @@ class RequestController {
   }
 }
 
-module.exports = new RequestController();
+module.exports = new ProjectRequestController();

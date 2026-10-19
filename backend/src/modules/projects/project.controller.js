@@ -36,6 +36,13 @@ class ProjectController {
     } catch (err) { next(err); }
   }
 
+  async getMembersGrouped(req, res, next) {
+    try {
+      const grouped = await projectService.getMembersGroupedByDepartment(req.params.projectId);
+      res.status(200).json({ success: true, data: grouped });
+    } catch (err) { next(err); }
+  }
+
   async upsertMember(req, res, next) {
     try {
       const { employeeId, designation } = req.body;

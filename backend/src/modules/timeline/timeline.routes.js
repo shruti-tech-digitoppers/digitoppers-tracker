@@ -7,6 +7,7 @@ const { DESIGNATIONS } = require('../../core/constants');
 
 // View timeline hierarchy (publicly viewable on dashboard)
 router.get('/', optionalProtect, timelineController.getTimeline);
+router.get('/roadmap', optionalProtect, timelineController.getRoadmap);
 
 // All other timeline node inspections and updates require authentication & permissions
 router.use(protect);

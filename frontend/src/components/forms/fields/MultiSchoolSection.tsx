@@ -128,79 +128,48 @@ interface MultiSchoolSectionProps {
 }
 
 
-// Exact LMS Backend Grade Schema Definition
-export interface ILmsGrade {
-  name: string; // 'Nursery', 'LKG', 'UKG', '1', '2', ... '12'
-  id: string; // 'nursery', 'lkg', 'ukg', 'c1', ... 'c12'
-  label: string;
-  category: 'PRE_PRIMARY' | 'PRIMARY' | 'MIDDLE' | 'SECONDARY' | 'SR_SECONDARY';
-}
+import {
+  MASTER_GRADES,
+  IGrade,
+  isGradeSelected
+} from '@/types/grade';
 
-export const LMS_GRADES: ILmsGrade[] = [
-  { name: 'Nursery', id: 'nursery', label: 'Nursery', category: 'PRE_PRIMARY' },
-  { name: 'LKG', id: 'lkg', label: 'LKG', category: 'PRE_PRIMARY' },
-  { name: 'UKG', id: 'ukg', label: 'UKG', category: 'PRE_PRIMARY' },
-  { name: '1', id: 'c1', label: 'Grade 1', category: 'PRIMARY' },
-  { name: '2', id: 'c2', label: 'Grade 2', category: 'PRIMARY' },
-  { name: '3', id: 'c3', label: 'Grade 3', category: 'PRIMARY' },
-  { name: '4', id: 'c4', label: 'Grade 4', category: 'PRIMARY' },
-  { name: '5', id: 'c5', label: 'Grade 5', category: 'PRIMARY' },
-  { name: '6', id: 'c6', label: 'Grade 6', category: 'MIDDLE' },
-  { name: '7', id: 'c7', label: 'Grade 7', category: 'MIDDLE' },
-  { name: '8', id: 'c8', label: 'Grade 8', category: 'MIDDLE' },
-  { name: '9', id: 'c9', label: 'Grade 9', category: 'SECONDARY' },
-  { name: '10', id: 'c10', label: 'Grade 10', category: 'SECONDARY' },
-  { name: '11', id: 'c11', label: 'Grade 11', category: 'SR_SECONDARY' },
-  { name: '12', id: 'c12', label: 'Grade 12', category: 'SR_SECONDARY' }
-];
-
-// Exact LMS Backend GradeStream Schema Definition
-export const LMS_GRADE_STREAMS = [
-  { name: 'Science', id: 'science', label: 'Science', icon: '🧪', color: '#0ea5e9' },
-  { name: 'Commerce', id: 'commerce', label: 'Commerce', icon: '💼', color: '#10b981' },
-  { name: 'Arts and Humanities', id: 'arts', label: 'Arts & Humanities', icon: '🎨', color: '#ec4899' }
-];
+// Exact LMS Backend Grade Schema Definition (mirrors MongoDB grades collection)
+export type ILmsGrade = IGrade;
+export const LMS_GRADES: IGrade[] = MASTER_GRADES;
 
 export interface ILmsClassOption {
   id: string;
-  name: string; // The saved value, e.g. 'Nursery', '1', '11 Science', '11 Commerce', '11 Arts', etc.
+  name: string; // The saved value, e.g. '1'..'10', '11 Science', '11 Commerce', '11 Arts', etc.
   label: string; // Display label
+  grade: string;
+  stream: string | null;
+  category: string;
   pillColor?: string;
 }
 
-export const LMS_CLASS_OPTIONS: ILmsClassOption[] = [
-  { id: 'nursery', name: 'Nursery', label: 'Nursery', pillColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-  { id: 'lkg', name: 'LKG', label: 'LKG', pillColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-  { id: 'ukg', name: 'UKG', label: 'UKG', pillColor: 'bg-emerald-50 text-emerald-800 border-emerald-200' },
-  { id: 'c1', name: '1', label: 'Class 1', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
-  { id: 'c2', name: '2', label: 'Class 2', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
-  { id: 'c3', name: '3', label: 'Class 3', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
-  { id: 'c4', name: '4', label: 'Class 4', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
-  { id: 'c5', name: '5', label: 'Class 5', pillColor: 'bg-sky-50 text-sky-800 border-sky-200' },
-  { id: 'c6', name: '6', label: 'Class 6', pillColor: 'bg-amber-50 text-amber-800 border-amber-200' },
-  { id: 'c7', name: '7', label: 'Class 7', pillColor: 'bg-amber-50 text-amber-800 border-amber-200' },
-  { id: 'c8', name: '8', label: 'Class 8', pillColor: 'bg-amber-50 text-amber-800 border-amber-200' },
-  { id: 'c9', name: '9', label: 'Class 9', pillColor: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
-  { id: 'c10', name: '10', label: 'Class 10', pillColor: 'bg-indigo-50 text-indigo-800 border-indigo-200' },
-  { id: 'c11-sci', name: '11 Science', label: '11 Science', pillColor: 'bg-teal-50 text-teal-900 border-teal-300' },
-  { id: 'c11-comm', name: '11 Commerce', label: '11 Commerce', pillColor: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
-  { id: 'c11-arts', name: '11 Arts', label: '11 Arts', pillColor: 'bg-fuchsia-50 text-fuchsia-900 border-fuchsia-300' },
-  { id: 'c12-sci', name: '12 Science', label: '12 Science', pillColor: 'bg-teal-50 text-teal-900 border-teal-300' },
-  { id: 'c12-comm', name: '12 Commerce', label: '12 Commerce', pillColor: 'bg-emerald-50 text-emerald-900 border-emerald-300' },
-  { id: 'c12-arts', name: '12 Arts', label: '12 Arts', pillColor: 'bg-fuchsia-50 text-fuchsia-900 border-fuchsia-300' },
-];
+export const LMS_CLASS_OPTIONS: ILmsClassOption[] = MASTER_GRADES.map((g) => ({
+  id: g.id,
+  name: g.name,
+  label: g.stream ? `${g.grade} ${g.stream}` : `Class ${g.name}`,
+  grade: g.grade,
+  stream: g.stream,
+  category: g.category,
+  pillColor: g.category === 'Primary'
+    ? 'bg-sky-50 text-sky-800 border-sky-200'
+    : g.category === 'Middle'
+    ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
+    : g.category === 'Secondary'
+    ? 'bg-amber-50 text-amber-800 border-amber-200'
+    : g.stream === 'Science'
+    ? 'bg-purple-50 text-purple-900 border-purple-300'
+    : g.stream === 'Commerce'
+    ? 'bg-pink-50 text-pink-900 border-pink-300'
+    : 'bg-indigo-50 text-indigo-900 border-indigo-300',
+}));
 
 export function isClassOptionSelected(selectedClasses: string[] | string | undefined, option: ILmsClassOption): boolean {
-  const arr = toArray(selectedClasses);
-  return arr.some(item => {
-    const itemLow = String(item).toLowerCase().trim();
-    const nameLow = option.name.toLowerCase().trim();
-    const labelLow = option.label.toLowerCase().trim();
-    return itemLow === nameLow || 
-           itemLow === labelLow || 
-           itemLow === `class ${nameLow}` || 
-           itemLow === `grade ${nameLow}`;
-  });
+  return isGradeSelected(selectedClasses, option.name);
 }
 
 const CLASSROOM_CONDITIONS = [

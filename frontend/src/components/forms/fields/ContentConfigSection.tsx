@@ -31,21 +31,24 @@ interface ContentConfigSectionProps {
   disabled?: boolean;
 }
 
-// 1. Content Category Options with labels
-export const CONTENT_OPTIONS: { id: string; label: string; color: string }[] = [
-  { id: 'General Core Curriculum', label: 'General Core Curriculum', color: 'bg-[#eef7f8] border-[#b6e0e4] text-[#1c4d52]' },
-  { id: 'Mathematics', label: 'Mathematics', color: 'bg-blue-50 border-blue-200 text-blue-800' },
-  { id: 'Science', label: 'Science', color: 'bg-emerald-50 border-emerald-200 text-emerald-800' },
-  { id: 'English', label: 'English', color: 'bg-purple-50 border-purple-200 text-purple-800' },
-  { id: 'Social Science', label: 'Social Science', color: 'bg-amber-50 border-amber-200 text-amber-800' },
-  { id: 'Computer Science / Coding', label: 'Computer Science / Coding', color: 'bg-indigo-50 border-indigo-200 text-indigo-800' },
-  { id: 'Physics', label: 'Physics', color: 'bg-sky-50 border-sky-200 text-sky-800' },
-  { id: 'Chemistry', label: 'Chemistry', color: 'bg-orange-50 border-orange-200 text-orange-800' },
-  { id: 'Biology', label: 'Biology', color: 'bg-green-50 border-green-200 text-green-800' },
-  { id: 'Hindi Language & Lit', label: 'Hindi Language & Lit', color: 'bg-rose-50 border-rose-200 text-rose-800' },
-  { id: 'Commerce & Accounts', label: 'Commerce & Accounts', color: 'bg-yellow-50 border-yellow-200 text-yellow-800' },
-  { id: 'Robotics & AI Lab', label: 'Robotics & AI Lab', color: 'bg-violet-50 border-violet-200 text-violet-800' },
-  { id: 'Foundational FLN', label: 'Foundational FLN', color: 'bg-teal-50 border-teal-200 text-teal-800' },
+export interface ContentOptionItem {
+  id: string;
+  label: string;
+  color: string;
+  isCurriculum: boolean;
+  section: 'academic' | 'non-academic';
+  icon: string;
+}
+
+// 1. Content Category Options: Academic Curriculum (Syllabus Content only) vs Co-Curricular
+export const CONTENT_OPTIONS: ContentOptionItem[] = [
+  // Academic Curriculum (Board × Medium × Grade)
+  { id: 'Syllabus Content', label: 'Syllabus Content', color: 'bg-cyan-50 border-cyan-200 text-cyan-800', isCurriculum: true, section: 'academic', icon: '📖' },
+  // Co-Curricular items (Medium Only - No Board / No Grade)
+  { id: 'Toon Masti', label: 'Toon Masti', color: 'bg-pink-50 border-pink-200 text-pink-800', isCurriculum: false, section: 'non-academic', icon: '🎭' },
+  { id: 'Simulations', label: 'Simulations', color: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-800', isCurriculum: false, section: 'non-academic', icon: '🔬' },
+  { id: 'Moral Stories', label: 'Moral Stories', color: 'bg-emerald-50 border-emerald-200 text-emerald-800', isCurriculum: false, section: 'non-academic', icon: '🌟' },
+  { id: 'ePustakalaya', label: 'ePustakalaya', color: 'bg-amber-50 border-amber-200 text-amber-800', isCurriculum: false, section: 'non-academic', icon: '📚' },
 ];
 
 // 2. Educational Board Options
@@ -81,40 +84,46 @@ export const ALL_MEDIUMS = [
   'Punjabi'
 ];
 
-// 4. Granular Class Matrix Segments
+import {
+  MASTER_GRADES,
+  ALL_GRADE_NAMES,
+  PRIMARY_GRADE_NAMES,
+  MIDDLE_GRADE_NAMES,
+  SECONDARY_GRADE_NAMES,
+  SR_SECONDARY_GRADE_NAMES,
+  isGradeSelected,
+} from '@/types/grade';
+
+// 4. Granular Class Matrix Segments directly derived from MongoDB Grade model
 export const CLASS_SEGMENTS = [
   {
     id: 'primary',
-    name: 'Primary (KG - 5)',
-    classes: ['KG', 'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5']
+    name: 'Primary (1 - 5)',
+    classes: PRIMARY_GRADE_NAMES
   },
   {
     id: 'middle',
     name: 'Middle School (6 - 8)',
-    classes: ['Class 6', 'Class 7', 'Class 8']
+    classes: MIDDLE_GRADE_NAMES
   },
   {
     id: 'secondary',
     name: 'Secondary (9 - 10)',
-    classes: ['Class 9', 'Class 10']
+    classes: SECONDARY_GRADE_NAMES
   },
   {
-    id: 'senior_sci',
-    name: 'Senior Sec — Science (11 & 12)',
-    classes: ['Class 11 PCM', 'Class 11 PCB', 'Class 12 PCM', 'Class 12 PCB']
-  },
-  {
-    id: 'senior_comm',
-    name: 'Senior Sec — Commerce (11 & 12)',
-    classes: ['Class 11 Commerce', 'Class 12 Commerce']
+    id: 'senior_sec',
+    name: 'Senior Secondary (11 & 12 Streams)',
+    classes: SR_SECONDARY_GRADE_NAMES
   }
 ];
 
-export const ALL_AVAILABLE_CLASSES = CLASS_SEGMENTS.flatMap((s) => s.classes);
+export const ALL_AVAILABLE_CLASSES = ALL_GRADE_NAMES;
 
 const DEFAULT_STANDARD_CLASSES = [
-  'Class 1', 'Class 2', 'Class 3', 'Class 4', 'Class 5',
-  'Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'
+  ...PRIMARY_GRADE_NAMES,
+  ...MIDDLE_GRADE_NAMES,
+  ...SECONDARY_GRADE_NAMES
 ];
 
 function normalizeArray(val: any, defaultVal: string[] = []): string[] {
@@ -383,8 +392,9 @@ function ClassMultiSelectDropdown({
 
   const toggleClass = (cls: string) => {
     if (disabled) return;
-    if (selectedClasses.includes(cls)) {
-      onChange(selectedClasses.filter((c) => c !== cls));
+    const isSel = isGradeSelected(selectedClasses, cls);
+    if (isSel) {
+      onChange(selectedClasses.filter((c) => !isGradeSelected([c], cls)));
     } else {
       onChange([...selectedClasses, cls]);
     }
@@ -395,13 +405,16 @@ function ClassMultiSelectDropdown({
     onChange(Array.from(new Set(classesList)));
   };
 
-  const filteredSegments = useMemo(() => {
-    if (!search.trim()) return CLASS_SEGMENTS;
+  const filteredClasses = useMemo(() => {
+    if (!search.trim()) return ALL_AVAILABLE_CLASSES;
     const s = search.toLowerCase();
-    return CLASS_SEGMENTS.map((seg) => ({
-      ...seg,
-      classes: seg.classes.filter((c) => c.toLowerCase().includes(s))
-    })).filter((seg) => seg.classes.length > 0);
+    return ALL_AVAILABLE_CLASSES.filter((cls) => {
+      const displayLabel = !isNaN(Number(cls)) ? `Class ${cls}` : cls;
+      return (
+        displayLabel.toLowerCase().includes(s) ||
+        cls.toLowerCase().includes(s)
+      );
+    });
   }, [search]);
 
   return (
@@ -435,29 +448,32 @@ function ClassMultiSelectDropdown({
                 {selectedClasses.length} Classes Assigned:
               </span>
               <div className="flex items-center gap-1 flex-wrap max-h-16 overflow-y-auto">
-                {selectedClasses.slice(0, 7).map((cls) => (
-                  <span
-                    key={cls}
-                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#eef7f8] text-[#1c4d52] border border-[#b6e0e4] text-[11px] font-bold"
-                  >
-                    <span>{cls}</span>
-                    {!disabled && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleClass(cls);
-                        }}
-                        className="text-[#51a8b1] hover:text-rose-500 transition-colors"
-                      >
-                        <X className="w-2.5 h-2.5 stroke-[2.5]" />
-                      </button>
-                    )}
-                  </span>
-                ))}
-                {selectedClasses.length > 7 && (
+                {selectedClasses.slice(0, 8).map((cls) => {
+                  const displayLabel = !isNaN(Number(cls)) ? `Class ${cls}` : cls;
+                  return (
+                    <span
+                      key={cls}
+                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#eef7f8] text-[#1c4d52] border border-[#b6e0e4] text-[11px] font-bold"
+                    >
+                      <span>{displayLabel}</span>
+                      {!disabled && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleClass(cls);
+                          }}
+                          className="text-[#51a8b1] hover:text-rose-500 transition-colors"
+                        >
+                          <X className="w-2.5 h-2.5 stroke-[2.5]" />
+                        </button>
+                      )}
+                    </span>
+                  );
+                })}
+                {selectedClasses.length > 8 && (
                   <span className="text-[10px] font-extrabold text-[#51a8b1] bg-white px-2 py-0.5 rounded-md border border-[#b6e0e4]">
-                    +{selectedClasses.length - 7} more
+                    +{selectedClasses.length - 8} more
                   </span>
                 )}
               </div>
@@ -477,16 +493,16 @@ function ClassMultiSelectDropdown({
 
       {/* Dropdown Popup Content */}
       {isOpen && (
-        <div className="absolute z-40 left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-[#b6e0e4] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 max-h-[420px] flex flex-col">
-          {/* Header Controls: Search & Smart Presets */}
-          <div className="p-3 bg-[#f8fafb] border-b border-[#b9c0cb]/40 space-y-2.5 shrink-0">
+        <div className="absolute z-50 left-0 right-0 top-full mt-1.5 bg-white rounded-2xl border border-[#b6e0e4] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-150 max-h-[320px] flex flex-col">
+          {/* Header Controls: Search & Simple Quick Actions */}
+          <div className="p-2.5 bg-[#f8fafb] border-b border-[#b9c0cb]/40 space-y-2 shrink-0">
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-[#8c96a5] absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
                 type="text"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder={`Search classes for ${mediumName} (e.g. Class 10, PCM, KG)...`}
+                placeholder={`Filter classes for ${mediumName} (e.g. Class 10, 11 Science)...`}
                 className="w-full pl-8 pr-3 py-1.5 rounded-xl border border-[#b9c0cb]/60 text-xs font-medium text-[#333333] placeholder-[#8c96a5] focus:outline-none focus:border-[#51a8b1] focus:ring-1 focus:ring-[#51a8b1] bg-white"
                 onClick={(e) => e.stopPropagation()}
               />
@@ -501,157 +517,82 @@ function ClassMultiSelectDropdown({
               )}
             </div>
 
-            {/* Quick Fill Preset Buttons */}
-            <div className="flex items-center gap-1 flex-wrap">
-              <span className="text-[10.5px] font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading mr-1">
-                Quick Presets:
+            {/* Quick Actions Bar */}
+            <div className="flex items-center justify-between text-[11px] px-1 font-bold">
+              <span className="text-[#8c96a5]">
+                All Classes ({filteredClasses.length} of {ALL_AVAILABLE_CLASSES.length})
               </span>
-              <button
-                type="button"
-                onClick={() => setPresetClasses(CLASS_SEGMENTS[0].classes)}
-                className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-white border border-[#b6e0e4] text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white transition cursor-pointer"
-              >
-                KG-5
-              </button>
-              <button
-                type="button"
-                onClick={() => setPresetClasses(CLASS_SEGMENTS[1].classes)}
-                className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-white border border-[#b6e0e4] text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white transition cursor-pointer"
-              >
-                6-8
-              </button>
-              <button
-                type="button"
-                onClick={() => setPresetClasses(CLASS_SEGMENTS[2].classes)}
-                className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-white border border-[#b6e0e4] text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white transition cursor-pointer"
-              >
-                9-10
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setPresetClasses([
-                    ...CLASS_SEGMENTS[0].classes,
-                    ...CLASS_SEGMENTS[1].classes,
-                    ...CLASS_SEGMENTS[2].classes,
-                  ])
-                }
-                className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-white border border-[#b6e0e4] text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white transition cursor-pointer"
-              >
-                KG-10 (All)
-              </button>
-              <button
-                type="button"
-                onClick={() =>
-                  setPresetClasses([
-                    ...CLASS_SEGMENTS[3].classes,
-                    ...CLASS_SEGMENTS[4].classes,
-                  ])
-                }
-                className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-white border border-[#b6e0e4] text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white transition cursor-pointer"
-              >
-                11 & 12
-              </button>
-              <button
-                type="button"
-                onClick={() => setPresetClasses(ALL_AVAILABLE_CLASSES)}
-                className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-[#51a8b1] text-white hover:bg-[#3a7d84] transition cursor-pointer shadow-2xs"
-              >
-                Select All
-              </button>
-              {selectedClasses.length > 0 && (
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => onChange(ALL_AVAILABLE_CLASSES)}
+                  className="text-[#51a8b1] hover:underline cursor-pointer"
+                >
+                  Select All
+                </button>
+                <span className="text-gray-300">•</span>
                 <button
                   type="button"
                   onClick={() => onChange([])}
-                  className="text-[10.5px] font-bold px-2 py-0.5 rounded-lg bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 transition cursor-pointer"
+                  className="text-[#8c96a5] hover:text-rose-500 cursor-pointer"
                 >
                   Clear All
                 </button>
-              )}
+              </div>
             </div>
           </div>
 
-          {/* Segmented Checklist */}
-          <div className="overflow-y-auto p-3 space-y-3.5 flex-1">
-            {filteredSegments.length === 0 ? (
+          {/* Scrollable List of All Classes with Visible Thin Scrollbar */}
+          <div
+            className="overflow-y-auto p-2.5 flex-1 max-h-[175px] pr-2 overscroll-contain select-none"
+            style={{
+              scrollbarWidth: 'thin',
+              scrollbarColor: '#51a8b1 #f0f8f9'
+            }}
+          >
+            {filteredClasses.length === 0 ? (
               <div className="p-4 text-center text-xs text-[#8c96a5]">
                 No classes matching "{search}"
               </div>
             ) : (
-              filteredSegments.map((segment) => {
-                const allSelected = segment.classes.every((c) =>
-                  selectedClasses.includes(c)
-                );
-
-                return (
-                  <div key={segment.id} className="space-y-1.5">
-                    {/* Segment Header */}
-                    <div className="flex items-center justify-between text-[11px] font-extrabold text-[#3a7d84] uppercase tracking-wider bg-[#f8fafb] px-2.5 py-1 rounded-lg border border-[#b9c0cb]/30">
-                      <span className="font-heading">{segment.name}</span>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (allSelected) {
-                            onChange(
-                              selectedClasses.filter(
-                                (c) => !segment.classes.includes(c)
-                              )
-                            );
-                          } else {
-                            onChange(
-                              Array.from(
-                                new Set([...selectedClasses, ...segment.classes])
-                              )
-                            );
-                          }
-                        }}
-                        className="text-[10px] lowercase font-bold text-[#51a8b1] hover:underline cursor-pointer"
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
+                {filteredClasses.map((cls) => {
+                  const isChecked = isGradeSelected(selectedClasses, cls);
+                  const displayLabel = !isNaN(Number(cls)) ? `Class ${cls}` : cls;
+                  return (
+                    <button
+                      key={cls}
+                      type="button"
+                      onClick={() => toggleClass(cls)}
+                      className={`p-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-between gap-1.5 cursor-pointer text-left ${
+                        isChecked
+                          ? 'bg-[#eef7f8] text-[#1c4d52] border-[#51a8b1] shadow-2xs ring-1 ring-[#51a8b1]/30 font-extrabold'
+                          : 'bg-white text-[#4a5462] border-[#b9c0cb]/40 hover:bg-[#f8fafb]'
+                      }`}
+                    >
+                      <span className="truncate">{displayLabel}</span>
+                      <div
+                        className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                          isChecked
+                            ? 'bg-[#51a8b1] border-[#3a7d84] text-white'
+                            : 'border-[#b9c0cb] bg-white'
+                        }`}
                       >
-                        {allSelected ? 'unselect group' : 'select group'}
-                      </button>
-                    </div>
-
-                    {/* Class Buttons Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
-                      {segment.classes.map((cls) => {
-                        const isChecked = selectedClasses.includes(cls);
-                        return (
-                          <button
-                            key={cls}
-                            type="button"
-                            onClick={() => toggleClass(cls)}
-                            className={`p-2 rounded-xl text-xs font-bold transition-all border flex items-center justify-between gap-1.5 cursor-pointer text-left ${
-                              isChecked
-                                ? 'bg-[#eef7f8] text-[#1c4d52] border-[#51a8b1] shadow-2xs ring-1 ring-[#51a8b1]/30 font-extrabold'
-                                : 'bg-white text-[#4a5462] border-[#b9c0cb]/40 hover:bg-[#f8fafb]'
-                            }`}
-                          >
-                            <span className="truncate">{cls}</span>
-                            <div
-                              className={`w-3.5 h-3.5 rounded border flex items-center justify-center shrink-0 transition-colors ${
-                                isChecked
-                                  ? 'bg-[#51a8b1] border-[#3a7d84] text-white'
-                                  : 'border-[#b9c0cb] bg-white'
-                              }`}
-                            >
-                              {isChecked && (
-                                <Check className="w-2.5 h-2.5 stroke-[3]" />
-                              )}
-                            </div>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })
+                        {isChecked && (
+                          <Check className="w-2.5 h-2.5 stroke-[3]" />
+                        )}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
             )}
           </div>
 
           {/* Footer Done Button */}
-          <div className="p-2.5 bg-[#f8fafb] border-t border-[#b9c0cb]/40 flex items-center justify-between shrink-0">
+          <div className="p-2 bg-[#f8fafb] border-t border-[#b9c0cb]/40 flex items-center justify-between shrink-0">
             <span className="text-[11px] font-bold text-[#333333]">
-              {selectedClasses.length} classes active for {mediumName}
+              {selectedClasses.length} of {ALL_AVAILABLE_CLASSES.length} active
             </span>
             <button
               type="button"
@@ -679,7 +620,7 @@ export function ContentConfigSection({
   const initialContent = useMemo(() => {
     if (Array.isArray(value?.contents) && value.contents.length > 0) return value.contents;
     if (Array.isArray(value?.categories) && value.categories.length > 0) return value.categories;
-    const single = value?.content || value?.category || 'General Core Curriculum';
+    const single = value?.content || value?.category || 'Syllabus Content';
     return [single];
   }, [value]);
 
@@ -752,6 +693,39 @@ export function ContentConfigSection({
   const [mediumClasses, setMediumClasses] = useState<Record<string, string[]>>(initialMediumClasses);
   const [copiedNotification, setCopiedNotification] = useState<string | null>(null);
 
+  // Separate selected categories into Curriculum (Academic) vs Co-Curricular (Medium only)
+  const curriculumCategories = useMemo(() => {
+    return contents.filter((c) => {
+      const opt = CONTENT_OPTIONS.find((o) => o.id === c);
+      return opt ? opt.isCurriculum : true;
+    });
+  }, [contents]);
+
+  const coCurricularCategories = useMemo(() => {
+    return contents.filter((c) => {
+      const opt = CONTENT_OPTIONS.find((o) => o.id === c);
+      return opt ? !opt.isCurriculum : false;
+    });
+  }, [contents]);
+
+  // Non-Curriculum Mediums & Resource Links state
+  const [coCurricularMediums, setNonCurriculumMediums] = useState<Record<string, string[]>>(() => {
+    if (value?.coCurricularMediums && typeof value.coCurricularMediums === 'object') {
+      return value.coCurricularMediums;
+    }
+    return {
+      'Toon Masti': ['Hindi', 'English'],
+      'Simulations': ['Hindi', 'English'],
+      'Moral Stories': ['Hindi', 'English'],
+      'ePustakalaya': ['Hindi', 'English'],
+    };
+  });
+
+  const [coCurricularDetails, setNonCurriculumDetails] = useState<Record<string, Record<string, { sheetUrl?: string; driveLink?: string; totalItems?: number }>>>(() => {
+    return value?.coCurricularDetails || value?.coCurricularDetails || {};
+  });
+
+
   useEffect(() => {
     setContents(initialContent);
     setBoard(initialBoard);
@@ -767,8 +741,13 @@ export function ContentConfigSection({
     newContents: string[],
     newBoard: string,
     newMediums: string[],
-    newMediumClasses: Record<string, string[]>
+    newMediumClasses: Record<string, string[]>,
+    newCoCurrMediums?: Record<string, string[]>,
+    newCoCurrDetails?: Record<string, Record<string, any>>
   ) => {
+    const curMed = newCoCurrMediums || coCurricularMediums;
+    const curDet = newCoCurrDetails || coCurricularDetails;
+
     const mediumConfigs = newMediums.map((m) => ({
       medium: m,
       classes: newMediumClasses[m] || []
@@ -797,6 +776,44 @@ export function ContentConfigSection({
       new Set(newMediums.flatMap((m) => newMediumClasses[m] || []))
     );
 
+    // Build structured ContentRequirement schema payload
+    const structuredCategories = newContents.map((catName) => {
+      const opt = CONTENT_OPTIONS.find((o) => o.id === catName);
+      const isCurric = opt ? opt.isCurriculum : true;
+
+      if (isCurric) {
+        return {
+          name: catName,
+          isCurriculum: true,
+          section: 'academic',
+          curriculumReq: newMediums.map((med) => ({
+            board: newBoard,
+            medium: med,
+            grade: newMediumClasses[med]?.join(', ') || 'Class 1 to 10',
+          })),
+        };
+      } else {
+        const catMediums = curMed[catName] || ['Hindi', 'English'];
+        return {
+          name: catName,
+          isCurriculum: false,
+          section: 'non-academic',
+          coCurricularReq: catMediums.map((med) => ({
+            medium: med,
+            sheetUrl: curDet[catName]?.[med]?.sheetUrl || '',
+            driveLink: curDet[catName]?.[med]?.driveLink || '',
+            totalItemsCount: curDet[catName]?.[med]?.totalItems || 0,
+          })),
+          nonCurriculumReq: catMediums.map((med) => ({
+            medium: med,
+            sheetUrl: curDet[catName]?.[med]?.sheetUrl || '',
+            driveLink: curDet[catName]?.[med]?.driveLink || '',
+            totalItemsCount: curDet[catName]?.[med]?.totalItems || 0,
+          })),
+        };
+      }
+    });
+
     const payload = {
       ...(typeof value === 'object' && value !== null ? value : {}),
       contents: newContents,
@@ -811,7 +828,12 @@ export function ContentConfigSection({
       mediumConfigs,
       configurations,
       sets,
-      classes: allUnionClasses
+      classes: allUnionClasses,
+      coCurricularMediums: curMed,
+      coCurricularDetails: curDet,
+      contentReq: {
+        categories: structuredCategories,
+      },
     };
 
     onChange(payload);
@@ -964,7 +986,7 @@ export function ContentConfigSection({
                 {contents.length > 1 && !disabled && (
                   <button
                     type="button"
-                    onClick={() => { setContents(['General Core Curriculum']); emitChanges(['General Core Curriculum'], board, selectedMediums, mediumClasses); }}
+                    onClick={() => { setContents(['Syllabus Content']); emitChanges(['Syllabus Content'], board, selectedMediums, mediumClasses); }}
                     className="text-[11px] font-bold text-[#8c96a5] hover:text-rose-500 px-2 py-0.5 rounded-lg border border-[#b9c0cb]/40 hover:border-rose-300 transition"
                   >
                     Reset
@@ -999,309 +1021,593 @@ export function ContentConfigSection({
               </div>
             )}
 
-            {/* Label chips grid */}
-            <div className="p-3 rounded-2xl bg-[#f8fafb] border border-[#b9c0cb]/40">
-              <p className="text-[10.5px] font-extrabold text-[#8c96a5] uppercase tracking-wider mb-2.5">
-                Select category
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {CONTENT_OPTIONS.map((opt) => {
-                  const isSelected = contents.includes(opt.id);
-                  return (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => handleContentToggle(opt.id)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11.5px] font-bold transition-all cursor-pointer shadow-2xs ${
-                        isSelected
-                          ? `${opt.color} ring-2 ring-offset-1 ring-[#51a8b1]/40 scale-[1.03]`
-                          : 'bg-white border-[#b9c0cb]/60 text-[#4a5462] hover:border-[#51a8b1]/60 hover:bg-[#f0f8f9]'
-                      } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-                    >
-                      <span>{opt.label}</span>
-                      {isSelected && (
-                        <span className="w-3.5 h-3.5 rounded-full bg-[#51a8b1] text-white flex items-center justify-center shrink-0">
-                          <Check className="w-2.5 h-2.5 stroke-[3]" />
-                        </span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          <div className="h-px bg-[#f1f3f6]" />
-
-          {/* ========================================================================= */}
-          {/* STEP 2: EDUCATIONAL BOARD (SINGLE-SELECT DROPDOWN) */}
-          {/* ========================================================================= */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#51a8b1] text-white flex items-center justify-center text-[10px] font-black">
-                  2
-                </span>
-                <Layers className="w-3.5 h-3.5 text-[#51a8b1]" />
-                Select Educational Board
-              </label>
-              <span className="text-[11px] font-bold text-[#333333] bg-[#f8fafb] px-2.5 py-0.5 rounded-lg border border-[#b9c0cb]/40">
-                Selected: {board}
-              </span>
-            </div>
-
-            <div className="relative">
-              <select
-                disabled={disabled}
-                value={board}
-                onChange={(e) => handleBoardChange(e.target.value)}
-                className="w-full h-11 border border-[#b9c0cb]/60 rounded-2xl px-3.5 text-xs bg-white text-[#1c4d52] font-extrabold focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] cursor-pointer shadow-2xs transition-all"
-              >
-                {BOARD_OPTIONS.map((b) => (
-                  <option key={b.id} value={b.id}>
-                    {b.label} — {b.desc}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="h-px bg-[#f1f3f6]" />
-
-          {/* ========================================================================= */}
-          {/* STEP 3: MEDIUM SELECTION (MULTI-SELECT DROPDOWN FILTERED FOR BOARD) */}
-          {/* ========================================================================= */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#51a8b1] text-white flex items-center justify-center text-[10px] font-black">
-                  3
-                </span>
-                <LanguagesIcon className="w-3.5 h-3.5 text-[#51a8b1]" />
-                Select Medium(s) of Instruction (Filtered for {board})
-              </label>
-              <span className="text-[11px] font-bold text-[#51a8b1] bg-[#eef7f8] px-2.5 py-0.5 rounded-lg border border-[#b6e0e4]">
-                {selectedMediums.length} Mediums Active
-              </span>
-            </div>
-
-            <MediumMultiSelectDropdown
-              boardName={board}
-              options={availableMediums}
-              selected={selectedMediums}
-              onChange={handleMediumsChange}
-              disabled={disabled}
-            />
-          </div>
-
-          <div className="h-px bg-[#f1f3f6]" />
-
-          {/* ========================================================================= */}
-          {/* STEP 4: PER-MEDIUM CLASS DROPDOWNS */}
-          {/* ========================================================================= */}
-          <div className="space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-              <label className="text-xs font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center gap-2">
-                <span className="w-5 h-5 rounded-full bg-[#51a8b1] text-white flex items-center justify-center text-[10px] font-black">
-                  4
-                </span>
-                <GraduationCap className="w-3.5 h-3.5 text-[#51a8b1]" />
-                Configure Classes via Dropdown (Independently for Each Medium)
-              </label>
-
-              {selectedMediums.length > 1 && (
-                <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-[11px] text-[#8c96a5] font-semibold">Quick Copy:</span>
-                  {selectedMediums.map((med) => (
-                    <button
-                      key={med}
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => copyClassesToAll(med)}
-                      className="flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-[#eef7f8] text-[#3a7d84] border border-[#b6e0e4] hover:bg-[#51a8b1] hover:text-white transition cursor-pointer shadow-2xs"
-                    >
-                      <Copy className="w-3 h-3" />
-                      <span>Copy "{med}" to All</span>
-                    </button>
-                  ))}
+            {/* Label chips grid categorized by Curriculum vs Co-Curricular */}
+            <div className="space-y-3">
+              {/* 1. Academic Curriculum Categories */}
+              <div className="p-3.5 rounded-2xl bg-[#f8fafb] border border-[#b9c0cb]/40 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-extrabold text-[#3a7d84] uppercase tracking-wider flex items-center gap-1.5 font-heading">
+                    <BookOpen className="w-3.5 h-3.5 text-[#51a8b1]" />
+                    Academic Curriculum Categories (Requires Board × Medium × Grade)
+                  </span>
+                  <span className="text-[10px] text-[#51a8b1] font-bold bg-[#eef7f8] px-2 py-0.5 rounded-md border border-[#b6e0e4]">
+                    {curriculumCategories.length} Active
+                  </span>
                 </div>
-              )}
-            </div>
-
-            {copiedNotification && (
-              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2 animate-in fade-in duration-150">
-                <CheckCheck className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>{copiedNotification}</span>
+                <div className="flex flex-wrap gap-2">
+                  {CONTENT_OPTIONS.filter((o) => o.isCurriculum).map((opt) => {
+                    const isSelected = contents.includes(opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => handleContentToggle(opt.id)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11.5px] font-bold transition-all cursor-pointer shadow-2xs ${
+                          isSelected
+                            ? `${opt.color} ring-2 ring-offset-1 ring-[#51a8b1]/40 scale-[1.02]`
+                            : 'bg-white border-[#b9c0cb]/60 text-[#4a5462] hover:border-[#51a8b1]/60 hover:bg-[#f0f8f9]'
+                        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                        {isSelected && (
+                          <span className="w-3.5 h-3.5 rounded-full bg-[#51a8b1] text-white flex items-center justify-center shrink-0">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            )}
 
-            {/* Render a dedicated Class Dropdown section for EACH chosen medium */}
-            <div className="space-y-3.5">
-              {selectedMediums.map((med, index) => {
-                const classList = mediumClasses[med] || [];
+              {/* 2. Co-Curricular Categories */}
+              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-pink-50/40 via-amber-50/30 to-purple-50/40 border border-pink-200/60 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10.5px] font-extrabold text-pink-900 uppercase tracking-wider flex items-center gap-1.5 font-heading">
+                    <Sparkles className="w-3.5 h-3.5 text-pink-600" />
+                    Co-Curricular Categories (Medium Only — No Board / No Grade)
+                  </span>
+                  <span className="text-[10px] text-pink-700 font-bold bg-pink-100 px-2 py-0.5 rounded-md border border-pink-200">
+                    {coCurricularCategories.length} Active
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {CONTENT_OPTIONS.filter((o) => !o.isCurriculum).map((opt) => {
+                    const isSelected = contents.includes(opt.id);
+                    return (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => handleContentToggle(opt.id)}
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl border text-[11.5px] font-bold transition-all cursor-pointer shadow-2xs ${
+                          isSelected
+                            ? `${opt.color} ring-2 ring-offset-1 ring-pink-400 scale-[1.02]`
+                            : 'bg-white border-pink-200 text-[#4a5462] hover:border-pink-400 hover:bg-pink-50/50'
+                        } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+                      >
+                        <span>{opt.icon}</span>
+                        <span>{opt.label}</span>
+                        {isSelected && (
+                          <span className="w-3.5 h-3.5 rounded-full bg-pink-600 text-white flex items-center justify-center shrink-0">
+                            <Check className="w-2.5 h-2.5 stroke-[3]" />
+                          </span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
 
-                return (
-                  <div
-                    key={med}
-                    className="p-4 rounded-3xl bg-gradient-to-br from-[#fbfdfd] to-white border-2 border-[#51a8b1]/30 shadow-xs space-y-3"
+          <div className="h-px bg-[#f1f3f6]" />
+
+          {/* ========================================================================= */}
+          {/* CURRICULUM SECTION (BOARD x MEDIUM x GRADE) */}
+          {/* ========================================================================= */}
+          {curriculumCategories.length > 0 ? (
+            <div className="space-y-6">
+              {/* STEP 2: EDUCATIONAL BOARD */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#51a8b1] text-white flex items-center justify-center text-[10px] font-black">
+                      2
+                    </span>
+                    <Layers className="w-3.5 h-3.5 text-[#51a8b1]" />
+                    Select Educational Board (For Curriculum)
+                  </label>
+                  <span className="text-[11px] font-bold text-[#333333] bg-[#f8fafb] px-2.5 py-0.5 rounded-lg border border-[#b9c0cb]/40">
+                    Selected: {board}
+                  </span>
+                </div>
+
+                <div className="relative">
+                  <select
+                    disabled={disabled}
+                    value={board}
+                    onChange={(e) => handleBoardChange(e.target.value)}
+                    className="w-full h-11 border border-[#b9c0cb]/60 rounded-2xl px-3.5 text-xs bg-white text-[#1c4d52] font-extrabold focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] cursor-pointer shadow-2xs transition-all"
                   >
-                    {/* Medium Card Header */}
-                    <div className="flex items-center justify-between border-b border-[#f1f3f6] pb-2.5">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-xl bg-[#51a8b1] text-white flex items-center justify-center text-xs font-black shadow-2xs">
-                          {index + 1}
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="text-xs font-extrabold text-[#1c4d52] font-heading">
-                              {med} Medium Classes
-                            </h4>
-                            <span className="text-[10px] font-extrabold bg-[#eef7f8] text-[#51a8b1] px-2 py-0.5 rounded-md border border-[#b6e0e4]">
-                              {classList.length} Classes
+                    {BOARD_OPTIONS.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.label} — {b.desc}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="h-px bg-[#f1f3f6]" />
+
+              {/* STEP 3: MEDIUM SELECTION */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#51a8b1] text-white flex items-center justify-center text-[10px] font-black">
+                      3
+                    </span>
+                    <LanguagesIcon className="w-3.5 h-3.5 text-[#51a8b1]" />
+                    Select Medium(s) of Instruction (Filtered for {board})
+                  </label>
+                  <span className="text-[11px] font-bold text-[#51a8b1] bg-[#eef7f8] px-2.5 py-0.5 rounded-lg border border-[#b6e0e4]">
+                    {selectedMediums.length} Mediums Active
+                  </span>
+                </div>
+
+                <MediumMultiSelectDropdown
+                  boardName={board}
+                  options={availableMediums}
+                  selected={selectedMediums}
+                  onChange={handleMediumsChange}
+                  disabled={disabled}
+                />
+              </div>
+
+              <div className="h-px bg-[#f1f3f6]" />
+
+              {/* STEP 4: PER-MEDIUM CLASS DROPDOWNS */}
+              <div className="space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                  <label className="text-xs font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center gap-2">
+                    <span className="w-5 h-5 rounded-full bg-[#51a8b1] text-white flex items-center justify-center text-[10px] font-black">
+                      4
+                    </span>
+                    <GraduationCap className="w-3.5 h-3.5 text-[#51a8b1]" />
+                    Configure Classes via Dropdown (Independently for Each Medium)
+                  </label>
+
+                  {selectedMediums.length > 1 && (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[11px] text-[#8c96a5] font-semibold">Quick Copy:</span>
+                      {selectedMediums.map((med) => (
+                        <button
+                          key={med}
+                          type="button"
+                          disabled={disabled}
+                          onClick={() => copyClassesToAll(med)}
+                          className="flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-[#eef7f8] text-[#3a7d84] border border-[#b6e0e4] hover:bg-[#51a8b1] hover:text-white transition cursor-pointer shadow-2xs"
+                        >
+                          <Copy className="w-3 h-3" />
+                          <span>Copy "{med}" to All</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {copiedNotification && (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-800 flex items-center gap-2 animate-in fade-in duration-150">
+                    <CheckCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>{copiedNotification}</span>
+                  </div>
+                )}
+
+                {/* Render a dedicated Class Dropdown section for EACH chosen medium */}
+                <div className="space-y-3.5">
+                  {selectedMediums.map((med, index) => {
+                    const classList = mediumClasses[med] || [];
+
+                    return (
+                      <div
+                        key={med}
+                        className="p-4 rounded-3xl bg-gradient-to-br from-[#fbfdfd] to-white border-2 border-[#51a8b1]/30 shadow-xs space-y-3"
+                      >
+                        {/* Medium Card Header */}
+                        <div className="flex items-center justify-between border-b border-[#f1f3f6] pb-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className="w-8 h-8 rounded-xl bg-[#51a8b1] text-white flex items-center justify-center text-xs font-black shadow-2xs">
+                              {index + 1}
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-xs font-extrabold text-[#1c4d52] font-heading">
+                                  {med} Medium Classes
+                                </h4>
+                                <span className="text-[10px] font-extrabold bg-[#eef7f8] text-[#51a8b1] px-2 py-0.5 rounded-md border border-[#b6e0e4]">
+                                  {classList.length} Classes
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-[#8c96a5]">
+                                Select classes specifically for the <strong className="text-[#333333]">{med}</strong> curriculum track
+                              </p>
+                            </div>
+                          </div>
+
+                          <div className="hidden sm:flex items-center gap-1">
+                            <span className="text-[10.5px] font-semibold text-[#8c96a5]">
+                              {classList.length > 0
+                                ? `${classList.length} of ${ALL_AVAILABLE_CLASSES.length} active`
+                                : 'No classes active'}
                             </span>
                           </div>
-                          <p className="text-[11px] text-[#8c96a5]">
-                            Select classes specifically for the <strong className="text-[#333333]">{med}</strong> curriculum track
-                          </p>
                         </div>
-                      </div>
 
-                      {/* Tag preview */}
-                      <div className="hidden sm:flex items-center gap-1">
-                        <span className="text-[10.5px] font-semibold text-[#8c96a5]">
-                          {classList.length > 0
-                            ? `${classList.length} of ${ALL_AVAILABLE_CLASSES.length} active`
-                            : 'No classes active'}
-                        </span>
-                      </div>
-                    </div>
+                        {/* Class Multi-Select Dropdown for this Medium */}
+                        <div className="space-y-2">
+                          <ClassMultiSelectDropdown
+                            mediumName={med}
+                            selectedClasses={classList}
+                            onChange={(newClasses) => handleClassesChangeForMedium(med, newClasses)}
+                            disabled={disabled}
+                          />
 
-                    {/* Class Multi-Select Dropdown for this Medium */}
-                    <div className="space-y-2">
-                      <ClassMultiSelectDropdown
-                        mediumName={med}
-                        selectedClasses={classList}
-                        onChange={(newClasses) => handleClassesChangeForMedium(med, newClasses)}
-                        disabled={disabled}
-                      />
-
-                      {/* Removable Tag Pills Cloud below dropdown */}
-                      {classList.length > 0 && (
-                        <div className="p-2.5 rounded-2xl bg-[#f8fafb] border border-[#b9c0cb]/30 flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[10.5px] font-bold text-[#8c96a5] mr-1">
-                            Selected Tags:
-                          </span>
-                          {classList.map((cls) => (
-                            <span
-                              key={cls}
-                              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#b6e0e4] text-[11px] font-bold text-[#1c4d52] shadow-2xs hover:border-rose-300 transition"
-                            >
-                              <span>{cls}</span>
-                              {!disabled && (
-                                <button
-                                  type="button"
-                                  title={`Remove ${cls}`}
-                                  onClick={() =>
-                                    handleClassesChangeForMedium(
-                                      med,
-                                      classList.filter((c) => c !== cls)
-                                    )
-                                  }
-                                  className="text-[#8c96a5] hover:text-rose-600 transition-colors"
+                          {/* Removable Tag Pills Cloud below dropdown */}
+                          {classList.length > 0 && (
+                            <div className="p-2.5 rounded-2xl bg-[#f8fafb] border border-[#b9c0cb]/30 flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[10.5px] font-bold text-[#8c96a5] mr-1">
+                                Selected Tags:
+                              </span>
+                              {classList.map((cls) => (
+                                <span
+                                  key={cls}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white border border-[#b6e0e4] text-[11px] font-bold text-[#1c4d52] shadow-2xs hover:border-rose-300 transition"
                                 >
-                                  <X className="w-3 h-3 stroke-[2.5]" />
-                                </button>
-                              )}
-                            </span>
-                          ))}
+                                  <span>{cls}</span>
+                                  {!disabled && (
+                                    <button
+                                      type="button"
+                                      title={`Remove ${cls}`}
+                                      onClick={() =>
+                                        handleClassesChangeForMedium(
+                                          med,
+                                          classList.filter((c) => c !== cls)
+                                        )
+                                      }
+                                      className="text-[#8c96a5] hover:text-rose-600 transition-colors"
+                                    >
+                                      <X className="w-3 h-3 stroke-[2.5]" />
+                                    </button>
+                                  )}
+                                </span>
+                              ))}
+                            </div>
+                          )}
                         </div>
-                      )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="p-4 rounded-2xl bg-[#f8fafb] border border-[#b9c0cb]/40 text-center">
+              <p className="text-xs font-bold text-[#8c96a5]">
+                ℹ️ No Curriculum categories selected. Board & Grade mappings are bypassed.
+              </p>
+            </div>
+          )}
+
+          {/* ========================================================================= */}
+          {/* CO-CURRICULAR SECTION (MEDIUM ONLY — NO BOARD, NO GRADE) */}
+          {/* ========================================================================= */}
+          {coCurricularCategories.length > 0 && (
+            <>
+              <div className="h-px bg-[#f1f3f6]" />
+
+              <div className="p-5 rounded-3xl bg-gradient-to-br from-[#fdfbf7] via-white to-[#fffaf5] border-2 border-amber-300/70 shadow-xs space-y-4">
+                <div className="flex items-center justify-between border-b border-amber-100 pb-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-9 h-9 rounded-2xl bg-amber-500 text-white flex items-center justify-center text-sm font-black shadow-xs">
+                      🎭
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-extrabold text-amber-950 font-heading">
+                        Co-Curricular Requirement (Medium-Only Stream)
+                      </h4>
+                      <p className="text-[11px] text-amber-700/80">
+                        Content is mapped purely by <strong>Medium (Language)</strong> — Board & Grade dependencies are bypassed.
+                      </p>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
+                  <span className="text-[10px] font-extrabold bg-amber-100 text-amber-800 px-2.5 py-1 rounded-full border border-amber-300">
+                    {coCurricularCategories.length} Category Stream{coCurricularCategories.length > 1 ? 's' : ''}
+                  </span>
+                </div>
+
+                <div className="space-y-4">
+                  {coCurricularCategories.map((catName) => {
+                    const activeMedList = coCurricularMediums[catName] || ['Hindi', 'English'];
+                    return (
+                      <div key={catName} className="p-4 rounded-2xl bg-white border border-amber-200 space-y-3 shadow-2xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-black text-[#1c4d52] flex items-center gap-1.5">
+                            <span>{CONTENT_OPTIONS.find((o) => o.id === catName)?.icon || '📌'}</span>
+                            <span>{catName}</span>
+                          </span>
+                          <span className="text-[10.5px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                            {activeMedList.length} Mediums Selected
+                          </span>
+                        </div>
+
+                        {/* Medium Chips for this Co-Curricular Item */}
+                        <div className="space-y-1.5">
+                          <span className="text-[10.5px] font-bold text-[#8c96a5]">
+                            Select Active Mediums for {catName}:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {ALL_MEDIUMS.slice(0, 6).map((med) => {
+                              const isSelected = activeMedList.includes(med);
+                              return (
+                                <button
+                                  key={med}
+                                  type="button"
+                                  disabled={disabled}
+                                  onClick={() => {
+                                    const next = isSelected
+                                      ? activeMedList.length > 1 ? activeMedList.filter((m) => m !== med) : activeMedList
+                                      : [...activeMedList, med];
+                                    const nextMap = { ...coCurricularMediums, [catName]: next };
+                                    setNonCurriculumMediums(nextMap);
+                                    emitChanges(contents, board, selectedMediums, mediumClasses, nextMap, coCurricularDetails);
+                                  }}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold border transition cursor-pointer ${
+                                    isSelected
+                                      ? 'bg-amber-100 border-amber-400 text-amber-900 font-extrabold'
+                                      : 'bg-white border-[#b9c0cb]/40 text-[#4a5462] hover:bg-amber-50/50'
+                                  }`}
+                                >
+                                  {med} {isSelected && '✓'}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Per Medium Resource Links / Inputs */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+                          {activeMedList.map((med) => {
+                            const currentDetail = coCurricularDetails[catName]?.[med] || {};
+                            return (
+                              <div key={med} className="p-3 rounded-xl bg-[#fdfbf7] border border-amber-200/80 space-y-2">
+                                <div className="flex items-center justify-between text-xs font-bold text-amber-900">
+                                  <span className="flex items-center gap-1 font-extrabold">
+                                    <LanguagesIcon className="w-3.5 h-3.5 text-amber-600" />
+                                    {med} Medium
+                                  </span>
+                                  <span className="text-[10px] text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded font-bold">Ready</span>
+                                </div>
+
+                                <div className="space-y-1.5">
+                                  <input
+                                    type="url"
+                                    placeholder={`Google Drive / Resource Folder (${med})`}
+                                    value={currentDetail.driveLink || ''}
+                                    disabled={disabled}
+                                    onChange={(e) => {
+                                      const nextDet = {
+                                        ...coCurricularDetails,
+                                        [catName]: {
+                                          ...(coCurricularDetails[catName] || {}),
+                                          [med]: {
+                                            ...currentDetail,
+                                            driveLink: e.target.value,
+                                          },
+                                        },
+                                      };
+                                      setNonCurriculumDetails(nextDet);
+                                      emitChanges(contents, board, selectedMediums, mediumClasses, coCurricularMediums, nextDet);
+                                    }}
+                                    className="w-full h-8 px-2.5 text-xs rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                  />
+                                  <input
+                                    type="url"
+                                    placeholder={`Master Sheet URL (${med})`}
+                                    value={currentDetail.sheetUrl || ''}
+                                    disabled={disabled}
+                                    onChange={(e) => {
+                                      const nextDet = {
+                                        ...coCurricularDetails,
+                                        [catName]: {
+                                          ...(coCurricularDetails[catName] || {}),
+                                          [med]: {
+                                            ...currentDetail,
+                                            sheetUrl: e.target.value,
+                                          },
+                                        },
+                                      };
+                                      setNonCurriculumDetails(nextDet);
+                                      emitChanges(contents, board, selectedMediums, mediumClasses, coCurricularMediums, nextDet);
+                                    }}
+                                    className="w-full h-8 px-2.5 text-xs rounded-lg border border-amber-200 bg-white focus:outline-none focus:ring-1 focus:ring-amber-400"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
 
           <div className="h-px bg-[#f1f3f6]" />
 
           {/* ========================================================================= */}
           {/* FINAL SUMMARY MATRIX: LIVE DECK OVERVIEW */}
           {/* ========================================================================= */}
-          <div className="space-y-2.5">
+          <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h4 className="text-xs font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center gap-1.5">
                 <FileCheck2 className="w-3.5 h-3.5 text-[#51a8b1]" />
                 Live Configuration Summary
               </h4>
-              <span className="text-[11px] text-[#8c96a5]">
-                {selectedMediums.length} Medium Stream{selectedMediums.length > 1 ? 's' : ''} Configured
-              </span>
+              <div className="flex items-center gap-2">
+                {curriculumCategories.length > 0 && (
+                  <span className="text-[11px] text-[#51a8b1] font-bold bg-[#eef7f8] px-2 py-0.5 rounded-md border border-[#b6e0e4]">
+                    {selectedMediums.length} Academic Medium Stream{selectedMediums.length > 1 ? 's' : ''}
+                  </span>
+                )}
+                {coCurricularCategories.length > 0 && (
+                  <span className="text-[11px] text-amber-800 font-bold bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    {coCurricularCategories.length} Co-Curricular Stream{coCurricularCategories.length > 1 ? 's' : ''}
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="overflow-x-auto rounded-2xl border border-[#b9c0cb]/40 shadow-2xs">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-[#f8fafb] border-b border-[#b9c0cb]/40 text-[11px] font-bold text-[#3a7d84] uppercase tracking-wider font-heading">
-                    <th className="py-2.5 px-4 min-w-[180px]">Content Domain(s)</th>
-                    <th className="py-2.5 px-4 min-w-[100px]">Board</th>
-                    <th className="py-2.5 px-4 min-w-[120px]">Medium</th>
-                    <th className="py-2.5 px-4 min-w-[240px]">Configured Classes</th>
-                    <th className="py-2.5 px-4 text-right min-w-[80px]">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#f1f3f6] bg-white">
-                  {selectedMediums.map((med) => {
-                    const classesList = mediumClasses[med] || [];
-
-                    return (
-                      <tr key={med} className="hover:bg-[#fbfdfd] transition-colors">
-                        <td className="py-3 px-4 font-bold text-[#1c4d52]">
-                          <div className="flex flex-wrap gap-1">
-                            {contents.map((cId) => {
-                              const opt = CONTENT_OPTIONS.find((o) => o.id === cId);
-                              return (
-                                <span key={cId} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10.5px] font-bold shadow-2xs ${opt?.color || 'bg-[#eef7f8] border-[#b6e0e4] text-[#1c4d52]'}`}>
-                                  <span>{opt?.label || cId}</span>
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 font-bold text-[#333333]">
-                          {board}
-                        </td>
-                        <td className="py-3 px-4 font-extrabold text-[#51a8b1]">
-                          {med} Medium
-                        </td>
-                        <td className="py-3 px-4">
-                          {classesList.length > 0 ? (
-                            <div className="flex items-center gap-1 flex-wrap">
-                              {classesList.map((c) => (
-                                <span
-                                  key={c}
-                                  className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-white border border-[#b9c0cb]/60 text-[#333333] shadow-2xs"
-                                >
-                                  {c}
-                                </span>
-                              ))}
-                            </div>
-                          ) : (
-                            <span className="text-rose-500 italic text-[11px] font-semibold">
-                              ⚠️ No classes selected for this medium
-                            </span>
-                          )}
-                        </td>
-                        <td className="py-3 px-4 text-right font-extrabold text-[#51a8b1]">
-                          {classesList.length}
-                        </td>
+            {/* 1. Academic Curriculum Matrix */}
+            {curriculumCategories.length > 0 && (
+              <div className="space-y-1.5">
+                <span className="text-[10.5px] font-extrabold text-[#3a7d84] uppercase tracking-wider font-heading flex items-center gap-1">
+                  <span>📖</span> 1. Curriculum Stream (Board × Medium × Grade Relation)
+                </span>
+                <div className="overflow-x-auto rounded-2xl border border-[#b9c0cb]/40 shadow-2xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-[#f8fafb] border-b border-[#b9c0cb]/40 text-[11px] font-bold text-[#3a7d84] uppercase tracking-wider font-heading">
+                        <th className="py-2.5 px-4 min-w-[180px]">Curriculum Domain(s)</th>
+                        <th className="py-2.5 px-4 min-w-[100px]">Board</th>
+                        <th className="py-2.5 px-4 min-w-[120px]">Medium</th>
+                        <th className="py-2.5 px-4 min-w-[240px]">Configured Classes</th>
+                        <th className="py-2.5 px-4 text-right min-w-[80px]">Total</th>
                       </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+                    </thead>
+                    <tbody className="divide-y divide-[#f1f3f6] bg-white">
+                      {selectedMediums.map((med) => {
+                        const classesList = mediumClasses[med] || [];
+
+                        return (
+                          <tr key={med} className="hover:bg-[#fbfdfd] transition-colors">
+                            <td className="py-3 px-4 font-bold text-[#1c4d52]">
+                              <div className="flex flex-wrap gap-1">
+                                {curriculumCategories.map((cId) => {
+                                  const opt = CONTENT_OPTIONS.find((o) => o.id === cId);
+                                  return (
+                                    <span key={cId} className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-lg border text-[10.5px] font-bold shadow-2xs ${opt?.color || 'bg-[#eef7f8] border-[#b6e0e4] text-[#1c4d52]'}`}>
+                                      <span>{opt?.label || cId}</span>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 font-bold text-[#333333]">
+                              {board}
+                            </td>
+                            <td className="py-3 px-4 font-extrabold text-[#51a8b1]">
+                              {med} Medium
+                            </td>
+                            <td className="py-3 px-4">
+                              {classesList.length > 0 ? (
+                                <div className="flex items-center gap-1 flex-wrap">
+                                  {classesList.map((c) => (
+                                    <span
+                                      key={c}
+                                      className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-white border border-[#b9c0cb]/60 text-[#333333] shadow-2xs"
+                                    >
+                                      {c}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : (
+                                <span className="text-rose-500 italic text-[11px] font-semibold">
+                                  ⚠️ No classes selected for this medium
+                                </span>
+                              )}
+                            </td>
+                            <td className="py-3 px-4 text-right font-extrabold text-[#51a8b1]">
+                              {classesList.length}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {/* 2. Co-Curricular Matrix */}
+            {coCurricularCategories.length > 0 && (
+              <div className="space-y-1.5 pt-2">
+                <span className="text-[10.5px] font-extrabold text-amber-900 uppercase tracking-wider font-heading flex items-center gap-1">
+                  <span>🎭</span> 2. Co-Curricular Stream (Medium Only — No Board / No Grade)
+                </span>
+                <div className="overflow-x-auto rounded-2xl border border-amber-200 shadow-2xs">
+                  <table className="w-full text-left text-xs border-collapse">
+                    <thead>
+                      <tr className="bg-[#fdfbf7] border-b border-amber-200 text-[11px] font-bold text-amber-900 uppercase tracking-wider font-heading">
+                        <th className="py-2.5 px-4 min-w-[160px]">Co-Curricular Domain</th>
+                        <th className="py-2.5 px-4 min-w-[120px]">Dependency</th>
+                        <th className="py-2.5 px-4 min-w-[200px]">Active Medium(s)</th>
+                        <th className="py-2.5 px-4 min-w-[200px]">Linked Drive / Sheet</th>
+                        <th className="py-2.5 px-4 text-right min-w-[80px]">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-100 bg-white">
+                      {coCurricularCategories.map((catName) => {
+                        const opt = CONTENT_OPTIONS.find((o) => o.id === catName);
+                        const medList = coCurricularMediums[catName] || ['Hindi', 'English'];
+
+                        return (
+                          <tr key={catName} className="hover:bg-amber-50/30 transition-colors">
+                            <td className="py-3 px-4 font-bold text-[#1c4d52]">
+                              <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold shadow-2xs ${opt?.color || 'bg-amber-50 border-amber-200 text-amber-800'}`}>
+                                <span>{opt?.icon || '🎭'}</span>
+                                <span>{catName}</span>
+                              </span>
+                            </td>
+                            <td className="py-3 px-4 font-extrabold text-amber-800 text-[11px]">
+                              Language Medium Only
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center gap-1 flex-wrap">
+                                {medList.map((m) => (
+                                  <span key={m} className="px-2 py-0.5 rounded-md text-[10.5px] font-bold bg-[#fdfbf7] border border-amber-300 text-amber-900 shadow-2xs">
+                                    {m}
+                                  </span>
+                                ))}
+                              </div>
+                            </td>
+                            <td className="py-3 px-4 text-[11px] text-[#4a5462]">
+                              {medList.map((m) => {
+                                const d = coCurricularDetails[catName]?.[m];
+                                return (
+                                  <div key={m} className="truncate max-w-[220px]">
+                                    <strong className="text-amber-800">{m}:</strong> {d?.driveLink || d?.sheetUrl || 'Configured via medium inputs'}
+                                  </div>
+                                );
+                              })}
+                            </td>
+                            <td className="py-3 px-4 text-right">
+                              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200">
+                                READY
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

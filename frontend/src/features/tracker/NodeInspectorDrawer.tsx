@@ -8,6 +8,7 @@ import { IProject } from '../../types/project';
 import { DynamicFormRenderer } from '../../components/forms/DynamicFormRenderer';
 import { useClickOutside } from '../../hooks/useClickOutside';
 import { getStageTheme } from './utils/stageColorThemes';
+import { OrderRequirementPdfBanner } from './components/OrderRequirementPdfBanner';
 import {
   X,
   Check,
@@ -89,19 +90,80 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   const handleNavigate = onSelectNode || onNavigateNode;
 
   const [isFormDirty, setIsFormDirty] = React.useState<boolean>(false);
+  const [assignedEmployeeMap, setAssignedEmployeeMap] = React.useState<Record<string, string>>({});
+  const [initialAssignedEmployeeMap, setInitialAssignedEmployeeMap] = React.useState<Record<string, string>>({});
   const [showUnsavedWarning, setShowUnsavedWarning] = React.useState<boolean>(false);
   const [pendingAction, setPendingAction] = React.useState<{ type: 'CLOSE' } | { type: 'NAVIGATE'; targetNode: ITimelineNode } | null>(null);
   const formRef = React.useRef<{ submitForm: () => Promise<void>; isDirty: () => boolean; getFormData: () => Record<string, any> } | null>(null);
 
-  // Reset dirty state when switching node
+  const getChildrenList = React.useCallback((): ITimelineNode[] => {
+    if (!node) return [];
+    if (node.children && node.children.length > 0) return node.children;
+    const findInTree = (list: ITimelineNode[]): ITimelineNode[] => {
+      for (const item of list) {
+        if (item._id === node._id) return item.children || [];
+        if (item.children && item.children.length > 0) {
+          const found = findInTree(item.children);
+          if (found.length > 0) return found;
+        }
+      }
+      return [];
+    };
+    return findInTree(allNodes);
+  }, [node, allNodes]);
+
+  // Reset dirty state & populate employee assignment snapshot when switching node
   React.useEffect(() => {
+    if (!node) return;
+    const initialMap: Record<string, string> = {};
+    const nodeAssigneeId =
+      typeof node.assignedEmployee === 'object' && node.assignedEmployee !== null
+        ? (node.assignedEmployee as any)._id
+        : typeof node.assignedTo === 'object' && node.assignedTo !== null
+          ? (node.assignedTo as any)._id
+          : typeof node.assignedEmployee === 'string'
+            ? node.assignedEmployee
+            : typeof node.assignedTo === 'string'
+              ? node.assignedTo
+              : '';
+    initialMap[node._id] = nodeAssigneeId || '';
+
+    const children = getChildrenList() || [];
+    for (const child of children) {
+      if (!child || !child._id) continue;
+      const childAssigneeObj =
+        typeof child.assignedEmployee === 'object' && child.assignedEmployee !== null
+          ? (child.assignedEmployee as any)
+          : typeof child.assignedTo === 'object' && child.assignedTo !== null
+            ? (child.assignedTo as any)
+            : null;
+      const childAssigneeId =
+        childAssigneeObj?._id ||
+        (typeof child.assignedEmployee === 'string' ? child.assignedEmployee : '') ||
+        (typeof child.assignedTo === 'string' ? child.assignedTo : '');
+      initialMap[child._id] = childAssigneeId || '';
+    }
+
+    setAssignedEmployeeMap(initialMap);
+    setInitialAssignedEmployeeMap(initialMap);
     setIsFormDirty(false);
     setShowUnsavedWarning(false);
     setPendingAction(null);
-  }, [node?._id]);
+  }, [node?._id, getChildrenList]);
+
+  const isAssignDirty = React.useMemo(() => {
+    for (const [id, empId] of Object.entries(assignedEmployeeMap)) {
+      if ((initialAssignedEmployeeMap[id] || '') !== (empId || '')) {
+        return true;
+      }
+    }
+    return false;
+  }, [assignedEmployeeMap, initialAssignedEmployeeMap]);
+
+  const isDirty = isFormDirty || isAssignDirty;
 
   const requestClose = () => {
-    if (isFormDirty) {
+    if (isDirty) {
       setPendingAction({ type: 'CLOSE' });
       setShowUnsavedWarning(true);
     } else {
@@ -110,7 +172,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   };
 
   const requestNavigate = (targetNode: ITimelineNode) => {
-    if (isFormDirty) {
+    if (isDirty) {
       setPendingAction({ type: 'NAVIGATE', targetNode });
       setShowUnsavedWarning(true);
     } else if (handleNavigate) {
@@ -125,21 +187,21 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   // Native browser prompt on tab close / reload if dirty
   React.useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (isFormDirty) {
+      if (isDirty) {
         e.preventDefault();
         e.returnValue = '';
       }
     };
     window.addEventListener('beforeunload', handleBeforeUnload);
     return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [isFormDirty]);
+  }, [isDirty]);
 
   const flatNodes = React.useMemo(() => {
     const result: ITimelineNode[] = [];
     const traverse = (list: ITimelineNode[]) => {
       for (const item of list) {
         if (!item) continue;
-        if (item.key === 'PI_REQUEST') continue;
+        if (item.key === 'PI_REQUEST' || item.key === 'INSTALLATION_TESTING') continue;
         result.push(item);
         if (item.children && Array.isArray(item.children) && item.children.length > 0) {
           traverse(item.children);
@@ -223,7 +285,6 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     'HARDWARE_READY',
     'PROJECT_CONFIG_AND_IMPLEMENTATION',
     'TECH_TESTING',
-    'CONTENT_CONFIGURATION',
     'CONTENT_REVIEW_QA',
     'SHEET_READINESS',
     'DUMP_READINESS',
@@ -292,17 +353,16 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
           ? node.assignedTo
           : '';
 
-  const currentAssigneeObj = typeof node.assignedEmployee === 'object' && node.assignedEmployee !== null && (node.assignedEmployee as any).name
-    ? (node.assignedEmployee as any)
-    : typeof node.assignedTo === 'object' && node.assignedTo !== null && (node.assignedTo as any).name
-      ? (node.assignedTo as any)
-      : empList.find(e => 
-          e._id === currentAssigneeId || 
-          (e as any).id === currentAssigneeId || 
-          e.employeeCode === currentAssigneeId || 
-          e.phone === currentAssigneeId ||
-          (typeof node.assignedTo === 'object' && (node.assignedTo as any)?.email === e.email)
-        ) || null;
+  const currentSelectedAssigneeId = assignedEmployeeMap[node._id] !== undefined
+    ? assignedEmployeeMap[node._id]
+    : currentAssigneeId;
+
+  const currentAssigneeObj = empList.find(e => e._id === currentSelectedAssigneeId) ||
+    (typeof node.assignedEmployee === 'object' && node.assignedEmployee !== null && (node.assignedEmployee as any).name
+      ? (node.assignedEmployee as any)
+      : typeof node.assignedTo === 'object' && node.assignedTo !== null && (node.assignedTo as any).name
+        ? (node.assignedTo as any)
+        : null);
 
   // Extract stage 03 and stage 04 context for seamless cross-stage data flow
   const findNodeRecursive = (list: ITimelineNode[], targetKey: string): ITimelineNode | null => {
@@ -324,51 +384,43 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   const stage3SchoolNode = useMemo(() => findNodeRecursive(allNodes, 'SCHOOL_ONBOARDING_INFORMATION'), [allNodes]);
   const stage3SolNode = useMemo(() => findNodeRecursive(allNodes, 'SOLUTION_SELECTION'), [allNodes]);
   const stage3HwNode = useMemo(() => findNodeRecursive(allNodes, 'HARDWARE_REQUIREMENT'), [allNodes]);
+  const stage3ContentNode = useMemo(() => findNodeRecursive(allNodes, 'CONTENT_CONFIGURATION'), [allNodes]);
   const stage4StockNode = useMemo(() => findNodeRecursive(allNodes, 'REQ_AND_STOCK_CHECK'), [allNodes]);
   const stage4TechNode = useMemo(() => findNodeRecursive(allNodes, 'PROJECT_CONFIG_AND_IMPLEMENTATION'), [allNodes]);
 
   const resolvedSchools = useMemo(() => {
-    // 1. Check stage3SchoolNode.formData.schools
-    if (Array.isArray(stage3SchoolNode?.formData?.schools) && stage3SchoolNode.formData.schools.length > 0) {
-      return stage3SchoolNode.formData.schools;
-    }
-    // 2. Check current formData.schools (if user is in school node or has schools)
+    // 1. Check current node formData.schools
     if (Array.isArray(formData?.schools) && formData.schools.length > 0) {
       return formData.schools;
     }
-    // 3. Check project orderRequirement
+    // 2. Check stage3SchoolNode.formData.schools
+    if (Array.isArray(stage3SchoolNode?.formData?.schools) && stage3SchoolNode.formData.schools.length > 0) {
+      return stage3SchoolNode.formData.schools;
+    }
+    // 3. Search allNodes for any node containing DB schools
+    if (Array.isArray(allNodes)) {
+      for (const n of allNodes) {
+        if (Array.isArray(n.formData?.schools) && n.formData.schools.length > 0) {
+          return n.formData.schools;
+        }
+      }
+    }
+    // 4. Check project schools from database
     const projSchools =
+      (project as any)?.schools ||
       (project as any)?.orderRequirement?.schoolInformation?.schools ||
-      (project as any)?.orderRequirement?.schools ||
-      (project as any)?.schools;
+      (project as any)?.orderRequirement?.schools;
     if (Array.isArray(projSchools) && projSchools.length > 0) {
       return projSchools;
     }
-    // 4. Single school fallback
-    const singleName =
-      stage3SchoolNode?.formData?.schoolName ||
-      formData?.schoolName ||
-      (project as any)?.orderRequirement?.schoolInformation?.schoolName ||
-      (project as any)?.projectName ||
-      (project as any)?.title;
-    if (singleName) {
-      return [{
-        id: 'school-1',
-        schoolName: singleName,
-        address: stage3SchoolNode?.formData?.addressContact || stage3SchoolNode?.formData?.address || formData?.addressContact || '',
-        classes: stage3SchoolNode?.formData?.classes || formData?.classes || [],
-        pocName: stage3SchoolNode?.formData?.pocName || stage3SchoolNode?.formData?.contactPerson || formData?.pocName || '',
-        phone: stage3SchoolNode?.formData?.pocContact || stage3SchoolNode?.formData?.phone || formData?.phone || '',
-        email: stage3SchoolNode?.formData?.email || formData?.email || ''
-      }];
-    }
     return [];
-  }, [stage3SchoolNode, formData, project]);
+  }, [stage3SchoolNode, formData, project, allNodes]);
 
   const combinedAllFormData: Record<string, any> = {
     ...(formData || {}),
     schools: resolvedSchools,
     stage3Schools: resolvedSchools,
+    projectSchools: resolvedSchools,
     stage3SolutionsData: stage3SolNode?.formData || (project as any)?.orderRequirement?.solutionSelection || {},
     stage3SchoolWiseSolutions: stage3SolNode?.formData?.schoolWiseSolutions || (project as any)?.orderRequirement?.solutionSelection?.schoolWiseSolutions || {},
     stage3HardwareData: stage3HwNode?.formData || (project as any)?.orderRequirement?.hardwareRequirement || {},
@@ -388,19 +440,41 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     stage4StockNodeFormData: stage4StockNode?.formData || {},
     techApkFileUrl: stage4TechNode?.formData?.apkFileUrl || stage4TechNode?.formData?.appFileUrl || stage4TechNode?.formData?.fileUrl || '',
     techFormData: stage4TechNode?.formData || {},
+    stage3ContentNode: stage3ContentNode?.formData || {},
+    stage3ContentData: stage3ContentNode?.formData?.contentSets || stage3ContentNode?.formData || (project as any)?.orderRequirement?.contentConfiguration?.contentSets || (project as any)?.orderRequirement?.contentConfiguration || {},
+    contentConfigData: stage3ContentNode?.formData?.contentSets || stage3ContentNode?.formData || (project as any)?.orderRequirement?.contentConfiguration?.contentSets || (project as any)?.orderRequirement?.contentConfiguration || {},
   };
 
   const [justSaved, setJustSaved] = React.useState<boolean>(false);
+  const [isSaving, setIsSaving] = React.useState<boolean>(false);
 
   const handleFooterSave = async () => {
-    if (!formRef.current || isCurrentlyMutating) return;
+    if (isSaving || isCurrentlyMutating) return;
     try {
-      await formRef.current.submitForm();
-      setIsFormDirty(false);
+      setIsSaving(true);
+
+      // 1. Save any pending employee assignments
+      if (isAssignDirty) {
+        for (const [id, empId] of Object.entries(assignedEmployeeMap)) {
+          if ((initialAssignedEmployeeMap[id] || '') !== (empId || '')) {
+            await handleAssign(empId, id === node._id ? undefined : id);
+          }
+        }
+        setInitialAssignedEmployeeMap({ ...assignedEmployeeMap });
+      }
+
+      // 2. Save form data if form is dirty or formRef exists
+      if (formRef.current && (isFormDirty || formRef.current.isDirty())) {
+        await formRef.current.submitForm();
+        setIsFormDirty(false);
+      }
+
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 3000);
-    } catch {
-      // Handled inside form
+    } catch (err: any) {
+      console.error('Failed to save stage changes:', err);
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -487,9 +561,15 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               </span>
               {(allowAssignEdit && !isReadOnly) ? (
                 <select
-                  disabled={isCurrentlyMutating}
-                  value={currentAssigneeId}
-                  onChange={(e) => handleAssign(e.target.value)}
+                  disabled={isCurrentlyMutating || isSaving}
+                  value={currentSelectedAssigneeId}
+                  onChange={(e) => {
+                    const newEmpId = e.target.value;
+                    setAssignedEmployeeMap((prev) => ({
+                      ...prev,
+                      [node._id]: newEmpId,
+                    }));
+                  }}
                   className="border border-[#b6e0e4] bg-[#f0f8f9] text-[#3a7d84] rounded-xl px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer max-w-[220px] truncate shadow-2xs hover:border-[#51a8b1]"
                 >
                   <option value="">{isStage1 ? 'Select Project Manager' : 'Unassigned'}</option>
@@ -592,25 +672,20 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             </div>
           )}
 
+          {/* Stage 03 Order Requirement Handover Specification in PDF Form */}
+          <OrderRequirementPdfBanner
+            node={node}
+            allNodes={allNodes}
+            project={project}
+            allFormData={combinedAllFormData}
+          />
+
           {/* Sub-Tasks & Stages Assignment Section */}
 
           {(() => {
-            const getChildrenList = (): ITimelineNode[] => {
-              if (node.children && node.children.length > 0) return node.children;
-              const findInTree = (list: ITimelineNode[]): ITimelineNode[] => {
-                for (const item of list) {
-                  if (item._id === node._id) return item.children || [];
-                  if (item.children && item.children.length > 0) {
-                    const found = findInTree(item.children);
-                    if (found.length > 0) return found;
-                  }
-                }
-                return [];
-              };
-              return findInTree(allNodes);
-            };
-
-            const subTasksList = (getChildrenList() || []).filter(c => c.key !== 'PI_REQUEST');
+            const subTasksList = (getChildrenList() || []).filter(
+              c => c.key !== 'PI_REQUEST' && c.key !== 'INSTALLATION_TESTING'
+            );
             if (!subTasksList || subTasksList.length === 0) return null;
 
             return (
@@ -638,7 +713,11 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                       (typeof child.assignedEmployee === 'string' ? child.assignedEmployee : '') ||
                       (typeof child.assignedTo === 'string' ? child.assignedTo : '');
 
-                    const assignedEmp = empList.find(e => e._id === childAssigneeId);
+                    const childSelectedAssigneeId = assignedEmployeeMap[child._id] !== undefined
+                      ? assignedEmployeeMap[child._id]
+                      : childAssigneeId;
+
+                    const assignedEmp = empList.find(e => e._id === childSelectedAssigneeId);
                     const childStatus = child.status || 'PENDING';
 
                     return (
@@ -670,11 +749,17 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                         <div className="w-full sm:w-64 shrink-0">
                           {(allowAssignEdit && !isReadOnly) ? (
                             <div className="flex items-center gap-1.5">
-                              <User className={`w-3.5 h-3.5 shrink-0 ${childAssigneeId ? 'text-[#3a7d84]' : 'text-[#b9c0cb]'}`} />
+                              <User className={`w-3.5 h-3.5 shrink-0 ${childSelectedAssigneeId ? 'text-[#3a7d84]' : 'text-[#b9c0cb]'}`} />
                               <select
-                                disabled={isCurrentlyMutating}
-                                value={childAssigneeId}
-                                onChange={(e) => handleAssign(e.target.value, child._id)}
+                                disabled={isCurrentlyMutating || isSaving}
+                                value={childSelectedAssigneeId}
+                                onChange={(e) => {
+                                  const newEmpId = e.target.value;
+                                  setAssignedEmployeeMap((prev) => ({
+                                    ...prev,
+                                    [child._id]: newEmpId,
+                                  }));
+                                }}
                                 className="w-full border border-[#b6e0e4] bg-[#f0f8f9] text-[#3a7d84] rounded-xl px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer shadow-2xs hover:border-[#51a8b1]"
                                 title="Assign employee for this task"
                               >
@@ -764,17 +849,17 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             {/* Save Button */}
             <button
               type="button"
-              disabled={isCurrentlyMutating || (!isFormDirty && !justSaved)}
+              disabled={isSaving || isCurrentlyMutating || (!isDirty && !justSaved)}
               onClick={handleFooterSave}
               className={`h-[42px] inline-flex items-center gap-2 px-4 rounded-xl text-xs font-bold transition-all border ${
                 justSaved
                   ? 'bg-[#10b981] text-white border-[#10b981] shadow-xs cursor-default'
-                  : isFormDirty
+                  : isDirty
                     ? 'bg-[#51a8b1] hover:bg-[#3a7d84] text-white border-[#51a8b1] shadow-xs hover:shadow-md cursor-pointer active:scale-95'
                     : 'bg-white border-[#cbd5e1]/80 text-[#64748b] cursor-default shadow-2xs'
               }`}
             >
-              {isCurrentlyMutating ? (
+              {isSaving || isCurrentlyMutating ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin !text-white" style={{ color: '#ffffff' }} />
                   <span className="!text-white font-bold" style={{ color: '#ffffff' }}>Saving...</span>
@@ -784,7 +869,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   <Check className="w-3.5 h-3.5 !text-white" style={{ color: '#ffffff' }} />
                   <span className="!text-white font-bold" style={{ color: '#ffffff' }}>Saved!</span>
                 </>
-              ) : isFormDirty ? (
+              ) : isDirty ? (
                 <>
                   <Save className="w-3.5 h-3.5 !text-white" style={{ color: '#ffffff' }} />
                   <span className="!text-white font-bold" style={{ color: '#ffffff' }}>Save Changes</span>
@@ -871,6 +956,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               <button
                 type="button"
                 onClick={() => {
+                  setAssignedEmployeeMap({ ...initialAssignedEmployeeMap });
                   setIsFormDirty(false);
                   setShowUnsavedWarning(false);
                   if (pendingAction?.type === 'CLOSE') {
@@ -888,27 +974,24 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               {/* Save & Proceed */}
               <button
                 type="button"
-                disabled={isCurrentlyMutating}
+                disabled={isSaving || isCurrentlyMutating}
                 onClick={async () => {
-                  if (formRef.current) {
-                    try {
-                      await formRef.current.submitForm();
-                      setIsFormDirty(false);
-                      setShowUnsavedWarning(false);
-                      if (pendingAction?.type === 'CLOSE') {
-                        onClose();
-                      } else if (pendingAction?.type === 'NAVIGATE' && pendingAction.targetNode && handleNavigate) {
-                        handleNavigate(pendingAction.targetNode);
-                      }
-                    } catch {
-                      // Error handled by form
+                  try {
+                    await handleFooterSave();
+                    setShowUnsavedWarning(false);
+                    if (pendingAction?.type === 'CLOSE') {
+                      onClose();
+                    } else if (pendingAction?.type === 'NAVIGATE' && pendingAction.targetNode && handleNavigate) {
+                      handleNavigate(pendingAction.targetNode);
                     }
+                  } catch {
+                    // Error handled
                   }
                   setPendingAction(null);
                 }}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#51a8b1] hover:bg-[#3a7d84] border border-[#51a8b1] shadow-xs cursor-pointer"
               >
-                {isCurrentlyMutating ? (
+                {isSaving || isCurrentlyMutating ? (
                   <>
                     <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
                     <span>Saving...</span>

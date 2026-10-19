@@ -25,14 +25,17 @@ const storage = multer.diskStorage({
   }
 });
 
-// File filter (PDF, Docs, Images)
+// File filter (PDF, Docs, Images, APK, EXE, Binaries)
 const fileFilter = (req, file, cb) => {
-  const allowedExtensions = ['.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.webp'];
+  const allowedExtensions = [
+    '.pdf', '.doc', '.docx', '.jpg', '.jpeg', '.png', '.webp', '.xlsx', '.xls', '.csv',
+    '.apk', '.exe', '.msi', '.zip', '.dmg', '.bin'
+  ];
   const ext = path.extname(file.originalname).toLowerCase();
-  if (allowedExtensions.includes(ext)) {
+  if (allowedExtensions.includes(ext) || !ext) {
     cb(null, true);
   } else {
-    cb(new AppError('Invalid file format. Only PDF, DOC, DOCX, and images are permitted.', 400), false);
+    cb(new AppError('Invalid file format. Only PDF, images, docs, and application packages (.apk, .exe) are permitted.', 400), false);
   }
 };
 
@@ -40,7 +43,7 @@ const upload = multer({
   storage: storage,
   fileFilter: fileFilter,
   limits: {
-    fileSize: 15 * 1024 * 1024 // 15 MB
+    fileSize: 250 * 1024 * 1024 // 250 MB for APK / EXE builds
   }
 });
 
@@ -70,3 +73,4 @@ router.post('/', protect, upload.single('file'), (req, res, next) => {
 });
 
 module.exports = router;
+

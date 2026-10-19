@@ -60,10 +60,13 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
   employees = [],
   onAssign,
 }: MindmapNodeProps) {
-  const hasChildren = Boolean(node.children && node.children.length > 0);
+  const filteredChildren = (node.children || []).filter(
+    (c) => c.key !== 'PI_REQUEST' && c.key !== 'INSTALLATION_TESTING'
+  );
+  const hasChildren = Boolean(filteredChildren.length > 0);
   
-  const totalChildren = node.children?.length || 0;
-  const completedChildren = node.children?.filter(c => c.status === 'COMPLETED').length || 0;
+  const totalChildren = filteredChildren.length;
+  const completedChildren = filteredChildren.filter((c) => c.status === 'COMPLETED').length;
   const childrenProgress = totalChildren > 0 ? Math.round((completedChildren / totalChildren) * 100) : 0;
 
   const stageTheme = getStageTheme(stageIndex || orderNumber || node.order || node.key);

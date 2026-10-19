@@ -1,9 +1,18 @@
-const ProjectMember = require('../modules/projects/project-member.model');
+const ProjectMember = require('../modules/project-members/project-member.model');
 const { GLOBAL_ROLES, DESIGNATIONS } = require('./constants');
 const { AppError } = require('./errors');
 
+const Project = require('../modules/projects/project.model');
+const mongoose = require('mongoose');
+
 const checkProjectAccess = async (employeeId, projectId) => {
-  return await ProjectMember.findOne({ project: projectId, employee: employeeId, isActive: true });
+  if (!projectId) return null;
+  let targetId = projectId;
+  if (!mongoose.Types.ObjectId.isValid(projectId) || String(projectId).length !== 24) {
+    const proj = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+    if (proj) targetId = proj._id;
+  }
+  return await ProjectMember.findOne({ project: targetId, employee: employeeId, isActive: true });
 };
 
 const { restrictTo } = require('./auth');

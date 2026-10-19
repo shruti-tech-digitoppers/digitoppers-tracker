@@ -1,6 +1,6 @@
 const Employee = require('./employee.model');
 const Project = require('../projects/project.model');
-const ProjectMember = require('../projects/project-member.model');
+const ProjectMember = require('../project-members/project-member.model');
 const activityService = require('../activity/activity.service');
 const bcrypt = require('bcryptjs');
 const { DESIGNATIONS } = require('../../core/constants');
@@ -197,15 +197,23 @@ class EmployeeService {
     const employee = await Employee.findById(employeeId);
     if (!employee) throw new AppError('Employee not found.', 404, 'EMPLOYEE_NOT_FOUND');
 
-    const project = await Project.findById(projectId);
+    let project = null;
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
+      project = await Project.findById(projectId);
+    } else {
+      project = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+    }
     if (!project) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
+
+    const pId = project._id;
 
     // If designation is VIEWER, remove any custom membership or set to VIEWER (default access is Viewer)
     if (designation === DESIGNATIONS.VIEWER) {
-      await ProjectMember.findOneAndDelete({ project: projectId, employee: employeeId });
+      await ProjectMember.findOneAndDelete({ project: pId, employee: employeeId });
 
       await activityService.log({
-        project: projectId,
+        project: pId,
         actor: actorId,
         action: 'PROJECT_MEMBER_REMOVED',
         description: `${employee.name} reverted to default Viewer for project ${project.projectName || project.projectId}`,
@@ -215,7 +223,7 @@ class EmployeeService {
       });
 
       return {
-        projectId,
+        projectId: pId,
         employeeId,
         designation: DESIGNATIONS.VIEWER,
         isDefault: true,
@@ -223,7 +231,7 @@ class EmployeeService {
       };
     }
 
-    let member = await ProjectMember.findOne({ project: projectId, employee: employeeId });
+    let member = await ProjectMember.findOne({ project: pId, employee: employeeId });
     if (member) {
       member.designation = designation;
       member.isActive = true;
@@ -231,7 +239,7 @@ class EmployeeService {
       await member.save();
     } else {
       member = await ProjectMember.create({
-        project: projectId,
+        project: pId,
         employee: employeeId,
         designation,
         assignedBy: actorId,

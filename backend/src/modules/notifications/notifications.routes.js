@@ -5,7 +5,8 @@ const { protect } = require('../../core/auth');
 const router = express.Router();
 
 router.route('/')
-  .get(protect, notificationsController.getNotifications);
+  .get(protect, notificationsController.getNotifications)
+  .post(protect, notificationsController.createNotification);
 
 router.route('/read-all')
   .patch(protect, notificationsController.markAllAsRead);

@@ -7,7 +7,7 @@ const setupSecurityMiddleware = (app) => {
   app.use(helmet({ contentSecurityPolicy: false }));
   
   const extraOrigins = process.env.ALLOWED_ORIGINS ? process.env.ALLOWED_ORIGINS.split(',').map(s => s.trim()) : [];
-  const defaultOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:4400', 'http://localhost:5000'];
+  const defaultOrigins = ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3002', 'http://localhost:4400', 'http://localhost:5000'];
   const whitelist = [...defaultOrigins, ...extraOrigins];
 
   const corsOptions = {

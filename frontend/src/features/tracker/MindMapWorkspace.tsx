@@ -16,6 +16,7 @@ import { HorizontalRoadmapCanvas } from './HorizontalRoadmapCanvas';
 import { NodeInspectorDrawer } from './NodeInspectorDrawer';
 import { CreateProjectRequestModal } from '../requests/components/CreateProjectRequestModal';
 import { ProjectActivityWorkspace } from '../activity/ProjectActivityWorkspace';
+import { ProjectSchoolsView } from '../schools/ProjectSchoolsView';
 import {
   Compass,
   RefreshCw,
@@ -26,6 +27,7 @@ import {
   Building2,
   Send,
   History,
+  School as SchoolIcon,
 } from 'lucide-react';
 
 export function MindMapWorkspace() {
@@ -44,6 +46,7 @@ export function MindMapWorkspace() {
   const [error, setError] = useState<string | null>(null);
   const [selectedNode, setSelectedNode] = useState<ITimelineNode | null>(null);
   const [isActivityDrawerOpen, setIsActivityDrawerOpen] = useState<boolean>(false);
+  const [isSchoolsModalOpen, setIsSchoolsModalOpen] = useState<boolean>(false);
 
   const selectedNodeIdRef = useRef<string | null>(null);
   selectedNodeIdRef.current = selectedNode?._id || null;
@@ -357,6 +360,20 @@ export function MindMapWorkspace() {
             </select>
           </div>
 
+          {/* 🌟 New Architecture Hubs: Schools Hub & Operations Hub */}
+          {selectedProjectId && (
+            <>
+              <button
+                type="button"
+                onClick={() => setIsSchoolsModalOpen(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold active:scale-95 transition-all flex items-center gap-1.5 shadow-sm cursor-pointer flex-shrink-0"
+              >
+                <SchoolIcon className="w-3.5 h-3.5" />
+                <span>Schools Hub</span>
+              </button>
+            </>
+          )}
+
           {canRequestProject && (
             <button
               type="button"
@@ -525,6 +542,17 @@ export function MindMapWorkspace() {
         employees={employees}
         onSubmit={handleCreateProjectRequest}
       />
+
+      {/* ── 🌟 School-Centric Hub Modal ─────────────────────────────────── */}
+      {selectedProjectId && (
+        <ProjectSchoolsView
+          projectId={selectedProjectId}
+          projectName={selectedProject?.projectName || selectedProject?.title}
+          employees={employees}
+          isOpen={isSchoolsModalOpen}
+          onClose={() => setIsSchoolsModalOpen(false)}
+        />
+      )}
     </div>
   );
 }

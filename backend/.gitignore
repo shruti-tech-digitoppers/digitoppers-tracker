@@ -25,3 +25,8 @@ Thumbs.db
 uploads/
 **/uploads/**
 scratch/
+
+# Seed scripts with internal/seed data
+src/utils/seed*.js
+src/utils/cleanDatabase.js
+

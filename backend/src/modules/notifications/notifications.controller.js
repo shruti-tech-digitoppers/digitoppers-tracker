@@ -50,8 +50,62 @@ const markAllAsRead = async (req, res, next) => {
   }
 };
 
+const createNotification = async (req, res, next) => {
+  try {
+    const actorId = req.employee?._id || req.user?._id || req.user?.id;
+    const {
+      recipients = [],
+      assignedTo,
+      projectId,
+      title,
+      message,
+      type = 'TASK_ASSIGNED',
+      metadata = {}
+    } = req.body;
+
+    const recipientList = Array.isArray(recipients) && recipients.length > 0
+      ? recipients
+      : (assignedTo ? [assignedTo] : []);
+
+    let allCreated = [];
+
+    if (recipientList.length > 0) {
+      for (const rec of recipientList) {
+        const created = await notificationService.notifyWithAdminsAndPMs({
+          assignedTo: rec,
+          projectId,
+          title,
+          message,
+          type,
+          metadata
+        });
+        if (Array.isArray(created)) allCreated.push(...created);
+      }
+    } else {
+      const created = await notificationService.notifyWithAdminsAndPMs({
+        projectId,
+        title,
+        message,
+        type,
+        metadata
+      });
+      if (Array.isArray(created)) allCreated.push(...created);
+    }
+
+    res.status(201).json({
+      success: true,
+      count: allCreated.length,
+      notifications: allCreated,
+      message: 'Notification sent successfully'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getNotifications,
+  createNotification,
   markAsRead,
   markAllAsRead
 };

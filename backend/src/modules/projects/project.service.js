@@ -1,5 +1,5 @@
 const Project = require('./project.model');
-const ProjectMember = require('./project-member.model');
+const ProjectMember = require('../project-members/project-member.model');
 const Timeline = require('../timeline/timeline.model');
 const TimelineNode = require('../timeline/timeline-node.model');
 const Activity = require('../activity/activity.model');
@@ -489,19 +489,19 @@ class ProjectService {
   }
 
   async getProjectById(projectId) {
-    const project = await Project.findById(projectId)
-      .lean();
-    if (!project) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
+    const projectDoc = await this._findProject(projectId);
+    if (!projectDoc) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
+    const project = projectDoc.toObject ? projectDoc.toObject() : { ...projectDoc };
 
     const pmMember = await ProjectMember.findOne({
-      project: projectId,
+      project: project._id,
       designation: DESIGNATIONS.PROJECT_MANAGER,
       isActive: true
     }).populate('employee', 'name email employeeCode globalRole designation');
 
     let pm = (pmMember && pmMember.employee) ? pmMember.employee : (project.projectManager || null);
     if (!pm) {
-      const ProjectRequest = require('../requests/project-request.model');
+      const ProjectRequest = require('../project-requests/project-request.model');
       const reqDoc = await ProjectRequest.findOne({
         $or: [{ confirmedProjectId: project._id }, { projectId: project.projectId }, { title: project.projectName }]
       }).populate('projectManager', 'name email employeeCode globalRole designation');
@@ -512,14 +512,92 @@ class ProjectService {
 
     project.title = project.projectName || project.title;
     project.projectManager = pm || null;
+
+    try {
+      const School = require('../schools/school.model');
+      const ProjectSchools = require('../project-schools/project-schools.model');
+      const [dbSchools, psDoc] = await Promise.all([
+        School.find({ projectId: project._id, isActive: true })
+          .populate('installation.assignedEngineerId', 'name email phone')
+          .populate('training.assignedTrainerId', 'name email phone')
+          .lean()
+          .catch(() => []),
+        ProjectSchools.findOne({ project: project._id }).lean().catch(() => null)
+      ]);
+
+      let formattedSchools = [];
+      if (dbSchools && dbSchools.length > 0) {
+        formattedSchools = dbSchools.map((s) => ({
+          id: String(s._id),
+          _id: String(s._id),
+          schoolId: s.schoolId || String(s._id),
+          schoolName: s.name,
+          name: s.name,
+          schoolCode: s.schoolId || String(s._id),
+          address: s.address || '',
+          addressContact: s.address ? `${s.address}\nContact: ${s.contactPerson?.phone || ''}` : '',
+          principalName: s.survey?.principalName || s.contactPerson?.name || '',
+          principalDetails: s.survey?.principalDetails || `${s.contactPerson?.name || ''} (${s.contactPerson?.phone || ''})`,
+          pocName: s.survey?.pocName || s.contactPerson?.name || s.survey?.principalName || '',
+          pocDesignation: s.survey?.pocDesignation || s.contactPerson?.designation || (s.survey?.principalName ? 'Principal' : ''),
+          pocContact: s.survey?.pocContact || s.contactPerson?.phone || '',
+          phone: s.contactPerson?.phone || s.survey?.pocContact || '',
+          email: s.contactPerson?.email || s.survey?.email || '',
+          classes: s.classes || s.survey?.classes || [],
+          installation: s.installation || {},
+          training: s.training || {},
+          survey: s.survey || {},
+          school: s._id,
+          ...(s.survey || {})
+        }));
+      } else if (psDoc?.schools && psDoc.schools.length > 0) {
+        formattedSchools = psDoc.schools.map((ps) => ({
+          id: String(ps.school || ps._id),
+          _id: String(ps.school || ps._id),
+          schoolId: ps.schoolId || String(ps.school || ps._id),
+          schoolName: ps.schoolName || ps.name,
+          name: ps.schoolName || ps.name,
+          schoolCode: ps.schoolId || String(ps.school || ps._id),
+          address: ps.address || '',
+          addressContact: ps.address ? `${ps.address}\nContact: ${ps.contactPerson?.phone || ''}` : '',
+          principalName: ps.survey?.principalName || ps.contactPerson?.name || '',
+          principalDetails: ps.survey?.principalDetails || `${ps.contactPerson?.name || ''} (${ps.contactPerson?.phone || ''})`,
+          pocName: ps.survey?.pocName || ps.contactPerson?.name || '',
+          pocDesignation: ps.survey?.pocDesignation || ps.contactPerson?.designation || '',
+          pocContact: ps.survey?.pocContact || ps.contactPerson?.phone || '',
+          phone: ps.contactPerson?.phone || ps.survey?.pocContact || '',
+          email: ps.contactPerson?.email || '',
+          classes: ps.classes || ps.survey?.classes || [],
+          installation: ps.installation || {},
+          training: ps.training || {},
+          survey: ps.survey || {},
+          school: ps.school || ps._id,
+          ...(ps.survey || {})
+        }));
+      }
+
+      project.schools = formattedSchools;
+      if (formattedSchools.length > 0 && (!project.numberOfSchools || project.numberOfSchools === 0)) {
+        project.numberOfSchools = formattedSchools.length;
+      }
+      if (psDoc) {
+        project.projectSchools = psDoc;
+      }
+    } catch (e) {
+      console.warn('Could not populate schools for project in getProjectById:', e.message);
+    }
+
     return project;
   }
 
   async updateProject(projectId, updateData, actorId) {
+    const projectDoc = await this._findProject(projectId);
+    if (!projectDoc) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
+
     const data = { ...updateData };
     if (data.projectId) data.projectId = data.projectId.toUpperCase();
 
-    const project = await Project.findByIdAndUpdate(projectId, data, { new: true, runValidators: true });
+    const project = await Project.findByIdAndUpdate(projectDoc._id, data, { new: true, runValidators: true });
     if (!project) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
 
     await Activity.create({
@@ -555,7 +633,10 @@ class ProjectService {
   }
 
   async archiveProject(projectId, actorId) {
-    const project = await Project.findByIdAndUpdate(projectId, { isActive: false, status: PROJECT_STATUSES.ARCHIVED }, { new: true });
+    const projectDoc = await this._findProject(projectId);
+    if (!projectDoc) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
+
+    const project = await Project.findByIdAndUpdate(projectDoc._id, { isActive: false, status: PROJECT_STATUSES.ARCHIVED }, { new: true });
     if (!project) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
 
     await Activity.create({
@@ -569,8 +650,41 @@ class ProjectService {
     return project;
   }
 
+  async _findProject(projectId) {
+    if (!projectId) return null;
+    const mongoose = require('mongoose');
+    if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
+      const proj = await Project.findById(projectId);
+      if (proj) return proj;
+    }
+    return await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+  }
+
   async getMembers(projectId) {
-    return await ProjectMember.find({ project: projectId, isActive: true }).populate('employee', 'name email employeeCode globalRole');
+    const project = await this._findProject(projectId);
+    const pId = project ? project._id : projectId;
+    return await ProjectMember.find({ project: pId, isActive: true })
+      .populate('employee', 'name email employeeCode globalRole designation department departmentCode phone')
+      .populate('department', 'code name description');
+  }
+
+  async getMembersGroupedByDepartment(projectId) {
+    const project = await this._findProject(projectId);
+    const pId = project ? project._id : projectId;
+
+    const members = await ProjectMember.find({ project: pId, isActive: true })
+      .populate('employee', 'name email employeeCode phone designation globalRole department departmentCode')
+      .populate('department', 'code name description')
+      .lean();
+
+    const teamByDept = members.reduce((acc, m) => {
+      const code = m.departmentCode || (m.department && m.department.code) || 'OPS';
+      acc[code] = acc[code] || [];
+      acc[code].push(m);
+      return acc;
+    }, {});
+
+    return teamByDept;
   }
 
   async addOrUpdateMember(projectId, employeeId, designation, actorId) {
