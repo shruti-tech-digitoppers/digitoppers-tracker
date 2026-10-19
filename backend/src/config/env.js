@@ -29,5 +29,7 @@ module.exports = {
   jwtRefreshSecret,
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
   corsOrigin: process.env.CORS_ORIGIN || '*',
-  slackWebhookUrl: (process.env.SLACK_WEBHOOK_URL || '').trim().replace(/^["']|["']$/g, '')
+  slackWebhookUrl: (process.env.SLACK_WEBHOOK_URL || '').trim().replace(/^["']|["']$/g, ''),
+  slackBotToken: (process.env.SLACK_BOT_TOKEN || '').trim().replace(/^["']|["']$/g, ''),
+  slackChannel: (process.env.SLACK_CHANNEL || '#digitoppers-project-tracker').trim().replace(/^["']|["']$/g, '')
 };

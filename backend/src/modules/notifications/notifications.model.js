@@ -60,7 +60,8 @@ notificationSchema.post('save', function (doc) {
       title: doc.title,
       message: doc.message,
       type: doc.type,
-      projectId: doc.metadata?.projectId,
+      assignedTo: doc.recipient,
+      projectId: doc.metadata?.projectId || doc.metadata?.projectCustomId,
       projectName: doc.metadata?.projectName,
       metadata: doc.metadata || {}
     }).catch(() => {});

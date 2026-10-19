@@ -1291,7 +1291,14 @@ class TimelineService {
           project: pId,
           title,
           message,
-          type: 'ASSIGNMENT'
+          type: 'TASK_ASSIGNED',
+          metadata: {
+            nodeId: node._id,
+            nodeName: node.name,
+            nodeKey: node.key,
+            projectId: project ? project.projectId : undefined,
+            projectName: project ? (project.projectName || project.title) : undefined
+          }
         });
       } catch (notifErr) {
         console.error('Notification creation failed:', notifErr);

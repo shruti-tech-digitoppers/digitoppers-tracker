@@ -105,9 +105,9 @@ const createNotification = async (req, res, next) => {
 
 const testSlackNotification = async (req, res, next) => {
   try {
-    const userEmail = req.employee?.email || req.user?.email || 'Admin';
+    const userTarget = req.employee || req.user?.email || 'Admin';
     const { sendSlackTestMessage } = require('./slack.service');
-    const result = await sendSlackTestMessage(userEmail);
+    const result = await sendSlackTestMessage(userTarget);
 
     if (result.skipped) {
       return res.status(400).json({

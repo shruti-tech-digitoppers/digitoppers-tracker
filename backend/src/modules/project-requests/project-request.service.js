@@ -229,7 +229,8 @@ class RequestService {
           title: 'New Project Request Received',
           message: `${creator ? creator.name : 'Employee'} submitted project request ${request.requestId} (${request.title}) assigned to ${requestedToEmp.name} for confirmation.`,
           type: 'GENERAL',
-          metadata: { requestId: request._id }
+          metadata: { requestId: request._id },
+          _skipSlack: true
         });
       }
     }
@@ -604,6 +605,25 @@ class RequestService {
       await session.commitTransaction();
       session.endSession();
 
+      // ── Dispatch Slack targeted notification to the Assigned PM ───
+      try {
+        const { sendSlackNotification } = require('../notifications/slack.service');
+        sendSlackNotification({
+          title: 'Assigned as Project Manager',
+          message: `You have been assigned as the Project Manager for newly confirmed project ${newProject.projectId} (${newProject.projectName}), approved by ${approver.name}.`,
+          type: 'PROJECT_ASSIGNED',
+          assignedTo: request.projectManager,
+          projectId: newProject.projectId,
+          projectName: newProject.projectName,
+          metadata: {
+            requestId: request.requestId,
+            approverName: approver.name
+          }
+        }).catch((err) => {
+          console.warn('[ProjectRequestService] Slack notify PM warning:', err.message);
+        });
+      } catch (_) {}
+
       return {
         request,
         project: newProject
@@ -646,7 +666,7 @@ class RequestService {
       recipient: request.requestedBy,
       title: 'Project Request Rejected',
       message: `Your project request ${request.requestId} (${request.title}) was rejected by ${approver.name}. Notes: ${payload.reviewNotes || 'No notes provided.'}`,
-      type: 'GENERAL',
+      type: 'PROJECT_REQUEST_REJECTED',
       metadata: {
         requestId: request.requestId,
         reviewNotes: payload.reviewNotes || ''

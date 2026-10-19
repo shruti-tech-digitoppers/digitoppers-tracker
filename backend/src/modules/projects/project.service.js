@@ -98,6 +98,26 @@ class ProjectService {
 
         await session.commitTransaction();
         session.endSession();
+
+        // ── Dispatch Slack notification tagging the Assigned Reviewer ──
+        try {
+          const { sendSlackNotification } = require('../notifications/slack.service');
+          sendSlackNotification({
+            title: 'New Project Request Received',
+            message: `${creator ? creator.name : 'A team member'} has submitted a new project request: ${createdProject.projectId} (${createdProject.projectName}) and assigned you to review it.`,
+            type: 'PROJECT_REQUEST_REVIEW',
+            assignedTo: assignedReviewerId,
+            projectId: createdProject.projectId,
+            projectName: createdProject.projectName,
+            metadata: {
+              requestId: createdProject.projectId,
+              requesterName: creator ? creator.name : 'Employee'
+            }
+          }).catch((err) => {
+            console.warn('[ProjectService] Slack notify reviewer warning:', err.message);
+          });
+        } catch (_) {}
+
         return createdProject;
       }
 
@@ -402,6 +422,24 @@ class ProjectService {
 
       await session.commitTransaction();
       session.endSession();
+
+      // ── Dispatch Slack notification tagging the Designated PM ───
+      try {
+        const { sendSlackNotification } = require('../notifications/slack.service');
+        sendSlackNotification({
+          title: 'Assigned as Project Manager',
+          message: `You have been assigned as the Project Manager for project ${project.projectId} (${project.projectName}), approved by ${reviewer ? reviewer.name : 'Reviewer'}.`,
+          type: 'PROJECT_ASSIGNED',
+          assignedTo: designatedPmId,
+          projectId: project.projectId,
+          projectName: project.projectName,
+          metadata: {
+            reviewerName: reviewer ? reviewer.name : 'Reviewer'
+          }
+        }).catch((err) => {
+          console.warn('[ProjectService] Slack notify PM warning:', err.message);
+        });
+      } catch (_) {}
 
       return project;
     } catch (error) {

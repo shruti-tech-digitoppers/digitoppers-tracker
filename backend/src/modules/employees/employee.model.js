@@ -13,6 +13,7 @@ const employeeSchema = new mongoose.Schema({
   designation: { type: String, trim: true },
   phone: { type: String, trim: true },
   reportingManager: { type: String, trim: true },
+  slackMemberId: { type: String, trim: true, default: '' },
   isActive: { type: Boolean, default: true, index: true },
   canRequestNewProject: { type: Boolean, default: false },
   permissions: {

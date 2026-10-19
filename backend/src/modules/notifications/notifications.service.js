@@ -123,6 +123,7 @@ async function notifyWithAdminsAndPMs(data = {}) {
         title,
         message,
         type,
+        assignedTo,
         projectName: projectDoc?.projectName || metadata.projectName,
         projectId: projectDoc?.projectId || metadata.projectId,
         recipients: validRecipients.length > 0 ? [`${validRecipients.length} team members`] : [],
