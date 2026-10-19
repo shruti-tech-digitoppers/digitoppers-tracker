@@ -114,7 +114,31 @@ async function notifyWithAdminsAndPMs(data = {}) {
       }
     }));
 
-    return await Notification.insertMany(docsToCreate);
+    const createdNotifications = await Notification.insertMany(docsToCreate);
+
+    // Asynchronously dispatch rich Slack notification
+    try {
+      const { sendSlackNotification } = require('./slack.service');
+      sendSlackNotification({
+        title,
+        message,
+        type,
+        projectName: projectDoc?.projectName || metadata.projectName,
+        projectId: projectDoc?.projectId || metadata.projectId,
+        recipients: validRecipients.length > 0 ? [`${validRecipients.length} team members`] : [],
+        metadata: {
+          ...metadata,
+          projectId: projectDoc?.projectId || metadata.projectId,
+          projectName: projectDoc?.projectName || metadata.projectName
+        }
+      }).catch((slackErr) => {
+        console.warn('[SlackNotification] Background send warning:', slackErr.message);
+      });
+    } catch (e) {
+      // Graceful fallback if slack service encounters issue
+    }
+
+    return createdNotifications;
   } catch (err) {
     console.error('[NotificationService] notifyWithAdminsAndPMs error:', err.message);
     return [];

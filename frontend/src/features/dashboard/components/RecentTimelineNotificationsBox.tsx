@@ -2,7 +2,7 @@
 
 import React, { useState, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { INotificationItem } from '../../../lib/api/notifications.api';
+import { INotificationItem, notificationsApi } from '../../../lib/api/notifications.api';
 import { 
   Bell, 
   UserCheck, 
@@ -50,6 +50,24 @@ export function RecentTimelineNotificationsBox({
   const router = useRouter();
   const [category, setCategory] = useState<MainCategory>('ASSIGNMENT');
   const [assignmentSub, setAssignmentSub] = useState<AssignmentSubCategory>('PROJECT');
+  const [testingSlack, setTestingSlack] = useState<boolean>(false);
+  const [slackStatus, setSlackStatus] = useState<{ message: string; isError: boolean } | null>(null);
+
+  const handleTestSlack = async () => {
+    setTestingSlack(true);
+    setSlackStatus(null);
+    try {
+      const res = await notificationsApi.testSlackNotification();
+      setSlackStatus({ message: res.message || 'Slack test message sent!', isError: false });
+      setTimeout(() => setSlackStatus(null), 5000);
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || 'Could not send message to Slack';
+      setSlackStatus({ message: errMsg, isError: true });
+      setTimeout(() => setSlackStatus(null), 7000);
+    } finally {
+      setTestingSlack(false);
+    }
+  };
 
   // ── Helper to determine item classification ─────────────────────────
   const classifyItem = (item: INotificationItem) => {
@@ -374,7 +392,7 @@ export function RecentTimelineNotificationsBox({
           </div>
         )}
 
-        {/* ── Dedicated Action Bar (Mark all read button) ──────────── */}
+        {/* ── Dedicated Action Bar (Mark all read button & Test Slack) ──────────── */}
         <div className="flex items-center justify-between pt-0.5 px-0.5 text-xs">
           <span className="text-[11px] text-slate-500 font-medium">
             {unreadCount > 0 ? (
@@ -386,18 +404,49 @@ export function RecentTimelineNotificationsBox({
             )}
           </span>
 
-          {unreadCount > 0 && (
+          <div className="flex items-center gap-1.5">
             <button
               type="button"
-              onClick={onMarkAllAsRead}
-              className="text-[11px] font-bold text-[#0d9488] hover:text-[#0f766e] flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-200 shadow-2xs transition-all cursor-pointer active:scale-95"
-              title="Mark all notifications as read"
+              onClick={handleTestSlack}
+              disabled={testingSlack}
+              className="text-[11px] font-semibold text-slate-700 hover:text-slate-900 flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 shadow-2xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+              title="Send a test notification to Slack channel"
             >
-              <CheckCheck className="w-3.5 h-3.5" />
-              <span>Mark all as read</span>
+              <span className="text-[10px]">💬</span>
+              <span>{testingSlack ? 'Sending...' : 'Test Slack'}</span>
             </button>
-          )}
+
+            {unreadCount > 0 && (
+              <button
+                type="button"
+                onClick={onMarkAllAsRead}
+                className="text-[11px] font-bold text-[#0d9488] hover:text-[#0f766e] flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-200 shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Mark all notifications as read"
+              >
+                <CheckCheck className="w-3.5 h-3.5" />
+                <span>Mark all as read</span>
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* ── Slack Status Feedback Banner ── */}
+        {slackStatus && (
+          <div className={`text-[11px] px-2.5 py-1.5 rounded-lg border flex items-center justify-between transition-all ${
+            slackStatus.isError
+              ? 'bg-amber-50 text-amber-900 border-amber-300'
+              : 'bg-emerald-50 text-emerald-900 border-emerald-300'
+          }`}>
+            <span>{slackStatus.message}</span>
+            <button
+              type="button"
+              onClick={() => setSlackStatus(null)}
+              className="text-xs font-bold opacity-60 hover:opacity-100 ml-2"
+            >
+              ✕
+            </button>
+          </div>
+        )}
       </div>
 
       {/* ── Scrollable Notifications Cards Feed ────────────── */}

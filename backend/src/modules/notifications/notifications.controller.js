@@ -103,9 +103,41 @@ const createNotification = async (req, res, next) => {
   }
 };
 
+const testSlackNotification = async (req, res, next) => {
+  try {
+    const userEmail = req.employee?.email || req.user?.email || 'Admin';
+    const { sendSlackTestMessage } = require('./slack.service');
+    const result = await sendSlackTestMessage(userEmail);
+
+    if (result.skipped) {
+      return res.status(400).json({
+        success: false,
+        message: 'SLACK_WEBHOOK_URL is not configured in environment variables. Please add SLACK_WEBHOOK_URL to your .env or Render dashboard.',
+        details: result
+      });
+    }
+
+    if (!result.success) {
+      return res.status(502).json({
+        success: false,
+        message: 'Failed to deliver message to Slack Webhook.',
+        error: result.error || result
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Slack test notification sent successfully! Check your Slack channel.'
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   getNotifications,
   createNotification,
   markAsRead,
-  markAllAsRead
+  markAllAsRead,
+  testSlackNotification
 };

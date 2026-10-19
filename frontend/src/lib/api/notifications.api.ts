@@ -58,4 +58,9 @@ export const notificationsApi = {
     const response = await apiClient.post<any>('/notifications', payload);
     return response.data;
   },
+
+  testSlackNotification: async (): Promise<{ success: boolean; message: string }> => {
+    const response = await apiClient.post<{ success: boolean; message: string }>('/notifications/slack/test');
+    return response.data;
+  }
 };

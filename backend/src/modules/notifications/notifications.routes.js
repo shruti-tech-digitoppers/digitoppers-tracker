@@ -8,6 +8,9 @@ router.route('/')
   .get(protect, notificationsController.getNotifications)
   .post(protect, notificationsController.createNotification);
 
+router.route('/slack/test')
+  .post(protect, notificationsController.testSlackNotification);
+
 router.route('/read-all')
   .patch(protect, notificationsController.markAllAsRead);
 

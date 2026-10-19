@@ -51,4 +51,20 @@ const notificationSchema = new mongoose.Schema({
 
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 
+// Post-save hook for standalone Notification.create calls
+notificationSchema.post('save', function (doc) {
+  if (!doc || doc._skipSlack) return;
+  try {
+    const { sendSlackNotification } = require('./slack.service');
+    sendSlackNotification({
+      title: doc.title,
+      message: doc.message,
+      type: doc.type,
+      projectId: doc.metadata?.projectId,
+      projectName: doc.metadata?.projectName,
+      metadata: doc.metadata || {}
+    }).catch(() => {});
+  } catch (e) {}
+});
+
 module.exports = mongoose.model('Notification', notificationSchema);

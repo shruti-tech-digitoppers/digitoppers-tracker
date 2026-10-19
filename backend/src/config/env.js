@@ -28,5 +28,6 @@ module.exports = {
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || '1d',
   jwtRefreshSecret,
   jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || '7d',
-  corsOrigin: process.env.CORS_ORIGIN || '*'
+  corsOrigin: process.env.CORS_ORIGIN || '*',
+  slackWebhookUrl: (process.env.SLACK_WEBHOOK_URL || '').trim().replace(/^["']|["']$/g, '')
 };
