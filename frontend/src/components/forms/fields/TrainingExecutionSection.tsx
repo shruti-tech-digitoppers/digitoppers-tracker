@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo, useCallback, useEffect } from 'react';
+import React, { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import {
   Building2,
   Calendar,
@@ -198,27 +198,48 @@ export function TrainingExecutionSection({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
+  // Local update ref to prevent circular useEffect re-extraction from overwriting active user edits
+  const isLocalUpdateRef = useRef<boolean>(false);
+  const lastEmittedMapRef = useRef<Record<string, ISchoolTrainingExecution> | null>(null);
+  const lastEmittedJsonRef = useRef<string>('');
+
   // 2. Unified helper to extract and initialize school execution map from all available sources
   const extractExecutionsMap = useCallback(
     (sourceValue: any, schoolsList: EffectiveSchoolItem[]): Record<string, ISchoolTrainingExecution> => {
       const map: Record<string, ISchoolTrainingExecution> = {};
 
-      // A. From direct map source (value or allFormData)
-      const sourceMap =
-        (sourceValue?.schoolWiseTrainingExecutions && typeof sourceValue.schoolWiseTrainingExecutions === 'object' && !Array.isArray(sourceValue.schoolWiseTrainingExecutions) ? sourceValue.schoolWiseTrainingExecutions : null) ||
-        (sourceValue?.trainingExecutionSection && typeof sourceValue.trainingExecutionSection === 'object' && !Array.isArray(sourceValue.trainingExecutionSection) ? sourceValue.trainingExecutionSection : null) ||
-        (allFormData?.schoolWiseTrainingExecutions && typeof allFormData.schoolWiseTrainingExecutions === 'object' && !Array.isArray(allFormData.schoolWiseTrainingExecutions) ? allFormData.schoolWiseTrainingExecutions : null) ||
-        (allFormData?.trainingExecutionSection && typeof allFormData.trainingExecutionSection === 'object' && !Array.isArray(allFormData.trainingExecutionSection) ? allFormData.trainingExecutionSection : null) ||
-        {};
+      // A. Extract sourceMap from sourceValue or allFormData
+      let sourceMap: any = null;
+      if (sourceValue && typeof sourceValue === 'object' && !Array.isArray(sourceValue)) {
+        if (sourceValue.schoolWiseTrainingExecutions && typeof sourceValue.schoolWiseTrainingExecutions === 'object') {
+          sourceMap = sourceValue.schoolWiseTrainingExecutions;
+        } else if (sourceValue.trainingExecutionSection && typeof sourceValue.trainingExecutionSection === 'object') {
+          sourceMap = sourceValue.trainingExecutionSection;
+        } else {
+          // If sourceValue is already keyed by school id or has school keys directly
+          const hasSchoolKeys = schoolsList.some((s) => Boolean(sourceValue[s.id] || (s.school && sourceValue[String(s.school)])));
+          if (hasSchoolKeys || Object.values(sourceValue).some((v: any) => v && typeof v === 'object' && (v.checklist !== undefined || v.schoolId || v.schoolName))) {
+            sourceMap = sourceValue;
+          }
+        }
+      }
+
+      if (!sourceMap) {
+        sourceMap =
+          (allFormData?.schoolWiseTrainingExecutions && typeof allFormData.schoolWiseTrainingExecutions === 'object' ? allFormData.schoolWiseTrainingExecutions : null) ||
+          (allFormData?.trainingExecutionSection && typeof allFormData.trainingExecutionSection === 'object' ? allFormData.trainingExecutionSection : null) ||
+          (sourceValue && typeof sourceValue === 'object' && !Array.isArray(sourceValue) ? sourceValue : {}) ||
+          {};
+      }
 
       Object.entries(sourceMap).forEach(([k, v]: [string, any]) => {
-        if (v && typeof v === 'object' && (v.schoolId || v.schoolName || v.checklist || v.deliveryConfirmationSheetUrl)) {
-          map[k] = v;
-          if (v.schoolId && !map[v.schoolId]) map[v.schoolId] = v;
+        if (v && typeof v === 'object') {
+          map[k] = { ...v };
+          if (v.schoolId && !map[v.schoolId]) map[v.schoolId] = { ...v };
         }
       });
 
-      // B. From array sources (value, allFormData, project)
+      // B. From array sources (value, allFormData, project) - only supplement missing properties, never overwrite active checklists
       const rawArray =
         (Array.isArray(sourceValue) ? sourceValue : null) ||
         (Array.isArray(sourceValue?.schools) ? sourceValue.schools : null) ||
@@ -231,9 +252,13 @@ export function TrainingExecutionSection({
           const sId = String(item.schoolId || item.id || item._id || '');
           if (sId) {
             map[sId] = {
-              ...map[sId],
               ...item,
-              schoolId: sId
+              ...map[sId],
+              schoolId: sId,
+              checklist: {
+                ...(item.checklist || {}),
+                ...(map[sId]?.checklist || {})
+              }
             };
           }
         });
@@ -302,31 +327,31 @@ export function TrainingExecutionSection({
 
           // Documents (Exact keys from models)
           deliveryConfirmationSheetUrl:
-            found?.deliveryConfirmationSheetUrl ||
-            dbTraining.deliveryConfirmationSheetUrl ||
-            (allFormData as any)?.deliveryConfirmationSheetUrl ||
+            found?.deliveryConfirmationSheetUrl ??
+            dbTraining.deliveryConfirmationSheetUrl ??
+            (allFormData as any)?.deliveryConfirmationSheetUrl ??
             '',
           appreciationLetterUrl:
-            found?.appreciationLetterUrl ||
-            dbTraining.appreciationLetterUrl ||
-            (allFormData as any)?.appreciationLetterUrl ||
+            found?.appreciationLetterUrl ??
+            dbTraining.appreciationLetterUrl ??
+            (allFormData as any)?.appreciationLetterUrl ??
             '',
           workCompletionLetterUrl:
-            found?.workCompletionLetterUrl ||
-            dbTraining.workCompletionLetterUrl ||
-            (allFormData as any)?.workCompletionLetterUrl ||
+            found?.workCompletionLetterUrl ??
+            dbTraining.workCompletionLetterUrl ??
+            (allFormData as any)?.workCompletionLetterUrl ??
             '',
           teachersDetailsDocUrl:
-            found?.teachersDetailsDocUrl ||
-            (found as any)?.teachersDetailsUrl ||
-            dbTraining.teachersDetailsDocUrl ||
-            (allFormData as any)?.teachersDetailsDocUrl ||
-            (allFormData as any)?.teachersDetailsUrl ||
+            found?.teachersDetailsDocUrl ??
+            (found as any)?.teachersDetailsUrl ??
+            dbTraining.teachersDetailsDocUrl ??
+            (allFormData as any)?.teachersDetailsDocUrl ??
+            (allFormData as any)?.teachersDetailsUrl ??
             '',
           attendanceSheetUrl:
-            found?.attendanceSheetUrl ||
-            dbTraining.attendanceSheetUrl ||
-            (allFormData as any)?.attendanceSheetUrl ||
+            found?.attendanceSheetUrl ??
+            dbTraining.attendanceSheetUrl ??
+            (allFormData as any)?.attendanceSheetUrl ??
             '',
 
           // Checklist (Exact keys from trainingChecklistSchema)
@@ -341,25 +366,32 @@ export function TrainingExecutionSection({
 
           // Media & Public Ratings
           photographyPhotosUrl:
-            found?.photographyPhotosUrl ||
-            dbTraining.photographyPhotosUrl ||
-            (allFormData as any)?.photographyPhotosUrl ||
+            found?.photographyPhotosUrl ??
+            dbTraining.photographyPhotosUrl ??
+            (allFormData as any)?.photographyPhotosUrl ??
             '',
           googleReviewsNotes:
-            found?.googleReviewsNotes ||
-            dbTraining.googleReviewsNotes ||
-            (allFormData as any)?.googleReviewsNotes ||
+            found?.googleReviewsNotes ??
+            dbTraining.googleReviewsNotes ??
+            (allFormData as any)?.googleReviewsNotes ??
             '',
 
           // Hardware Serials
           verifiedHardwareUnits: found?.verifiedHardwareUnits || [],
-          hardwareSerials: found?.hardwareSerials || dbTraining.hardwareSerials || (allFormData as any)?.hardwareSerials || {},
+          hardwareSerials: found?.hardwareSerials || dbTraining.hardwareSerials || {},
 
           // Notes & Observations
           issuesNoted: found?.issuesNoted || dbTraining.issuesNoted || rootIssues,
           onGroundFeedback: found?.onGroundFeedback || dbTraining.onGroundFeedback || rootFeedback,
           remarks: found?.remarks || dbTraining.remarks || rootRemarks
         };
+
+        if (sch._id && !map[sch._id]) {
+          map[sch._id] = map[sch.id];
+        }
+        if (sch.school && !map[String(sch.school)]) {
+          map[String(sch.school)] = map[sch.id];
+        }
       });
 
       return map;
@@ -372,21 +404,55 @@ export function TrainingExecutionSection({
     return extractExecutionsMap(value, effectiveSchools);
   });
 
-  // Ensure every effective school stays in sync when value or effectiveSchools changes
+  // Ensure every effective school stays in sync when value or effectiveSchools changes (skips local in-flight clicks)
   useEffect(() => {
+    if (isLocalUpdateRef.current) {
+      isLocalUpdateRef.current = false;
+      return;
+    }
     if (!value) return;
-    setSchoolExecutionsMap((prev) => {
-      const freshMap = extractExecutionsMap(value, effectiveSchools);
-      return { ...prev, ...freshMap };
-    });
+
+    // 1. Skip if incoming value matches our own emitted state
+    if (
+      value === lastEmittedMapRef.current ||
+      value?.trainingExecutionSection === lastEmittedMapRef.current ||
+      value?.schoolWiseTrainingExecutions === lastEmittedMapRef.current
+    ) {
+      return;
+    }
+
+    const incomingMap =
+      (value?.schoolWiseTrainingExecutions && typeof value.schoolWiseTrainingExecutions === 'object' ? value.schoolWiseTrainingExecutions : null) ||
+      (value?.trainingExecutionSection && typeof value.trainingExecutionSection === 'object' ? value.trainingExecutionSection : null) ||
+      (value && typeof value === 'object' && !Array.isArray(value) ? value : null);
+
+    if (incomingMap && lastEmittedJsonRef.current) {
+      try {
+        if (JSON.stringify(incomingMap) === lastEmittedJsonRef.current) {
+          return;
+        }
+      } catch { }
+    }
+
+    const freshMap = extractExecutionsMap(value, effectiveSchools);
+    setSchoolExecutionsMap(freshMap);
   }, [value, effectiveSchools, extractExecutionsMap]);
 
   // Synchronize update up to parent form using canonical keys
   const emitUpdate = useCallback(
     (nextMap: Record<string, ISchoolTrainingExecution>) => {
+      lastEmittedMapRef.current = nextMap;
+      try {
+        lastEmittedJsonRef.current = JSON.stringify(nextMap);
+      } catch {
+        lastEmittedJsonRef.current = '';
+      }
+
       const activeExecList = effectiveSchools.map((sch) => {
         return (
-          nextMap[sch.id] || {
+          nextMap[sch.id] ||
+          (sch._id ? nextMap[sch._id] : null) ||
+          (sch.school ? nextMap[String(sch.school)] : null) || {
             schoolId: sch.id,
             schoolName: sch.name,
             checklist: {
@@ -440,7 +506,10 @@ export function TrainingExecutionSection({
 
   // Active School's current execution data
   const currentExec: ISchoolTrainingExecution = useMemo(() => {
-    const existing = schoolExecutionsMap[currentSchool.id];
+    const existing =
+      schoolExecutionsMap[currentSchool.id] ||
+      (currentSchool._id ? schoolExecutionsMap[currentSchool._id] : null) ||
+      (currentSchool.school ? schoolExecutionsMap[String(currentSchool.school)] : null);
     if (existing) {
       return {
         ...existing,
@@ -950,15 +1019,18 @@ export function TrainingExecutionSection({
 
   // Remove document
   const handleRemoveDocument = (fieldKey: 'deliveryConfirmationSheetUrl' | 'appreciationLetterUrl' | 'workCompletionLetterUrl' | 'teachersDetailsDocUrl' | 'photographyPhotosUrl') => {
+    isLocalUpdateRef.current = true;
     const nextPlan: ISchoolTrainingExecution = {
       ...currentExec,
       [fieldKey]: ''
     };
 
-    const nextMap = {
+    const nextMap: Record<string, ISchoolTrainingExecution> = {
       ...schoolExecutionsMap,
       [currentSchool.id]: nextPlan
     };
+    if (currentSchool._id) nextMap[currentSchool._id] = nextPlan;
+    if (currentSchool.school) nextMap[String(currentSchool.school)] = nextPlan;
 
     setSchoolExecutionsMap(nextMap);
     emitUpdate(nextMap);
@@ -967,6 +1039,8 @@ export function TrainingExecutionSection({
   // Toggle checklist item
   const handleToggleChecklistItem = (itemKey: keyof ITrainingExecutionChecklist) => {
     if (disabled) return;
+
+    isLocalUpdateRef.current = true;
 
     const currentChecklist = currentExec.checklist || {
       trainingDone: false,
@@ -977,9 +1051,11 @@ export function TrainingExecutionSection({
       googleReviews: false,
     };
 
+    const nextVal = !Boolean(currentChecklist[itemKey]);
+
     const nextChecklist: ITrainingExecutionChecklist = {
       ...currentChecklist,
-      [itemKey]: !currentChecklist[itemKey]
+      [itemKey]: nextVal
     };
 
     const nextPlan: ISchoolTrainingExecution = {
@@ -987,10 +1063,12 @@ export function TrainingExecutionSection({
       checklist: nextChecklist
     };
 
-    const nextMap = {
+    const nextMap: Record<string, ISchoolTrainingExecution> = {
       ...schoolExecutionsMap,
       [currentSchool.id]: nextPlan
     };
+    if (currentSchool._id) nextMap[currentSchool._id] = nextPlan;
+    if (currentSchool.school) nextMap[String(currentSchool.school)] = nextPlan;
 
     setSchoolExecutionsMap(nextMap);
     emitUpdate(nextMap);
@@ -998,15 +1076,19 @@ export function TrainingExecutionSection({
 
   // Update top-level field for active school
   const handleUpdateSchoolField = (fieldKey: keyof ISchoolTrainingExecution, val: any) => {
+    isLocalUpdateRef.current = true;
+
     const nextPlan: ISchoolTrainingExecution = {
       ...currentExec,
       [fieldKey]: val
     };
 
-    const nextMap = {
+    const nextMap: Record<string, ISchoolTrainingExecution> = {
       ...schoolExecutionsMap,
       [currentSchool.id]: nextPlan
     };
+    if (currentSchool._id) nextMap[currentSchool._id] = nextPlan;
+    if (currentSchool.school) nextMap[String(currentSchool.school)] = nextPlan;
 
     setSchoolExecutionsMap(nextMap);
     emitUpdate(nextMap);
@@ -1014,6 +1096,8 @@ export function TrainingExecutionSection({
 
   // Apply to all schools
   const handleApplyToAllSchools = useCallback(() => {
+    isLocalUpdateRef.current = true;
+
     const sourcePlan = currentExec;
     const nextMap = { ...schoolExecutionsMap };
 
@@ -1717,7 +1801,18 @@ export function TrainingExecutionSection({
                 return (
                   <div
                     key={item.key}
-                    onClick={() => handleToggleChecklistItem(item.key)}
+                    role="button"
+                    tabIndex={0}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleToggleChecklistItem(item.key);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        handleToggleChecklistItem(item.key);
+                      }
+                    }}
                     className={`
                       group p-3.5 rounded-2xl border transition-all duration-200 select-none cursor-pointer flex flex-col justify-between gap-3 shadow-2xs
                       ${isChecked

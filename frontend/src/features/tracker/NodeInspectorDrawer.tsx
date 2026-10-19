@@ -416,7 +416,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     return [];
   }, [stage3SchoolNode, formData, project, allNodes]);
 
-  const combinedAllFormData: Record<string, any> = {
+  const combinedAllFormData: Record<string, any> = React.useMemo(() => ({
     ...(formData || {}),
     schools: resolvedSchools,
     stage3Schools: resolvedSchools,
@@ -443,7 +443,20 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     stage3ContentNode: stage3ContentNode?.formData || {},
     stage3ContentData: stage3ContentNode?.formData?.contentSets || stage3ContentNode?.formData || (project as any)?.orderRequirement?.contentConfiguration?.contentSets || (project as any)?.orderRequirement?.contentConfiguration || {},
     contentConfigData: stage3ContentNode?.formData?.contentSets || stage3ContentNode?.formData || (project as any)?.orderRequirement?.contentConfiguration?.contentSets || (project as any)?.orderRequirement?.contentConfiguration || {},
-  };
+  }), [
+    formData,
+    resolvedSchools,
+    stage3SolNode,
+    stage3HwNode,
+    stage3ContentNode,
+    stage4StockNode,
+    stage4TechNode,
+    project
+  ]);
+
+  const memoizedInitialData = React.useMemo(() => {
+    return formData || (node.formData as any) || {};
+  }, [formData, node?._id, node?.formData]);
 
   const [justSaved, setJustSaved] = React.useState<boolean>(false);
   const [isSaving, setIsSaving] = React.useState<boolean>(false);
@@ -802,7 +815,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
           <div className="space-y-3">
             <DynamicFormRenderer
               schema={formSchema || (node.formSchema as any)}
-              initialData={formData || (node.formData as any) || {}}
+              initialData={memoizedInitialData}
               onSubmit={onFormSubmit}
               disabled={isCurrentlyMutating}
               employees={empList}

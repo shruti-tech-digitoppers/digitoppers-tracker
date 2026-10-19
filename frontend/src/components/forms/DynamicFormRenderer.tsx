@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { FormSchemaType, IFormFieldSchema, TimelineNodeStatus } from '../../types/timeline';
 import { IUser } from '../../types/auth';
 import { IProject } from '../../types/project';
@@ -68,8 +68,22 @@ export function DynamicFormRenderer({
   const [error, setError] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string>('');
+  const lastLoadedSnapshotRef = useRef<string>('');
 
   useEffect(() => {
+    let currentInitialStr = '';
+    try {
+      currentInitialStr = JSON.stringify(initialData || {});
+    } catch {
+      currentInitialStr = '';
+    }
+
+    // If initialData content hasn't actually changed, don't wipe out user's active in-flight formData!
+    if (lastLoadedSnapshotRef.current && lastLoadedSnapshotRef.current === currentInitialStr) {
+      return;
+    }
+    lastLoadedSnapshotRef.current = currentInitialStr;
+
     const updated = { ...(initialData || {}) };
     if (project && (!updated.projectName || !updated.projectTitle)) {
       if (project.title || (project as any).projectName) {
