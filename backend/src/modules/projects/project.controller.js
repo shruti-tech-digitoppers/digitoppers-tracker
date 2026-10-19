@@ -3,7 +3,7 @@ const projectService = require('./project.service');
 class ProjectController {
   async getAll(req, res, next) {
     try {
-      const projects = await projectService.getAllProjects(req.employee, req.query);
+      const projects = await projectService.getProjects(req.employee, req.query);
       res.status(200).json({ success: true, count: projects.length, data: projects });
     } catch (err) { next(err); }
   }

@@ -3,528 +3,185 @@ const ProjectMember = require('../project-members/project-member.model');
 const Timeline = require('../timeline/timeline.model');
 const TimelineNode = require('../timeline/timeline-node.model');
 const Activity = require('../activity/activity.model');
-const timelineConfig = require('../../config/timeline');
-const { DESIGNATIONS, PROJECT_STATUSES, NODE_TYPES, NODE_STATUSES } = require('../../core/constants');
+const Employee = require('../employees/employee.model');
+const { DESIGNATIONS, PROJECT_STATUSES } = require('../../core/constants');
 const { AppError } = require('../../core/errors');
+const config = require('../../config/env');
+const coreApi = require('../../services/core-api.service');
 const mongoose = require('mongoose');
 
 class ProjectService {
-  async createProject(projectData, creatorEmployeeId) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
+  /**
+   * getProjects: Fetches live master projects strictly from Core Backend (DB or API)
+   * Enriches each project with Tracker metadata (PM, members, schools, timeline)
+   */
+  async getProjects(employee, query = {}) {
+    let coreProjects = [];
 
     try {
-      const code = (projectData.projectId || '').trim().toUpperCase();
-      const name = (projectData.projectName || projectData.title || '').trim();
-
-      const existing = await Project.findOne({ projectId: code }).session(session);
-
-      if (existing) {
-        throw new AppError('Project with this project ID already exists.', 409, 'DUPLICATE_PROJECT_ID');
+      const rawList = await coreApi.getProjects(query);
+      if (Array.isArray(rawList) && rawList.length > 0) {
+        coreProjects = rawList.map((p) => ({
+          _id: String(p._id),
+          projectId: String(p.projectId || p._id).trim(),
+          projectName: p.projectName || p.title || 'Untitled Core Project',
+          title: p.projectName || p.title || 'Untitled Core Project',
+          email: p.email || '',
+          phone: p.phone || '',
+          address: p.address || '',
+          numberOfSchools: p.numberOfSchools || 0,
+          numberOfLicenses: p.numberOfLicenses || 0,
+          country: typeof p.country === 'object' && p.country ? p.country.name : (p.country || ''),
+          isActive: p.isActive !== false,
+          createdAt: p.createdAt || new Date(),
+          updatedAt: p.updatedAt || new Date(),
+          source: 'CORE_BACKEND_API'
+        }));
       }
+    } catch (apiErr) {
+      console.warn('[ProjectService] Core API fetch error:', apiErr.message);
+    }
 
-      const normalizedData = {
-        ...projectData,
-        projectId: code,
-        projectName: name
-      };
+    // If Core Backend returned projects, use them as the primary source of truth
+    if (coreProjects && coreProjects.length > 0) {
+      const coreCodes = coreProjects.map(cp => cp.projectId);
+      const coreCodesUpper = coreCodes.map(c => c.toUpperCase());
+      const coreCodesLower = coreCodes.map(c => c.toLowerCase());
+      const coreMongoIds = coreProjects.map(cp => cp._id).filter(id => mongoose.isValidObjectId(id));
 
-      const Employee = require('../employees/employee.model');
-      const Notification = require('../notifications/notifications.model');
-      const creator = await Employee.findById(creatorEmployeeId).session(session);
+      // Fetch corresponding Tracker Project records
+      const localProjects = await Project.find({
+        $or: [
+          { projectId: { $in: [...coreCodes, ...coreCodesUpper, ...coreCodesLower] } },
+          { _id: { $in: coreMongoIds } }
+        ]
+      }).lean();
 
-      const assignedReviewerId = projectData.assignedTo || projectData.assignedReviewer || projectData.projectManager;
-
-      // If an assignee / reviewer is specified, place into PENDING_REVIEW workflow
-      if (assignedReviewerId) {
-        const project = await Project.create([{
-          ...normalizedData,
-          projectManager: projectData.projectManager || undefined,
-          requestedBy: creatorEmployeeId,
-          assignedReviewer: assignedReviewerId,
-          status: projectData.status || (projectData.assignedReviewer ? PROJECT_STATUSES.PENDING_REVIEW : PROJECT_STATUSES.ACTIVE),
-          reviewStatus: projectData.reviewStatus || (projectData.assignedReviewer ? 'PENDING' : 'APPROVED'),
-          createdBy: creatorEmployeeId
-        }], { session });
-
-        const createdProject = project[0];
-
-        // Notify assigned reviewer
-        await Notification.create([{
-          recipient: assignedReviewerId,
-          project: createdProject._id,
-          title: 'New Project Request Received',
-          message: `${creator ? creator.name : 'A team member'} has submitted a new project request: ${createdProject.projectId} (${createdProject.projectName}) and assigned you to review it.`,
-          type: 'PROJECT_REQUEST_REVIEW',
-          metadata: {
-            projectId: createdProject.projectId,
-            projectDatabaseId: createdProject._id,
-            projectName: createdProject.projectName,
-            requesterId: creator ? creator._id : creatorEmployeeId,
-            requesterName: creator ? creator.name : 'Employee'
-          }
-        }], { session });
-
-        // Notify Admins
-        if (!creator || creator.globalRole !== 'ADMIN') {
-          const admins = await Employee.find({ globalRole: 'ADMIN', isActive: true }).session(session);
-          for (const admin of admins) {
-            if (admin._id.toString() !== assignedReviewerId.toString()) {
-              await Notification.create([{
-                recipient: admin._id,
-                project: createdProject._id,
-                title: 'New Project Request Received',
-                message: `${creator ? creator.name : 'Employee'} (${creator ? creator.employeeCode : ''}) submitted a project request: ${createdProject.projectId} (${createdProject.projectName}).`,
-                type: 'GENERAL',
-                metadata: { projectId: createdProject._id }
-              }], { session });
-            }
-          }
+      const localMap = new Map();
+      localProjects.forEach(lp => {
+        if (lp.projectId) {
+          localMap.set(lp.projectId.toLowerCase(), lp);
+          localMap.set(lp.projectId.toUpperCase(), lp);
         }
+        localMap.set(String(lp._id), lp);
+      });
 
-        // Log activity for project request submission
-        await Activity.create([{
-          project: createdProject._id,
-          actor: creatorEmployeeId,
-          action: 'PROJECT_REQUEST_SUBMITTED',
-          resourceType: 'Project',
-          resourceId: createdProject._id,
-          metadata: {
-            projectId: createdProject.projectId,
-            projectName: createdProject.projectName,
-            assignedReviewer: assignedReviewerId
-          }
-        }], { session });
+      // Fetch members and project managers for both local and core project IDs
+      const localIds = localProjects.map(lp => lp._id);
+      const allProjectIds = [
+        ...localIds,
+        ...coreMongoIds.map(id => new mongoose.Types.ObjectId(id))
+      ];
 
-        await session.commitTransaction();
-        session.endSession();
+      const allMembers = await ProjectMember.find({
+        project: { $in: allProjectIds },
+        isActive: true
+      }).populate('employee', 'name email employeeCode globalRole designation');
 
-        // ── Dispatch Slack notification tagging the Assigned Reviewer ──
-        try {
-          const { sendSlackNotification } = require('../notifications/slack.service');
-          sendSlackNotification({
-            title: 'New Project Request Received',
-            message: `${creator ? creator.name : 'A team member'} has submitted a new project request: ${createdProject.projectId} (${createdProject.projectName}) and assigned you to review it.`,
-            type: 'PROJECT_REQUEST_REVIEW',
-            assignedTo: assignedReviewerId,
-            projectId: createdProject.projectId,
-            projectName: createdProject.projectName,
-            metadata: {
-              requestId: createdProject.projectId,
-              requesterName: creator ? creator.name : 'Employee'
-            }
-          }).catch((err) => {
-            console.warn('[ProjectService] Slack notify reviewer warning:', err.message);
+      // Fetch confirmed project requests to resolve PM if not in ProjectMember
+      const ProjectRequest = require('../project-requests/project-request.model');
+      const allRequests = await ProjectRequest.find({
+        $or: [
+          { projectId: { $in: allProjectIds } },
+          { title: { $in: coreProjects.map(cp => cp.projectName) } }
+        ]
+      }).populate('projectManager', 'name email employeeCode globalRole designation').lean().catch(() => []);
+
+      const reqPmMap = new Map();
+      allRequests.forEach(r => {
+        if (r.projectManager) {
+          if (r.projectId) reqPmMap.set(String(r.projectId), r.projectManager);
+          if (r.title) reqPmMap.set(r.title.toLowerCase(), r.projectManager);
+        }
+      });
+
+      const pmMap = new Map();
+      const membersMap = new Map();
+
+      allMembers.forEach(m => {
+        const pid = m.project.toString();
+        if (!membersMap.has(pid)) membersMap.set(pid, []);
+        if (m.employee) {
+          const empData = m.employee.toObject ? m.employee.toObject() : m.employee;
+          membersMap.get(pid).push({
+            ...empData,
+            projectRole: m.designation
           });
-        } catch (_) {}
-
-        return createdProject;
-      }
-
-      // Direct Creation without Reviewer
-      const directPm = projectData.projectManager || creatorEmployeeId;
-      const project = await Project.create([{
-        ...normalizedData,
-        projectManager: directPm,
-        createdBy: creatorEmployeeId,
-        status: PROJECT_STATUSES.ACTIVE,
-        reviewStatus: 'APPROVED',
-        reviewedAt: new Date()
-      }], { session });
-
-      const createdProject = project[0];
-
-      await ProjectMember.create([{
-        project: createdProject._id,
-        employee: directPm,
-        designation: DESIGNATIONS.PROJECT_MANAGER,
-        assignedBy: creatorEmployeeId
-      }], { session });
-
-      await this._initializeProjectTimeline(createdProject._id, session);
-
-      // Log activity for direct project creation
-      await Activity.create([{
-        project: createdProject._id,
-        actor: creatorEmployeeId,
-        action: 'PROJECT_CREATED',
-        resourceType: 'Project',
-        resourceId: createdProject._id,
-        metadata: {
-          projectId: createdProject.projectId,
-          projectName: createdProject.projectName,
-          organization: createdProject.organization || createdProject.client || ''
-        }
-      }], { session });
-
-      // Sync to Dashboard auditlogs collection
-      try {
-        await mongoose.connection.collection('auditlogs').insertOne({
-          orgId: createdProject.orgId || new mongoose.Types.ObjectId(),
-          actorId: creatorEmployeeId,
-          actorEmail: creator ? creator.email : 'admin@digitopper.com',
-          action: 'projects:create',
-          resource: 'Project',
-          resourceId: String(createdProject._id),
-          delta: {
-            projectName: createdProject.projectName,
-            projectId: createdProject.projectId,
-            organization: createdProject.organization || createdProject.client || ''
-          },
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
-      } catch (_) {}
-
-      await session.commitTransaction();
-      session.endSession();
-      return createdProject;
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
-  }
-
-  async _initializeProjectTimeline(projectId, session) {
-    const project = await Project.findById(projectId).session(session);
-    const pmId = project ? project.projectManager : undefined;
-
-    const timelineData = {
-      project: projectId,
-      projectId: project ? project.projectId : undefined,
-      projectName: project ? (project.projectName || project.title) : undefined,
-      organization: project ? (project.organization || project.client || project.projectName) : undefined,
-      email: project ? project.email : undefined,
-      phone: project ? project.phone : undefined,
-      address: project ? project.address : undefined,
-      numberOfSchools: project ? (project.numberOfSchools || 0) : 0,
-      numberOfLicenses: project ? (project.numberOfLicenses || 0) : 0,
-      country: project ? project.country : undefined,
-      projectManager: pmId || undefined,
-      coreBackendData: project ? (project.toObject ? project.toObject() : project) : {},
-      metadata: project ? (project.metadata || {}) : {},
-      templateVersion: timelineConfig.version || 'v1',
-      status: NODE_STATUSES.IN_PROGRESS
-    };
-
-    const timeline = await Timeline.create([timelineData], { session });
-    const createdTimeline = timeline[0];
-
-    for (const stageDef of timelineConfig.stages) {
-      const stageAssignedTo = (stageDef.key === 'PROJECT_REVIEWER' && pmId) ? pmId : null;
-      const stageNode = await TimelineNode.create([{
-        timeline: createdTimeline._id,
-        parentNode: null,
-        type: NODE_TYPES.STAGE,
-        key: stageDef.key,
-        name: stageDef.name,
-        order: stageDef.order,
-        status: NODE_STATUSES.PENDING,
-        assignedTo: stageAssignedTo,
-        dependencies: stageDef.dependencies || [],
-        metadata: stageDef.metadata || {}
-      }], { session });
-
-      const createdStage = stageNode[0];
-
-      if (stageDef.substages) {
-        for (const subDef of stageDef.substages) {
-          const subAssignedTo = (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(subDef.key) && pmId) ? pmId : null;
-          const subTaskNode = await TimelineNode.create([{
-            timeline: createdTimeline._id,
-            parentNode: createdStage._id,
-            type: NODE_TYPES.TASK,
-            key: subDef.key,
-            name: subDef.name,
-            order: subDef.order,
-            status: NODE_STATUSES.PENDING,
-            assignedTo: subAssignedTo,
-            formSchema: subDef.formSchema || null,
-            metadata: subDef.metadata || {}
-          }], { session });
-
-          const createdSub = subTaskNode[0];
-
-          if (subDef.nested) {
-            for (const nestedDef of subDef.nested) {
-              const nestedAssignedTo = (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(nestedDef.key) && pmId) ? pmId : null;
-              await TimelineNode.create([{
-                timeline: createdTimeline._id,
-                parentNode: createdSub._id,
-                type: NODE_TYPES.TASK,
-                key: nestedDef.key,
-                name: nestedDef.name,
-                order: nestedDef.order,
-                status: NODE_STATUSES.PENDING,
-                assignedTo: nestedAssignedTo,
-                formSchema: nestedDef.formSchema || null,
-                metadata: {
-                  ...(nestedDef.metadata || {}),
-                  customFields: nestedDef.customFields || []
-                }
-              }], { session });
-            }
+          if (m.designation === DESIGNATIONS.PROJECT_MANAGER && !pmMap.has(pid)) {
+            pmMap.set(pid, empData);
           }
         }
+      });
+
+      let mergedProjects = coreProjects.map(cp => {
+        const lp = localMap.get(cp.projectId.toLowerCase()) || localMap.get(cp.projectId.toUpperCase()) || localMap.get(cp._id);
+        const pid = lp ? lp._id.toString() : cp._id;
+        const assignedPm = (lp && pmMap.get(pid))
+          ? pmMap.get(pid)
+          : (pmMap.get(cp._id) || reqPmMap.get(cp._id) || reqPmMap.get(cp.projectId.toLowerCase()) || reqPmMap.get(cp.projectId.toUpperCase()) || lp?.projectManager || null);
+        const members = (lp && membersMap.get(pid)) ? membersMap.get(pid) : (membersMap.get(cp._id) || []);
+
+        return {
+          ...(lp || {}),
+          _id: cp._id,
+          coreMongoId: cp._id,
+          projectId: cp.projectId.toUpperCase(),
+          projectName: cp.projectName,
+          title: cp.projectName,
+          organization: lp?.organization || cp.projectName,
+          description: lp?.description || '',
+          email: cp.email || lp?.email || '',
+          phone: cp.phone || lp?.phone || '',
+          address: cp.address || lp?.address || '',
+          numberOfSchools: cp.numberOfSchools !== undefined ? cp.numberOfSchools : (lp?.numberOfSchools || 0),
+          numberOfLicenses: cp.numberOfLicenses !== undefined ? cp.numberOfLicenses : (lp?.numberOfLicenses || 0),
+          country: cp.country || lp?.country || '',
+          status: lp?.status || 'ACTIVE',
+          projectManager: assignedPm,
+          members,
+          isActive: cp.isActive !== false,
+          createdAt: cp.createdAt || lp?.createdAt,
+          updatedAt: cp.updatedAt || lp?.updatedAt,
+          source: cp.source || 'CORE_BACKEND'
+        };
+      });
+
+      // Filter by status if requested
+      if (query.status && query.status !== 'ALL') {
+        mergedProjects = mergedProjects.filter(p => p.status === query.status);
       }
+
+      // Filter assignedOnly if requested
+      if (query.assignedOnly === 'true') {
+        const empId = employee ? String(employee._id) : null;
+        if (empId) {
+          mergedProjects = mergedProjects.filter(p => {
+            const isPm = p.projectManager && (String(p.projectManager._id || p.projectManager) === empId);
+            const isMember = p.members && p.members.some(m => String(m._id || m.employee) === empId);
+            return isPm || isMember;
+          });
+        }
+      }
+
+      return mergedProjects;
     }
-  }
 
-  async approveProjectRequest(projectId, reviewerEmployeeId, reviewNotes) {
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
-    try {
-      const project = await Project.findById(projectId).session(session);
-      if (!project) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
-
-      if (project.status !== PROJECT_STATUSES.PENDING_REVIEW && project.reviewStatus === 'APPROVED') {
-        throw new AppError('Project request has already been approved.', 400, 'ALREADY_APPROVED');
-      }
-
-      const Employee = require('../employees/employee.model');
-      const reviewer = await Employee.findById(reviewerEmployeeId).session(session);
-      const isAuthorized = 
-        (reviewer && reviewer.globalRole === 'ADMIN') ||
-        (project.assignedReviewer && project.assignedReviewer.toString() === reviewerEmployeeId.toString());
-
-      if (!isAuthorized) {
-        throw new AppError('You are not authorized to review and approve this project request.', 403, 'FORBIDDEN');
-      }
-
-      // Appoint the designated PM (or reviewer) as Project Manager
-      const designatedPmId = project.projectManager || project.assignedReviewer || reviewerEmployeeId;
-      const requesterId = project.requestedBy || project.createdBy || reviewerEmployeeId;
-
-      // Update project status to ACTIVE and appoint the designated PM as Project Manager
-      project.status = PROJECT_STATUSES.ACTIVE;
-      project.reviewStatus = 'APPROVED';
-      project.reviewedAt = new Date();
-      project.reviewNotes = reviewNotes || 'Review completed and approved';
-      project.projectManager = designatedPmId;
-      await project.save({ session });
-
-      // 1. Assign Designated PM as Project Manager
-      await ProjectMember.findOneAndUpdate(
-        { project: project._id, employee: designatedPmId },
-        {
-          project: project._id,
-          employee: designatedPmId,
-          designation: DESIGNATIONS.PROJECT_MANAGER,
-          assignedBy: reviewerEmployeeId,
-          isActive: true
-        },
-        { upsert: true, new: true, session }
-      );
-
-      // 2. Assign Requester as Contributor (if requester is not the PM)
-      if (requesterId.toString() !== designatedPmId.toString()) {
-        await ProjectMember.findOneAndUpdate(
-          { project: project._id, employee: requesterId },
-          {
-            project: project._id,
-            employee: requesterId,
-            designation: DESIGNATIONS.CONTRIBUTOR,
-            assignedBy: reviewerEmployeeId,
-            isActive: true
-          },
-          { upsert: true, new: true, session }
-        );
-      }
-
-      // 3. Assign Reviewer as Contributor (if reviewer is neither PM nor Requester)
-      if (
-        reviewerEmployeeId.toString() !== designatedPmId.toString() &&
-        reviewerEmployeeId.toString() !== requesterId.toString()
-      ) {
-        await ProjectMember.findOneAndUpdate(
-          { project: project._id, employee: reviewerEmployeeId },
-          {
-            project: project._id,
-            employee: reviewerEmployeeId,
-            designation: DESIGNATIONS.CONTRIBUTOR,
-            assignedBy: reviewerEmployeeId,
-            isActive: true
-          },
-          { upsert: true, new: true, session }
-        );
-      }
-
-      // Initialize project timeline if not already created
-      const existingTimeline = await Timeline.findOne({ project: project._id }).session(session);
-      if (!existingTimeline) {
-        await this._initializeProjectTimeline(project._id, session);
-      }
-
-      // Notifications
-      const Notification = require('../notifications/notifications.model');
-      
-      // Notify the Designated Project Manager
-      await Notification.create([{
-        recipient: designatedPmId,
-        project: project._id,
-        title: 'Assigned as Project Manager',
-        message: `You have been assigned as the Project Manager for project ${project.projectId} (${project.projectName}), approved by ${reviewer ? reviewer.name : 'Reviewer'}.`,
-        type: 'ASSIGNMENT',
-        metadata: {
-          projectId: project.projectId,
-          projectDatabaseId: project._id,
-          projectName: project.projectName,
-          reviewerName: reviewer ? reviewer.name : 'Reviewer'
-        }
-      }], { session });
-
-      // Notify the Requester (if different from PM)
-      if (requesterId.toString() !== designatedPmId.toString()) {
-        await Notification.create([{
-          recipient: requesterId,
-          project: project._id,
-          title: 'Project Request Approved & Initialized',
-          message: `Your project request for ${project.projectId} (${project.projectName}) has been approved by ${reviewer ? reviewer.name : 'Reviewer'}.`,
-          type: 'PROJECT_REQUEST_APPROVED',
-          metadata: {
-            projectId: project.projectId,
-            projectDatabaseId: project._id,
-            projectName: project.projectName,
-            reviewerName: reviewer ? reviewer.name : 'Reviewer'
-          }
-        }], { session });
-      }
-
-      // Notify Admins
-      const admins = await Employee.find({ globalRole: 'ADMIN', isActive: true }).session(session);
-      for (const admin of admins) {
-        if (admin._id.toString() !== reviewerEmployeeId.toString() && admin._id.toString() !== requesterId.toString()) {
-          await Notification.create([{
-            recipient: admin._id,
-            project: project._id,
-            title: 'Project Request Approved',
-            message: `Project ${project.projectId} (${project.projectName}) was approved by ${reviewer ? reviewer.name : 'Reviewer'} and is now active.`,
-            type: 'GENERAL',
-            metadata: { projectId: project._id }
-          }], { session });
-        }
-      }
-
-      await Activity.create([{
-        project: project._id,
-        actor: reviewerEmployeeId,
-        action: 'PROJECT_REQUEST_APPROVED',
-        resourceType: 'Project',
-        resourceId: project._id,
-        metadata: {
-          projectManager: requesterId,
-          reviewer: reviewerEmployeeId,
-          reviewNotes
-        }
-      }], { session });
-
-      await session.commitTransaction();
-      session.endSession();
-
-      // ── Dispatch Slack notification tagging the Designated PM ───
-      try {
-        const { sendSlackNotification } = require('../notifications/slack.service');
-        sendSlackNotification({
-          title: 'Assigned as Project Manager',
-          message: `You have been assigned as the Project Manager for project ${project.projectId} (${project.projectName}), approved by ${reviewer ? reviewer.name : 'Reviewer'}.`,
-          type: 'PROJECT_ASSIGNED',
-          assignedTo: designatedPmId,
-          projectId: project.projectId,
-          projectName: project.projectName,
-          metadata: {
-            reviewerName: reviewer ? reviewer.name : 'Reviewer'
-          }
-        }).catch((err) => {
-          console.warn('[ProjectService] Slack notify PM warning:', err.message);
-        });
-      } catch (_) {}
-
-      return project;
-    } catch (error) {
-      await session.abortTransaction();
-      session.endSession();
-      throw error;
-    }
-  }
-
-  async getAllProjects(employee, query = {}) {
+    // Fallback: If Core Backend returned nothing (offline/error), query local Project table
     const filter = { isActive: true };
     if (query.status && query.status !== 'ALL') {
       filter.status = query.status;
     }
-
-    // By default, all employees have VIEWER access and can view all active projects & timelines.
-    // Only restrict to assigned projects if query.assignedOnly === 'true'
-    if (query.assignedOnly === 'true') {
-      const empId = employee ? employee._id : null;
-      if (empId) {
-        // 1. Find projects from ProjectMember table
-        const memberships = await ProjectMember.find({ employee: empId, isActive: true }).select('project');
-        const memberProjectIds = memberships.map(m => m.project ? m.project.toString() : '').filter(Boolean);
-
-        // 2. Find projects where user has assigned tasks in TimelineNode
-        const assignedNodes = await TimelineNode.find({ assignedTo: empId }).select('timeline');
-        const timelineIds = assignedNodes.map(n => n.timeline).filter(Boolean);
-        const timelines = await Timeline.find({ _id: { $in: timelineIds } }).select('project');
-        const timelineProjectIds = timelines.map(t => t.project ? t.project.toString() : '').filter(Boolean);
-
-        const allProjectIds = [...new Set([...memberProjectIds, ...timelineProjectIds])];
-        filter._id = { $in: allProjectIds };
-      }
-    }
-
-    const projects = await Project.find(filter)
-      .sort({ createdAt: -1 })
-      .lean();
-    if (!projects || projects.length === 0) return [];
-
-    const projectIds = projects.map(p => p._id);
-    const allMembers = await ProjectMember.find({
-      project: { $in: projectIds },
-      isActive: true
-    }).populate('employee', 'name email employeeCode globalRole designation');
-
-    const pmMap = new Map();
-    const membersMap = new Map();
-
-    allMembers.forEach(m => {
-      const pid = m.project.toString();
-      if (!membersMap.has(pid)) membersMap.set(pid, []);
-      if (m.employee) {
-        const empData = m.employee.toObject ? m.employee.toObject() : m.employee;
-        membersMap.get(pid).push({
-          ...empData,
-          projectRole: m.designation
-        });
-        if (m.designation === DESIGNATIONS.PROJECT_MANAGER && !pmMap.has(pid)) {
-          pmMap.set(pid, empData);
-        }
-      }
-    });
-
-    return projects.map(p => {
-      const assignedPm = pmMap.get(p._id.toString()) || p.projectManager || null;
-      return {
-        ...p,
-        title: p.projectName || p.title,
-        projectManager: assignedPm,
-        members: membersMap.get(p._id.toString()) || []
-      };
-    });
-  }
-
-  async getPendingReviews(employeeId, isAdmin) {
-    const filter = {
-      isActive: true
-    };
     const projects = await Project.find(filter).sort({ createdAt: -1 }).lean();
-    return projects.map(p => ({
-      ...p,
-      title: p.projectName || p.title
-    }));
+    return projects;
   }
+
+  /**
+   * Alias for backward compatibility
+   */
+  async getAllProjects(employee, query = {}) {
+    return this.getProjects(employee, query);
+  }
+
 
   async getProjectById(projectId) {
     const projectDoc = await this._findProject(projectId);
@@ -541,7 +198,7 @@ class ProjectService {
     if (!pm) {
       const ProjectRequest = require('../project-requests/project-request.model');
       const reqDoc = await ProjectRequest.findOne({
-        $or: [{ confirmedProjectId: project._id }, { projectId: project.projectId }, { title: project.projectName }]
+        $or: [{ projectId: project._id }, { title: project.projectName }]
       }).populate('projectManager', 'name email employeeCode globalRole designation');
       if (reqDoc && reqDoc.projectManager) {
         pm = reqDoc.projectManager;
@@ -691,11 +348,60 @@ class ProjectService {
   async _findProject(projectId) {
     if (!projectId) return null;
     const mongoose = require('mongoose');
-    if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
-      const proj = await Project.findById(projectId);
+    const idStr = String(projectId).trim();
+
+    // 1. Direct local lookup by ObjectId
+    if (mongoose.Types.ObjectId.isValid(idStr) && idStr.length === 24) {
+      const proj = await Project.findById(idStr);
       if (proj) return proj;
     }
-    return await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+
+    // 2. Direct local lookup by human code (case-insensitive)
+    const byCode = await Project.findOne({
+      $or: [
+        { projectId: idStr.toUpperCase() },
+        { projectId: idStr.toLowerCase() },
+        { projectId: idStr }
+      ]
+    });
+    if (byCode) return byCode;
+
+    // 3. Fallback: Lookup via Core Backend API
+    try {
+      const coreP = await coreApi.getProjectById(idStr);
+      if (coreP) {
+        const existingLocal = await Project.findOne({
+          $or: [
+            { projectId: (coreP.projectId || idStr).toUpperCase() },
+            { projectId: (coreP.projectId || idStr).toLowerCase() },
+            { projectId: (coreP.projectId || idStr) },
+            { _id: coreP._id }
+          ]
+        });
+        if (existingLocal) return existingLocal;
+
+        return {
+          _id: coreP._id,
+          projectId: (coreP.projectId || idStr).toUpperCase(),
+          projectName: coreP.projectName || coreP.title || 'Core Project',
+          title: coreP.projectName || coreP.title || 'Core Project',
+          organization: coreP.projectName || 'Direct Organization',
+          email: coreP.email || '',
+          phone: coreP.phone || '',
+          address: coreP.address || '',
+          numberOfSchools: coreP.numberOfSchools || 0,
+          numberOfLicenses: coreP.numberOfLicenses || 0,
+          country: typeof coreP.country === 'object' && coreP.country ? coreP.country.name : (coreP.country || ''),
+          status: 'ACTIVE',
+          isActive: true,
+          source: 'CORE_BACKEND'
+        };
+      }
+    } catch (e) {
+      console.warn('[ProjectService] _findProject Core API check error:', e.message);
+    }
+
+    return null;
   }
 
   async getMembers(projectId) {
@@ -759,7 +465,7 @@ class ProjectService {
         message: `You have been added to project ${prj ? prj.projectId : ''} (${prj ? prj.projectName : ''}) as ${designation}.`,
         type: 'ASSIGNMENT'
       });
-    } catch {}
+    } catch { }
 
     return member;
   }

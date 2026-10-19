@@ -12,7 +12,7 @@ export interface IProjectRequest {
   phone?: string;
   address?: string;
   isActive?: boolean;
-  organization?: string;
+  remarks?: string;
   description?: string;
   expectedProjectValue?: number;
   requestedBy: IUser | string;
@@ -21,9 +21,7 @@ export interface IProjectRequest {
   status: RequestStatus;
   reviewNotes?: string;
   reviewedBy?: IUser | string;
-  reviewedAt?: string;
-  confirmedProjectId?: any;
-  projectId?: string;
+  projectId?: string | { _id: string; projectId?: string; [key: string]: any };
   dashboardProjectId?: string;
   isManualDashboardCreated?: boolean;
   metadata?: Record<string, any>;
@@ -40,8 +38,7 @@ export interface ICreateProjectRequestPayload {
   phone?: string;
   address?: string;
   isActive?: boolean;
-  organization?: string;
-  description?: string;
+  remarks?: string;
   expectedProjectValue?: number;
   requestedTo: string;
   projectManager: string;

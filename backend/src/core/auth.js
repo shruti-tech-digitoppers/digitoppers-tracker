@@ -5,9 +5,9 @@ const Employee = require('../modules/employees/employee.model');
 
 const generateToken = (employee) => {
   return jwt.sign(
-    { 
-      id: employee._id, 
-      email: employee.email, 
+    {
+      id: employee._id,
+      email: employee.email,
       globalRole: employee.globalRole,
       name: employee.name,
       employeeCode: employee.employeeCode,

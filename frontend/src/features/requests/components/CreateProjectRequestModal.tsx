@@ -41,6 +41,7 @@ export function CreateProjectRequestModal({
   const [country, setCountry] = useState('India');
   const [phone, setPhone] = useState('');
   const [address, setAddress] = useState('');
+  const [remarks, setRemarks] = useState('');
   const [isActive, setIsActive] = useState(true);
 
   // Workflow fields
@@ -116,6 +117,7 @@ export function CreateProjectRequestModal({
         country,
         phone: phone.trim(),
         address: address.trim(),
+        remarks: remarks.trim() || undefined,
         isActive,
         requestedTo,
         projectManager,
@@ -128,6 +130,7 @@ export function CreateProjectRequestModal({
       setCountry('India');
       setPhone('');
       setAddress('');
+      setRemarks('');
       setIsActive(true);
       setRequestedTo('');
       setProjectManager('');
@@ -165,14 +168,11 @@ export function CreateProjectRequestModal({
                 <span className="text-[11px] font-semibold text-[#4a5462]">Request ID:</span>
                 <input
                   type="text"
-                  value={requestId}
-                  onChange={(e) => {
-                    setRequestId(e.target.value.toUpperCase());
-                    setFormError(null);
-                  }}
+                  value={requestId || 'Auto-assigning...'}
+                  readOnly
                   placeholder="REQ-2026-001"
-                  className="text-xs font-mono font-bold text-[#3a7d84] bg-transparent focus:outline-none uppercase w-28"
-                  title="Request ID (Editable if custom ID needed)"
+                  className="text-xs font-mono font-bold text-[#3a7d84] bg-transparent focus:outline-none uppercase w-28 cursor-default select-none"
+                  title="Request ID is automatically assigned sequentially"
                 />
               </div>
 
@@ -287,15 +287,29 @@ export function CreateProjectRequestModal({
               Address
             </label>
             <textarea
-              rows={3}
+              rows={2}
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              placeholder=""
+              placeholder="Address / Location details..."
               className="w-full px-3.5 py-2 text-xs bg-white border border-[#d1d5db] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:border-transparent transition resize-none"
             />
           </div>
 
-          {/* Row 4: Status Toggle */}
+          {/* Row 4: Remarks */}
+          <div>
+            <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+              Remarks
+            </label>
+            <textarea
+              rows={2}
+              value={remarks}
+              onChange={(e) => setRemarks(e.target.value)}
+              placeholder="Any additional notes or remarks..."
+              className="w-full px-3.5 py-2 text-xs bg-white border border-[#d1d5db] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:border-transparent transition resize-none"
+            />
+          </div>
+
+          {/* Row 5: Status Toggle */}
           <div>
             <label className="block text-xs font-semibold text-[#374151] mb-1.5">
               Status

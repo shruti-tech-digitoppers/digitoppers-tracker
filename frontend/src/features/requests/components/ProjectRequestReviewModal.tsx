@@ -18,7 +18,6 @@ import {
 import { IProjectRequest } from '../../../types/request';
 import { IProject } from '../../../types/project';
 import { requestsApi } from '../../../lib/api/requests.api';
-import { projectsApi } from '../../../lib/api/projects.api';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 
 interface ProjectRequestReviewModalProps {
@@ -67,27 +66,15 @@ export function ProjectRequestReviewModal({
       setIsCreatedInDashboard(false);
       setError(null);
 
-      // Fetch projects list directly from database API
+      // Exclusively fetch projects from Core Backend API / DB
       setLoadingProjects(true);
-      projectsApi.getProjects({ status: 'ALL' })
-        .then((res) => {
-          if (res.projects && res.projects.length > 0) {
-            setDbProjects(res.projects);
-          } else {
-            requestsApi.getDashboardProjects().then((dashRes) => {
-              if (dashRes.projects) {
-                setDbProjects(dashRes.projects as any);
-              }
-            }).catch(() => {});
-          }
+      requestsApi.getDashboardProjects()
+        .then((dashRes) => {
+          setDbProjects((dashRes?.projects || []) as any);
         })
         .catch((err) => {
-          console.error('Failed to load DB projects list:', err);
-          requestsApi.getDashboardProjects().then((dashRes) => {
-            if (dashRes.projects) {
-              setDbProjects(dashRes.projects as any);
-            }
-          }).catch(() => {});
+          console.error('Failed to load Core Backend projects list:', err);
+          setDbProjects([]);
         })
         .finally(() => {
           setLoadingProjects(false);
@@ -250,7 +237,7 @@ export function ProjectRequestReviewModal({
               <span>Project Confirmed &amp; Active</span>
             </div>
             <p className="text-[11.5px] text-emerald-800 leading-relaxed">
-              This request was confirmed with Project ID: <strong>{request.projectId || request.dashboardProjectId || 'Linked'}</strong>.
+              This request was confirmed with Project ID: <strong>{typeof request.projectId === 'object' && request.projectId !== null ? (request.projectId.projectId || request.projectId._id) : (request.projectId || request.dashboardProjectId || 'Linked')}</strong>.
             </p>
           </div>
         )}
@@ -285,8 +272,8 @@ export function ProjectRequestReviewModal({
             <p className="font-bold text-sm text-[#333333] mt-0.5">{request.projectName || request.title}</p>
           </div>
 
-          {/* Contact Details (Email, Phone, Country, Organization) */}
-          <div className="pt-2.5 border-t border-[#e9edf1] grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px]">
+          {/* Contact Details (Email, Phone, Country) */}
+          <div className="pt-2.5 border-t border-[#e9edf1] grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
             <div>
               <span className="text-[#4a5462] block text-[10px] uppercase font-semibold">Contact Email</span>
               <span className="font-medium text-[#333333] truncate block">{request.email || '—'}</span>
@@ -298,10 +285,6 @@ export function ProjectRequestReviewModal({
             <div>
               <span className="text-[#4a5462] block text-[10px] uppercase font-semibold">Country</span>
               <span className="font-medium text-[#333333] block">{request.country || '—'}</span>
-            </div>
-            <div>
-              <span className="text-[#4a5462] block text-[10px] uppercase font-semibold">Organization</span>
-              <span className="font-medium text-[#333333] block">{request.organization || '—'}</span>
             </div>
           </div>
 
@@ -316,12 +299,12 @@ export function ProjectRequestReviewModal({
             </p>
           </div>
 
-          {request.description && (
+          {(request.remarks || request.description) && (
             <div className="pt-2.5 border-t border-[#e9edf1]">
               <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#4a5462] block">
-                Scope / Description
+                Remarks
               </span>
-              <p className="text-[11px] text-[#4a5462] mt-0.5 italic">{request.description}</p>
+              <p className="text-[11px] text-[#4a5462] mt-0.5 italic">{request.remarks || request.description}</p>
             </div>
           )}
         </div>
@@ -394,7 +377,7 @@ export function ProjectRequestReviewModal({
                 </label>
                 {loadingProjects ? (
                   <span className="text-[10.5px] text-[#51a8b1] font-semibold animate-pulse">
-                    Loading projects from DB...
+                    Loading projects from Core Backend...
                   </span>
                 ) : (
                   <span className="text-[10.5px] text-[#556987] font-medium">
@@ -448,7 +431,7 @@ export function ProjectRequestReviewModal({
                           setIsDropdownOpen(true);
                         }}
                         onFocus={() => setIsDropdownOpen(true)}
-                        placeholder="Search project by ID, name, or organization..."
+                        placeholder="Search project by ID or name..."
                         className="w-full pl-10 pr-9 py-2.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/70 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:bg-white text-[#2f4154] font-medium shadow-2xs transition"
                       />
                       {projectSearchQuery && (
@@ -492,7 +475,7 @@ export function ProjectRequestReviewModal({
                       {loadingProjects ? (
                         <div className="p-5 text-center text-xs text-[#556987] flex items-center justify-center gap-2">
                           <div className="w-3.5 h-3.5 border-2 border-[#51a8b1] border-t-transparent rounded-full animate-spin" />
-                          <span>Loading projects from database...</span>
+                          <span>Loading projects from Core Backend...</span>
                         </div>
                       ) : filteredProjects.length === 0 ? (
                         <div className="p-5 text-center text-xs text-[#556987] space-y-1.5">

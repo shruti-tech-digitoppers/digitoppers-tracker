@@ -3,7 +3,7 @@ const requestService = require('./project-request.service');
 class ProjectRequestController {
   async getNextRequestId(req, res, next) {
     try {
-      const nextId = await requestService.generateNextRequestId();
+      const nextId = await requestService.peekNextRequestId();
       res.status(200).json({
         success: true,
         data: { nextRequestId: nextId }

@@ -4,42 +4,45 @@ const Project = require('../projects/project.model');
 const ProjectMember = require('../project-members/project-member.model');
 const Timeline = require('../timeline/timeline.model');
 const TimelineNode = require('../timeline/timeline-node.model');
+const timelineService = require('../timeline/timeline.service');
 const Employee = require('../employees/employee.model');
 const Notification = require('../notifications/notifications.model');
 const Activity = require('../activity/activity.model');
 const Requirement = require('../requirements/requirements.model');
 const timelineConfig = require('../../config/timeline');
+const config = require('../../config/env');
+const coreApi = require('../../services/core-api.service');
 const { DESIGNATIONS, PROJECT_STATUSES, NODE_TYPES, NODE_STATUSES } = require('../../core/constants');
 const { AppError } = require('../../core/errors');
 
 class RequestService {
   /**
-   * Helper: Generate next guaranteed unique sequential Request ID (e.g. REQ-2026-001)
+   * Helper: Preview next Request ID without incrementing counter
    */
-  async generateNextRequestId() {
+  async peekNextRequestId() {
     const currentYear = new Date().getFullYear();
     const prefix = `REQ-${currentYear}-`;
+    const counterKey = `REQ_${currentYear}`;
+    const ProjectRequestCounter = ProjectRequest.ProjectRequestCounter;
 
-    // Find all existing requests with this year's prefix
-    const existingRequests = await ProjectRequest.find({
-      requestId: { $regex: `^REQ-${currentYear}-`, $options: 'i' }
-    }).select('requestId');
+    let counter = await ProjectRequestCounter.findById(counterKey);
+    let nextNum = 1;
+    if (counter) {
+      nextNum = counter.seq + 1;
+    } else {
+      const latest = await ProjectRequest.findOne({
+        requestId: { $regex: `^REQ-${currentYear}-\\d+$`, $options: 'i' }
+      }).sort({ requestId: -1 }).select('requestId').lean();
 
-    let maxSeq = 0;
-    for (const req of existingRequests) {
-      const match = req.requestId.match(new RegExp(`^REQ-${currentYear}-(\\d+)`, 'i'));
-      if (match && match[1]) {
-        const seqNum = parseInt(match[1], 10);
-        if (!isNaN(seqNum) && seqNum > maxSeq) {
-          maxSeq = seqNum;
+      if (latest && latest.requestId) {
+        const match = latest.requestId.match(new RegExp(`^REQ-${currentYear}-(\\d+)`, 'i'));
+        if (match && match[1]) {
+          nextNum = (parseInt(match[1], 10) || 0) + 1;
         }
       }
     }
 
-    let nextNum = maxSeq + 1;
     let candidateId = `${prefix}${String(nextNum).padStart(3, '0')}`;
-
-    // Loop check until guaranteed unique
     while (await ProjectRequest.exists({ requestId: candidateId })) {
       nextNum++;
       candidateId = `${prefix}${String(nextNum).padStart(3, '0')}`;
@@ -49,92 +52,60 @@ class RequestService {
   }
 
   /**
-   * Helper: Initialize standard 8-Stage Timeline for a project
+   * Helper: Atomically generate next guaranteed unique sequential Request ID (e.g. REQ-2026-001)
+   * Uses MongoDB $inc for true concurrency safety and O(1) performance.
    */
-  async _initializeProjectTimeline(projectId, session) {
-    const project = await Project.findById(projectId).session(session);
-    const pmId = project ? project.projectManager : undefined;
+  async generateNextRequestId(session = null) {
+    const currentYear = new Date().getFullYear();
+    const prefix = `REQ-${currentYear}-`;
+    const counterKey = `REQ_${currentYear}`;
+    const ProjectRequestCounter = ProjectRequest.ProjectRequestCounter;
 
-    const timelineData = {
-      project: projectId,
-      projectId: project ? project.projectId : undefined,
-      projectName: project ? (project.projectName || project.title) : undefined,
-      organization: project ? (project.organization || project.client || project.projectName) : undefined,
-      email: project ? project.email : undefined,
-      phone: project ? project.phone : undefined,
-      address: project ? project.address : undefined,
-      numberOfSchools: project ? (project.numberOfSchools || 0) : 0,
-      numberOfLicenses: project ? (project.numberOfLicenses || 0) : 0,
-      country: project ? project.country : undefined,
-      projectManager: pmId || undefined,
-      coreBackendData: project ? (project.toObject ? project.toObject() : project) : {},
-      metadata: project ? (project.metadata || {}) : {},
-      templateVersion: 'v1',
-      status: NODE_STATUSES.IN_PROGRESS
-    };
+    // 1. Seed counter if not yet present in database
+    const existingCounter = await ProjectRequestCounter.findById(counterKey);
+    if (!existingCounter) {
+      const latest = await ProjectRequest.findOne({
+        requestId: { $regex: `^REQ-${currentYear}-\\d+$`, $options: 'i' }
+      }).sort({ requestId: -1 }).select('requestId').lean();
 
-    const timeline = await Timeline.create([timelineData], { session });
-    const createdTimeline = timeline[0];
-
-    for (const stageDef of timelineConfig.stages) {
-      const stageAssignedTo = pmId || null;
-      const stageNode = await TimelineNode.create([{
-        timeline: createdTimeline._id,
-        parentNode: null,
-        type: NODE_TYPES.STAGE,
-        key: stageDef.key,
-        name: stageDef.name,
-        order: stageDef.order,
-        status: NODE_STATUSES.PENDING,
-        assignedTo: stageAssignedTo,
-        dependencies: stageDef.dependencies || [],
-        metadata: stageDef.metadata || {}
-      }], { session });
-
-      const createdStage = stageNode[0];
-
-      if (stageDef.substages) {
-        for (const subDef of stageDef.substages) {
-          const subAssignedTo = pmId || null;
-          const subTaskNode = await TimelineNode.create([{
-            timeline: createdTimeline._id,
-            parentNode: createdStage._id,
-            type: NODE_TYPES.TASK,
-            key: subDef.key,
-            name: subDef.name,
-            order: subDef.order,
-            status: NODE_STATUSES.PENDING,
-            assignedTo: subAssignedTo,
-            formSchema: subDef.formSchema || null,
-            metadata: subDef.metadata || {}
-          }], { session });
-
-          const createdSub = subTaskNode[0];
-
-          if (subDef.nested) {
-            for (const nestedDef of subDef.nested) {
-              const nestedAssignedTo = pmId || null;
-              await TimelineNode.create([{
-                timeline: createdTimeline._id,
-                parentNode: createdSub._id,
-                type: NODE_TYPES.TASK,
-                key: nestedDef.key,
-                name: nestedDef.name,
-                order: nestedDef.order,
-                status: NODE_STATUSES.PENDING,
-                assignedTo: nestedAssignedTo,
-                formSchema: nestedDef.formSchema || null,
-                metadata: {
-                  ...(nestedDef.metadata || {}),
-                  customFields: nestedDef.customFields || []
-                }
-              }], { session });
-            }
-          }
+      let currentMax = 0;
+      if (latest && latest.requestId) {
+        const match = latest.requestId.match(new RegExp(`^REQ-${currentYear}-(\\d+)`, 'i'));
+        if (match && match[1]) {
+          currentMax = parseInt(match[1], 10) || 0;
         }
       }
+
+      await ProjectRequestCounter.findOneAndUpdate(
+        { _id: counterKey },
+        { $setOnInsert: { seq: currentMax } },
+        { upsert: true, new: true }
+      );
     }
+
+    // 2. Atomic increment
+    const sessionOpts = session ? { session } : {};
+    let counter = await ProjectRequestCounter.findOneAndUpdate(
+      { _id: counterKey },
+      { $inc: { seq: 1 } },
+      { new: true, upsert: true, ...sessionOpts }
+    );
+
+    let candidateId = `${prefix}${String(counter.seq).padStart(3, '0')}`;
+
+    // 3. Fallback: guarantee no duplicate collision with legacy manual data
+    while (await ProjectRequest.exists({ requestId: candidateId })) {
+      counter = await ProjectRequestCounter.findOneAndUpdate(
+        { _id: counterKey },
+        { $inc: { seq: 1 } },
+        { new: true, ...sessionOpts }
+      );
+      candidateId = `${prefix}${String(counter.seq).padStart(3, '0')}`;
+    }
+
+    return candidateId;
   }
+
 
   /**
    * 1. Create a New Project Request
@@ -158,10 +129,16 @@ class RequestService {
       throw new AppError('Assigned Project Manager is required.', 400, 'MISSING_PROJECT_MANAGER');
     }
 
-    // Auto-generate or use unique requestId
+    // Auto-generate or resolve unique requestId atomically
     let reqId = (data.requestId || '').trim().toUpperCase();
-    if (!reqId) {
-      reqId = await this.generateNextRequestId();
+    const currentYear = new Date().getFullYear();
+    const isYearReqId = reqId.startsWith(`REQ-${currentYear}-`);
+
+    if (!reqId || isYearReqId) {
+      const exists = reqId ? await ProjectRequest.findOne({ requestId: reqId }) : null;
+      if (!reqId || exists) {
+        reqId = await this.generateNextRequestId();
+      }
     } else {
       const exists = await ProjectRequest.findOne({ requestId: reqId });
       if (exists) {
@@ -180,8 +157,6 @@ class RequestService {
       throw new AppError('Selected Project Manager not found.', 404, 'PM_NOT_FOUND');
     }
 
-    const requestOrg = (data.organization || data.client || projectTitle || 'Direct Organization').trim();
-
     const request = await ProjectRequest.create({
       orgId: data.orgId || (creator ? creator.orgId : undefined),
       requestId: reqId,
@@ -192,9 +167,7 @@ class RequestService {
       phone: (data.phone || '').trim(),
       address: (data.address || '').trim(),
       isActive: data.isActive !== undefined ? Boolean(data.isActive) : true,
-      organization: requestOrg,
-      client: requestOrg,
-      description: (data.description || data.address || '').trim(),
+      remarks: (data.remarks || data.description || '').trim(),
       expectedProjectValue: Number(data.expectedProjectValue) || 0,
       requestedBy: creatorEmployeeId,
       requestedTo: data.requestedTo,
@@ -288,8 +261,7 @@ class RequestService {
           { requestId: searchRegex },
           { title: searchRegex },
           { projectName: searchRegex },
-          { organization: searchRegex },
-          { client: searchRegex }
+          { remarks: searchRegex }
         ]
       });
     }
@@ -303,7 +275,7 @@ class RequestService {
       .populate('requestedTo', 'name email employeeCode globalRole')
       .populate('projectManager', 'name email employeeCode globalRole')
       .populate('reviewedBy', 'name email employeeCode globalRole')
-      .populate('confirmedProjectId')
+      .populate('projectId')
       .sort({ createdAt: -1 });
   }
 
@@ -327,7 +299,7 @@ class RequestService {
       .populate('requestedTo', 'name email employeeCode globalRole')
       .populate('projectManager', 'name email employeeCode globalRole')
       .populate('reviewedBy', 'name email employeeCode globalRole')
-      .populate('confirmedProjectId');
+      .populate('projectId');
 
     if (!request) {
       throw new AppError(`Project request '${idStr}' not found.`, 404, 'REQUEST_NOT_FOUND');
@@ -336,7 +308,9 @@ class RequestService {
   }
 
   /**
-   * 4. Confirm / Approve Request & Initialize Live Project
+   * 4. Confirm / Approve Request & Link Live Core Backend Project
+   * Adds the Core Backend Mongo project reference to ProjectRequest only,
+   * and initializes an 8-stage Timeline referencing the Core Backend Project.
    */
   async approveRequest(requestId, approverEmployeeId, payload = {}) {
     const session = await mongoose.startSession();
@@ -374,152 +348,46 @@ class RequestService {
         );
       }
 
-      const finalProjectId = inputProjectId.toUpperCase();
+      // ── Fetch live master project strictly via Centralized Core Backend API Client ──
+      const coreProject = await coreApi.getProjectById(inputProjectId);
 
-      // Check if project exists in Project Tracker
-      const projectConditions = [{ projectId: finalProjectId }];
-      if (mongoose.isValidObjectId(inputProjectId)) {
-        projectConditions.push({ _id: inputProjectId });
-      }
-      let existingProject = await Project.findOne({ $or: projectConditions }).session(session);
-
-      let newProject;
-
-      if (!existingProject) {
-        // ── Create the Live Project Record linked to Selected Project ID ───
-        const createdProjects = await Project.create([{
-          orgId: request.orgId || approver.orgId || undefined,
-          requestId: request._id,
-          projectId: finalProjectId,
-          projectName: request.title,
-          email: request.email || '',
-          country: (request.country && mongoose.isValidObjectId(request.country)) ? request.country : (request.country || ''),
-          phone: request.phone || '',
-          address: request.address || '',
-          numberOfSchools: request.numberOfSchools || 0,
-          numberOfLicenses: request.numberOfLicenses || 0,
-          isActive: request.isActive !== undefined ? request.isActive : true,
-          organization: request.organization || request.client || request.title,
-          client: request.client || request.organization || request.title,
-          description: request.description || '',
-          projectManager: request.projectManager,
-          status: PROJECT_STATUSES.ACTIVE
-        }], { session });
-
-        newProject = createdProjects[0];
-      } else {
-        // Existing Project: Update status to ACTIVE and ensure PM is assigned
-        existingProject.requestId = existingProject.requestId || request._id;
-        existingProject.status = PROJECT_STATUSES.ACTIVE;
-        if (request.projectManager) {
-          existingProject.projectManager = request.projectManager;
-        }
-        await existingProject.save({ session });
-        newProject = existingProject;
+      if (!coreProject) {
+        throw new AppError(
+          `Project '${inputProjectId}' was not found in Core Backend. Please ensure the project exists in Core Backend before approving.`,
+          404,
+          'CORE_PROJECT_NOT_FOUND'
+        );
       }
 
-      // ── Initialize Full 8-Stage Timeline if not already present ───
-      const existingTimeline = await Timeline.findOne({ project: newProject._id }).session(session);
-      if (!existingTimeline) {
-        await this._initializeProjectTimeline(newProject._id, session);
-      }
+      const finalCoreMongoId = (coreProject._id instanceof mongoose.Types.ObjectId)
+        ? coreProject._id
+        : new mongoose.Types.ObjectId(String(coreProject._id));
+      const finalCoreProjectId = (coreProject.projectId || inputProjectId).trim();
 
-      // ── Pre-populate Master Requirements document from existing Request ──
-      const existingReq = await Requirement.findOne({ project: newProject._id }).session(session);
-      if (!existingReq) {
-        await Requirement.create([{
-          project: newProject._id,
-          workflowVersion: 'v1',
-          currentStageKey: 'PROJECT_REVIEWER',
-          currentSubstageKey: 'PROJECT_CREATED',
-          projectReviewer: {
-            projectCreated: {
-              organizationName: request.organization || request.client || newProject.organization || '',
-              contactPerson: request.contactPerson || request.title || newProject.projectName,
-              phone: request.phone || newProject.phone || '',
-              email: request.email || newProject.email || '',
-              address: request.address || newProject.address || '',
-              country: request.country || newProject.country || '',
-              confirmed: 'YES',
-              projectReviewed: 'YES',
-              projectCreated: 'YES',
-              confirmationDate: new Date(),
-              remarks: request.description || payload.reviewNotes || '',
-              submittedBy: approverEmployeeId,
-              submittedAt: new Date()
-            }
-          },
-          orderRequirement: {
-            schoolInformation: {
-              schoolName: request.organization || request.client || newProject.projectName,
-              address: request.address || newProject.address || '',
-              phone: request.phone || newProject.phone || '',
-              email: request.email || newProject.email || '',
-              totalStudents: request.numberOfSchools || newProject.numberOfSchools || 0,
-              remarks: request.description || '',
-              submittedBy: approverEmployeeId,
-              submittedAt: new Date()
-            },
-            solutionSelection: {
-              solutions: request.solutions || {},
-              remarks: request.solutionNotes || '',
-              submittedBy: approverEmployeeId,
-              submittedAt: new Date()
-            },
-            hardwareRequirement: {
-              hardware: request.hardware || {},
-              remarks: request.hardwareNotes || '',
-              submittedBy: approverEmployeeId,
-              submittedAt: new Date()
-            }
-          },
-          updatedBy: approverEmployeeId
-        }], { session });
-      }
+      // ── Update Project Request: Reference Core Backend Project Mongo ID as projectId ──
+      request.status = 'APPROVED';
+      request.reviewedBy = approverEmployeeId;
+      request.reviewedAt = new Date();
+      request.reviewNotes = payload.reviewNotes || '';
+      request.projectId = finalCoreMongoId;
+      request.isManualDashboardCreated = true;
+      await request.save({ session });
 
-      // ── Assign Project Manager Membership ─────────────────────────
-      await ProjectMember.findOneAndUpdate(
-        { project: newProject._id, employee: request.projectManager },
-        {
-          project: newProject._id,
-          employee: request.projectManager,
-          designation: DESIGNATIONS.PROJECT_MANAGER,
-          assignedBy: approverEmployeeId,
-          isActive: true
-        },
-        { upsert: true, new: true, session }
+      // ── Initialize Full 8-Stage Timeline referencing Core Backend Project via TimelineService ──
+      const timeline = await timelineService.createTimelineForApprovedProject(
+        coreProject,
+        request.projectManager,
+        session
       );
 
-      // ── Sync PM to Timeline & All Nodes ─────────────────────
-      const assignedPmId = request.projectManager || newProject.projectManager;
-      if (assignedPmId) {
-        await Timeline.findOneAndUpdate(
-          { project: newProject._id },
-          { projectManager: assignedPmId },
-          { session }
-        );
-
-        const timelineDoc = await Timeline.findOne({ project: newProject._id }).session(session);
-        if (timelineDoc) {
-          await TimelineNode.updateMany(
-            {
-              timeline: timelineDoc._id,
-              $or: [{ assignedTo: null }, { key: { $in: ['PROJECT_REVIEWER', 'PROJECT_CREATED', 'LEAD_CREATION'] } }]
-            },
-            { assignedTo: assignedPmId },
-            { session }
-          );
-        }
-      }
-
-      // ── Assign Requester Membership (Contributor / PM) ───────────
-      if (request.requestedBy.toString() !== request.projectManager.toString()) {
+      // ── Assign Project Manager Membership (for access / permissions) ──
+      if (request.projectManager) {
         await ProjectMember.findOneAndUpdate(
-          { project: newProject._id, employee: request.requestedBy },
+          { project: finalCoreMongoId, employee: request.projectManager },
           {
-            project: newProject._id,
-            employee: request.requestedBy,
-            designation: DESIGNATIONS.CONTRIBUTOR,
+            project: finalCoreMongoId,
+            employee: request.projectManager,
+            designation: DESIGNATIONS.PROJECT_MANAGER,
             assignedBy: approverEmployeeId,
             isActive: true
           },
@@ -527,110 +395,90 @@ class RequestService {
         );
       }
 
-      // ── Update Request Status to APPROVED & Link Project ID ───
-      request.status = 'APPROVED';
-      request.reviewedBy = approverEmployeeId;
-      request.reviewedAt = new Date();
-      request.reviewNotes = payload.reviewNotes || '';
-      request.confirmedProjectId = newProject._id;
-      request.projectId = finalProjectId;
-      request.isManualDashboardCreated = true;
-      await request.save({ session });
-
-      // ── Notification to Assigned Project Manager ─────────────────
-      await Notification.create([{
-        recipient: request.projectManager,
-        project: newProject._id,
-        title: 'Assigned as Project Manager',
-        message: `You have been assigned as the Project Manager for newly confirmed project ${newProject.projectId} (${newProject.projectName}), approved by ${approver.name}.`,
-        type: 'ASSIGNMENT',
-        metadata: {
-          projectId: newProject.projectId,
-          projectDatabaseId: newProject._id,
-          projectName: newProject.projectName,
-          approverName: approver.name,
-          requestId: request.requestId
-        }
-      }], { session });
-
-      // ── Notification to Requester ────────────────────────────────
-      if (request.requestedBy.toString() !== approverEmployeeId.toString()) {
+      // ── Notifications ──
+      if (request.projectManager) {
         await Notification.create([{
-          recipient: request.requestedBy,
-          project: newProject._id,
-          title: 'Project Request Approved & Initialized',
-          message: `Your project request ${request.requestId} (${request.title}) has been confirmed by ${approver.name} and initialized as ${newProject.projectId}.`,
-          type: 'PROJECT_REQUEST_APPROVED',
+          recipient: request.projectManager,
+          project: finalCoreMongoId,
+          title: 'Assigned as Project Manager',
+          message: `You have been assigned as the Project Manager for confirmed project ${finalCoreProjectId} (${coreProject.projectName || request.title}), approved by ${approver.name}.`,
+          type: 'ASSIGNMENT',
           metadata: {
-            projectId: newProject.projectId,
-            projectDatabaseId: newProject._id,
-            projectName: newProject.projectName,
+            projectId: finalCoreProjectId,
+            projectDatabaseId: finalCoreMongoId,
+            projectName: coreProject.projectName || request.title,
             approverName: approver.name,
             requestId: request.requestId
           }
         }], { session });
       }
 
-      // ── Activity Log ─────────────────────────────────────────────
+      if (request.requestedBy.toString() !== approverEmployeeId.toString()) {
+        await Notification.create([{
+          recipient: request.requestedBy,
+          project: finalCoreMongoId,
+          title: 'Project Request Approved & Initialized',
+          message: `Your project request ${request.requestId} (${request.title}) has been confirmed by ${approver.name} and linked to Core Backend Project ${finalCoreProjectId}.`,
+          type: 'PROJECT_REQUEST_APPROVED',
+          metadata: {
+            projectId: finalCoreProjectId,
+            projectDatabaseId: finalCoreMongoId,
+            projectName: coreProject.projectName || request.title,
+            approverName: approver.name,
+            requestId: request.requestId
+          }
+        }], { session });
+      }
+
+      // ── Activity Log ──
       await Activity.create([{
-        project: newProject._id,
+        project: finalCoreMongoId,
         actor: approverEmployeeId,
         action: 'PROJECT_REQUEST_APPROVED',
         resourceType: 'Project',
-        resourceId: newProject._id,
+        resourceId: finalCoreMongoId,
         metadata: {
           requestId: request.requestId,
-          projectId: newProject.projectId,
+          projectId: finalCoreProjectId,
           projectManager: request.projectManager,
           approver: approverEmployeeId,
           reviewNotes: payload.reviewNotes || ''
         }
       }], { session });
 
-      // ── Sync to Dashboard auditlogs collection ────────────────────
-      try {
-        await mongoose.connection.collection('auditlogs').insertOne({
-          orgId: newProject.orgId || new mongoose.Types.ObjectId(),
-          actorId: approverEmployeeId,
-          actorEmail: approver ? approver.email : 'admin@digitopper.com',
-          action: 'projects:create',
-          resource: 'Project',
-          resourceId: String(newProject._id),
-          delta: {
-            projectName: newProject.projectName,
-            projectId: newProject.projectId,
-            organization: request.organization || newProject.organization || ''
-          },
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
-      } catch (_) { }
-
       await session.commitTransaction();
       session.endSession();
 
-      // ── Dispatch Slack targeted notification to the Assigned PM ───
-      try {
-        const { sendSlackNotification } = require('../notifications/slack.service');
-        sendSlackNotification({
-          title: 'Assigned as Project Manager',
-          message: `You have been assigned as the Project Manager for newly confirmed project ${newProject.projectId} (${newProject.projectName}), approved by ${approver.name}.`,
-          type: 'PROJECT_ASSIGNED',
-          assignedTo: request.projectManager,
-          projectId: newProject.projectId,
-          projectName: newProject.projectName,
-          metadata: {
-            requestId: request.requestId,
-            approverName: approver.name
-          }
-        }).catch((err) => {
-          console.warn('[ProjectRequestService] Slack notify PM warning:', err.message);
-        });
-      } catch (_) {}
+      // ── Dispatch Slack notification ──
+      if (request.projectManager) {
+        try {
+          const { sendSlackNotification } = require('../notifications/slack.service');
+          sendSlackNotification({
+            title: 'Assigned as Project Manager',
+            message: `You have been assigned as the Project Manager for newly confirmed project ${finalCoreProjectId} (${coreProject.projectName || request.title}), approved by ${approver.name}.`,
+            type: 'PROJECT_ASSIGNED',
+            assignedTo: request.projectManager,
+            projectId: finalCoreProjectId,
+            projectName: coreProject.projectName || request.title,
+            metadata: {
+              requestId: request.requestId,
+              approverName: approver.name
+            }
+          }).catch((err) => {
+            console.warn('[ProjectRequestService] Slack notify PM warning:', err.message);
+          });
+        } catch (_) { }
+      }
 
       return {
         request,
-        project: newProject
+        project: {
+          _id: finalCoreMongoId,
+          projectId: finalCoreProjectId,
+          projectName: coreProject.projectName || request.title,
+          source: 'CORE_BACKEND'
+        },
+        timeline
       };
     } catch (error) {
       await session.abortTransaction();
@@ -682,22 +530,23 @@ class RequestService {
 
   /**
    * 6. Get Available Dashboard Projects for Dropdown Selection
+   * Strictly queries Core Backend REST API via coreApi (/api/projects).
+   * EXCLUSIVELY returns projects from Core Backend.
    */
   async getAvailableDashboardProjects() {
-    const projects = await Project.find({})
-      .select('_id projectId projectName email phone address country numberOfSchools numberOfLicenses isActive createdAt updatedAt')
-      .sort({ createdAt: -1 });
-
-    return projects.map((p) => ({
-      _id: p._id,
+    const rawList = await coreApi.getProjects();
+    return rawList.map((p) => ({
+      _id: String(p._id),
       projectId: p.projectId || String(p._id),
-      projectName: p.projectName || 'Untitled Project',
+      projectName: p.projectName || p.title || 'Untitled Core Project',
       email: p.email || '',
       phone: p.phone || '',
       address: p.address || '',
       numberOfSchools: p.numberOfSchools || 0,
       numberOfLicenses: p.numberOfLicenses || 0,
-      isActive: p.isActive !== false
+      country: typeof p.country === 'object' && p.country ? p.country.name : (p.country || ''),
+      isActive: p.isActive !== false,
+      source: 'CORE_BACKEND_API'
     }));
   }
 }

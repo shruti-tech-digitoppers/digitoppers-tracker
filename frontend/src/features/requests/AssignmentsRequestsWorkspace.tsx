@@ -187,7 +187,7 @@ export function AssignmentsRequestsWorkspace() {
         const q = effectiveSearch.toLowerCase();
         const code = (r.requestId || '').toLowerCase();
         const title = (r.title || '').toLowerCase();
-        const org = (r.organization || '').toLowerCase();
+        const remarks = (r.remarks || r.description || '').toLowerCase();
         const reqObj = typeof r.requestedBy === 'object' && r.requestedBy !== null ? (r.requestedBy as any) : null;
         const reqName = (reqObj?.name || '').toLowerCase();
         const revObj = typeof r.requestedTo === 'object' && r.requestedTo !== null ? (r.requestedTo as any) : null;
@@ -198,7 +198,7 @@ export function AssignmentsRequestsWorkspace() {
         return (
           code.includes(q) ||
           title.includes(q) ||
-          org.includes(q) ||
+          remarks.includes(q) ||
           reqName.includes(q) ||
           revName.includes(q) ||
           pmName.includes(q)
@@ -576,7 +576,7 @@ export function AssignmentsRequestsWorkspace() {
                           ) : isApproved ? (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-2xs">
                               <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
-                              Approved {req.projectId ? `(${req.projectId})` : ''}
+                              Approved {req.projectId ? `(${typeof req.projectId === 'object' && req.projectId !== null ? (req.projectId.projectId || req.projectId._id) : req.projectId})` : ''}
                             </span>
                           ) : (
                             <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-rose-50 text-rose-800 border border-rose-200">
@@ -589,10 +589,9 @@ export function AssignmentsRequestsWorkspace() {
                           {req.title}
                         </h3>
 
-                        {req.organization && (
-                          <p className="text-xs text-[#4a5462] flex items-center gap-1">
-                            <Building2 className="w-3.5 h-3.5 text-purple-600 shrink-0" />
-                            <span className="truncate font-medium">{req.organization}</span>
+                        {(req.remarks || req.description) && (
+                          <p className="text-xs text-[#4a5462] flex items-center gap-1 mt-0.5">
+                            <span className="truncate italic font-medium">{req.remarks || req.description}</span>
                           </p>
                         )}
                       </div>
@@ -617,9 +616,9 @@ export function AssignmentsRequestsWorkspace() {
                             <Eye className="w-3.5 h-3.5 text-purple-600" />
                             <span>View Details</span>
                           </button>
-                        ) : isApproved && req.confirmedProjectId ? (
+                        ) : isApproved && req.projectId ? (
                           <Link
-                            href={`/tracker?projectId=${typeof req.confirmedProjectId === 'object' ? req.confirmedProjectId._id : req.confirmedProjectId}`}
+                            href={`/tracker?projectId=${typeof req.projectId === 'object' && req.projectId !== null ? (req.projectId.projectId || req.projectId._id) : req.projectId}`}
                             className="px-3.5 py-1.5 bg-[#f0f8f9] hover:bg-[#51a8b1] text-[#3a7d84] hover:text-white border border-[#b6e0e4] rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-2xs"
                           >
                             <span>Open Tracker</span>

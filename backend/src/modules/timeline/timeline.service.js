@@ -1,9 +1,13 @@
+const mongoose = require('mongoose');
 const Timeline = require('./timeline.model');
 const TimelineNode = require('./timeline-node.model');
 const Activity = require('../activity/activity.model');
 const Notification = require('../notifications/notifications.model');
 const Project = require('../projects/project.model');
 const timelineConfig = require('../../config/timeline');
+const config = require('../../config/env');
+const coreApi = require('../../services/core-api.service');
+const Employee = require('../employees/employee.model');
 const { NODE_STATUSES, NODE_TYPES, GLOBAL_ROLES, DESIGNATIONS } = require('../../core/constants');
 const { AppError } = require('../../core/errors');
 
@@ -31,8 +35,197 @@ class TimelineService {
       if (proj) return proj;
     }
 
-    // 3. Fallback to custom human-readable projectId or id field
-    return await Project.findOne({ $or: [{ projectId: idStr }, { id: idStr }] });
+    // 3. Fallback to custom human-readable projectId or id field (case-insensitive)
+    const local = await Project.findOne({
+      $or: [
+        { projectId: idStr },
+        { projectId: idStr.toUpperCase() },
+        { projectId: idStr.toLowerCase() },
+        { id: idStr }
+      ]
+    });
+    if (local) return local;
+
+    // 4. Fallback: check Core Backend REST API via coreApi
+    try {
+      const coreP = await coreApi.getProjectById(idStr);
+
+      if (coreP) {
+        const existingLocal = await Project.findOne({
+          $or: [
+            { projectId: (coreP.projectId || idStr).toUpperCase() },
+            { projectId: (coreP.projectId || idStr).toLowerCase() },
+            { projectId: (coreP.projectId || idStr) },
+            { _id: coreP._id }
+          ]
+        });
+        if (existingLocal) return existingLocal;
+
+        return {
+          _id: coreP._id,
+          projectId: coreP.projectId || idStr,
+          projectName: coreP.projectName || coreP.title || 'Core Project',
+          title: coreP.projectName || coreP.title || 'Core Project',
+          organization: coreP.projectName || 'Direct Organization',
+          email: coreP.email || '',
+          phone: coreP.phone || '',
+          address: coreP.address || '',
+          numberOfSchools: coreP.numberOfSchools || 0,
+          numberOfLicenses: coreP.numberOfLicenses || 0,
+          country: typeof coreP.country === 'object' && coreP.country ? coreP.country.name : (coreP.country || ''),
+          status: 'ACTIVE',
+          isActive: true,
+          source: 'CORE_BACKEND'
+        };
+      }
+    } catch (_) { }
+
+    return null;
+  }
+
+  /**
+   * Dedicated Timeline Creation on Project Approval / Confirmation
+   * Directly creates Timeline document referencing the approved Project (Core Mongo ID)
+   * and generates all 8 stages and tasks from timelineConfig.
+   *
+   * @param {Object|string} coreProjectOrId - Core Project object or Mongo ID
+   * @param {string|ObjectId} pmId - Assigned Project Manager employee ID
+   * @param {ClientSession|null} session - Optional MongoDB transaction session
+   * @returns {Promise<Timeline>} Created or existing Timeline document
+   */
+  async createTimelineForApprovedProject(coreProjectOrId, pmId = null, session = null) {
+    let project = null;
+    let effectivePmId = pmId;
+
+    if (coreProjectOrId && typeof coreProjectOrId === 'object' && coreProjectOrId._id) {
+      project = coreProjectOrId;
+    } else {
+      if (session) {
+        project = await Project.findById(coreProjectOrId).session(session);
+      } else {
+        project = await this._findProject(coreProjectOrId);
+      }
+      if (!effectivePmId && project) {
+        effectivePmId = project.projectManager;
+      }
+    }
+
+    const rawId = project ? project._id : coreProjectOrId;
+    const projectIdObj = (rawId && mongoose.isValidObjectId(rawId))
+      ? new mongoose.Types.ObjectId(String(rawId))
+      : new mongoose.Types.ObjectId();
+    const projectCode = project ? (project.projectId || String(project._id)) : String(coreProjectOrId);
+
+    const query = {
+      $or: [
+        { project: projectIdObj },
+        { projectId: projectCode },
+        { projectId: projectCode.toUpperCase() },
+        { projectId: projectCode.toLowerCase() }
+      ]
+    };
+
+    let existingTimeline = session
+      ? await Timeline.findOne(query).session(session)
+      : await Timeline.findOne(query);
+
+    if (existingTimeline) {
+      if (effectivePmId && (!existingTimeline.projectManager || existingTimeline.projectManager.toString() !== effectivePmId.toString())) {
+        existingTimeline.projectManager = effectivePmId;
+        if (session) {
+          await existingTimeline.save({ session });
+        } else {
+          await existingTimeline.save();
+        }
+      }
+      return existingTimeline;
+    }
+
+    const timelineData = {
+      project: projectIdObj,
+      projectId: projectCode,
+      projectName: project ? (project.projectName || project.title) : undefined,
+      organization: project ? (project.organization || project.client || project.projectName) : undefined,
+      email: project ? project.email : undefined,
+      phone: project ? project.phone : undefined,
+      address: project ? project.address : undefined,
+      numberOfSchools: project ? (project.numberOfSchools || 0) : 0,
+      numberOfLicenses: project ? (project.numberOfLicenses || 0) : 0,
+      country: project ? (typeof project.country === 'object' && project.country ? project.country.name : project.country) : undefined,
+      projectManager: effectivePmId || undefined,
+      coreBackendData: project ? (project.toObject ? project.toObject() : project) : {},
+      metadata: project ? (project.metadata || {}) : {},
+      templateVersion: timelineConfig.version || 'v1',
+      status: NODE_STATUSES.IN_PROGRESS
+    };
+
+    const sessionOpts = session ? { session } : {};
+    const createdTimelineArr = await Timeline.create([timelineData], sessionOpts);
+    const createdTimeline = createdTimelineArr[0];
+
+    for (const stageDef of timelineConfig.stages) {
+      const stageAssignedTo = effectivePmId || null;
+      const stageNodeArr = await TimelineNode.create([{
+        timeline: createdTimeline._id,
+        parentNode: null,
+        type: NODE_TYPES.STAGE,
+        key: stageDef.key,
+        name: stageDef.name,
+        order: stageDef.order,
+        status: NODE_STATUSES.PENDING,
+        assignedTo: stageAssignedTo,
+        dependencies: stageDef.dependencies || [],
+        formSchema: stageDef.formSchema || null,
+        metadata: stageDef.metadata || {}
+      }], sessionOpts);
+
+      const createdStage = stageNodeArr[0];
+
+      if (stageDef.substages) {
+        for (const subDef of stageDef.substages) {
+          const subAssignedTo = effectivePmId || null;
+          const subTaskNodeArr = await TimelineNode.create([{
+            timeline: createdTimeline._id,
+            parentNode: createdStage._id,
+            type: NODE_TYPES.TASK,
+            key: subDef.key,
+            name: subDef.name,
+            order: subDef.order,
+            status: NODE_STATUSES.PENDING,
+            assignedTo: subAssignedTo,
+            formSchema: subDef.formSchema || null,
+            metadata: subDef.metadata || {}
+          }], sessionOpts);
+
+          const createdSub = subTaskNodeArr[0];
+
+          if (subDef.nested) {
+            for (const nestedDef of subDef.nested) {
+              const nestedAssignedTo = effectivePmId || null;
+              await TimelineNode.create([{
+                timeline: createdTimeline._id,
+                parentNode: createdSub._id,
+                type: NODE_TYPES.TASK,
+                key: nestedDef.key,
+                name: nestedDef.name,
+                order: nestedDef.order,
+                status: NODE_STATUSES.PENDING,
+                assignedTo: nestedAssignedTo,
+                formSchema: nestedDef.formSchema || null,
+                metadata: {
+                  ...(nestedDef.metadata || {}),
+                  customFields: nestedDef.customFields || [],
+                  supportsConditional: nestedDef.supportsConditional || false,
+                  conditionalOnly: nestedDef.conditionalOnly || null
+                }
+              }], sessionOpts);
+            }
+          }
+        }
+      }
+    }
+
+    return createdTimeline;
   }
 
   async initializeTimelineForProject(projectId, force = false) {
@@ -57,7 +250,7 @@ class TimelineService {
       } else {
         const ProjectRequest = require('../project-requests/project-request.model');
         const reqDoc = await ProjectRequest.findOne({
-          $or: [{ confirmedProjectId: project._id }, { projectId: project.projectId }, { title: project.projectName }]
+          $or: [{ projectId: project._id }, { title: project.projectName }]
         });
         if (reqDoc && reqDoc.projectManager) {
           pmId = (typeof reqDoc.projectManager === 'object' && reqDoc.projectManager._id) ? reqDoc.projectManager._id : reqDoc.projectManager;
@@ -67,113 +260,12 @@ class TimelineService {
 
     if (pmId && !project.projectManager) {
       project.projectManager = pmId;
-      await project.save();
-    }
-
-    let timeline = await Timeline.findOne({ project: project._id });
-    if (!timeline) {
-      timeline = await Timeline.create({
-        project: project._id,
-        projectId: project.projectId,
-        projectName: project.projectName || project.title,
-        organization: project.organization || project.client || project.projectName,
-        email: project.email,
-        phone: project.phone,
-        address: project.address,
-        numberOfSchools: project.numberOfSchools || 0,
-        numberOfLicenses: project.numberOfLicenses || 0,
-        country: project.country,
-        projectManager: pmId || undefined,
-        coreBackendData: project.toObject ? project.toObject() : project,
-        metadata: project.metadata || {},
-        templateVersion: timelineConfig.version || 'v1',
-        status: NODE_STATUSES.IN_PROGRESS
-      });
-    } else {
-      let needsSave = false;
-      if (!timeline.projectId && project.projectId) { timeline.projectId = project.projectId; needsSave = true; }
-      if (!timeline.projectName && (project.projectName || project.title)) { timeline.projectName = project.projectName || project.title; needsSave = true; }
-      if (!timeline.organization && (project.organization || project.client)) { timeline.organization = project.organization || project.client; needsSave = true; }
-      if (!timeline.email && project.email) { timeline.email = project.email; needsSave = true; }
-      if (!timeline.phone && project.phone) { timeline.phone = project.phone; needsSave = true; }
-      if (!timeline.address && project.address) { timeline.address = project.address; needsSave = true; }
-      if (!timeline.projectManager && pmId) { timeline.projectManager = pmId; needsSave = true; }
-      if ((timeline.numberOfSchools === undefined || timeline.numberOfSchools === 0) && project.numberOfSchools) {
-        timeline.numberOfSchools = project.numberOfSchools; needsSave = true;
-      }
-      if ((timeline.numberOfLicenses === undefined || timeline.numberOfLicenses === 0) && project.numberOfLicenses) {
-        timeline.numberOfLicenses = project.numberOfLicenses; needsSave = true;
-      }
-      if (!timeline.country && project.country) { timeline.country = project.country; needsSave = true; }
-      if (!timeline.coreBackendData || Object.keys(timeline.coreBackendData).length === 0) {
-        timeline.coreBackendData = project.toObject ? project.toObject() : project;
-        needsSave = true;
-      }
-      if (needsSave) {
-        await timeline.save();
+      if (typeof project.save === 'function') {
+        await project.save();
       }
     }
 
-    const existingCount = await TimelineNode.countDocuments({ timeline: timeline._id });
-    if (existingCount === 0) {
-      for (const stageDef of timelineConfig.stages) {
-        const stageAssignedTo = pmId || null;
-        const stageNode = await TimelineNode.create({
-          timeline: timeline._id,
-          parentNode: null,
-          type: NODE_TYPES.STAGE,
-          key: stageDef.key,
-          name: stageDef.name,
-          order: stageDef.order,
-          status: NODE_STATUSES.PENDING,
-          assignedTo: stageAssignedTo,
-          formSchema: stageDef.formSchema || null,
-          dependencies: stageDef.dependencies || [],
-          metadata: stageDef.metadata || {}
-        });
-
-        if (stageDef.substages) {
-          for (const subDef of stageDef.substages) {
-            const subAssignedTo = pmId || null;
-            const subTaskNode = await TimelineNode.create({
-              timeline: timeline._id,
-              parentNode: stageNode._id,
-              type: NODE_TYPES.TASK,
-              key: subDef.key,
-              name: subDef.name,
-              order: subDef.order,
-              status: NODE_STATUSES.PENDING,
-              assignedTo: subAssignedTo,
-              formSchema: subDef.formSchema || null,
-              metadata: subDef.metadata || {}
-            });
-
-            if (subDef.nested) {
-              for (const nestedDef of subDef.nested) {
-                const nestedAssignedTo = pmId || null;
-                await TimelineNode.create({
-                  timeline: timeline._id,
-                  parentNode: subTaskNode._id,
-                  type: NODE_TYPES.TASK,
-                  key: nestedDef.key,
-                  name: nestedDef.name,
-                  order: nestedDef.order,
-                  status: NODE_STATUSES.PENDING,
-                  assignedTo: nestedAssignedTo,
-                  formSchema: nestedDef.formSchema || null,
-                  metadata: {
-                    ...(nestedDef.metadata || {}),
-                    supportsConditional: nestedDef.supportsConditional || false,
-                    conditionalOnly: nestedDef.conditionalOnly || null
-                  }
-                });
-              }
-            }
-          }
-        }
-      }
-    }
-    return timeline;
+    return await this.createTimelineForApprovedProject(project, pmId);
   }
 
   getSchemaMap() {
@@ -223,7 +315,7 @@ class TimelineService {
       } else {
         const ProjectRequest = require('../project-requests/project-request.model');
         const reqDoc = await ProjectRequest.findOne({
-          $or: [{ confirmedProjectId: project._id }, { projectId: project.projectId }, { title: project.projectName }]
+          $or: [{ projectId: project._id }, { title: project.projectName }]
         });
         if (reqDoc && reqDoc.projectManager) {
           effectivePmId = (typeof reqDoc.projectManager === 'object' && reqDoc.projectManager._id) ? reqDoc.projectManager._id : reqDoc.projectManager;
@@ -233,10 +325,19 @@ class TimelineService {
 
     if (effectivePmId && !project.projectManager) {
       project.projectManager = effectivePmId;
-      await project.save();
+      if (typeof project.save === 'function') {
+        await project.save();
+      }
     }
 
-    let timeline = await Timeline.findOne({ project: project._id }).populate('projectManager', 'name email employeeCode globalRole designation');
+    let timeline = await Timeline.findOne({
+      $or: [
+        { project: project._id },
+        { projectId: project.projectId },
+        { projectId: project.projectId ? project.projectId.toUpperCase() : undefined },
+        { projectId: project.projectId ? project.projectId.toLowerCase() : undefined }
+      ].filter(Boolean)
+    }).populate('projectManager', 'name email employeeCode globalRole designation');
     if (!timeline) {
       timeline = await this.initializeTimelineForProject(project._id);
       if (timeline) {
@@ -639,6 +740,7 @@ class TimelineService {
     const nodeMap = {};
     nodes.forEach(node => {
       const obj = node.toObject();
+      obj.formData = obj.formData || {};
       if (schemaMap[node.key]) {
         obj.formSchema = schemaMap[node.key];
       }

@@ -48,17 +48,7 @@ const projectRequestSchema = new mongoose.Schema({
     type: Boolean,
     default: true
   },
-  organization: {
-    type: String,
-    trim: true,
-    default: 'Direct Organization'
-  },
-  client: {
-    type: String,
-    trim: true,
-    default: 'Direct Organization'
-  },
-  description: {
+  remarks: {
     type: String,
     trim: true,
     default: ''
@@ -101,14 +91,9 @@ const projectRequestSchema = new mongoose.Schema({
   reviewedAt: {
     type: Date
   },
-  confirmedProjectId: {
-    type: mongoose.Schema.ObjectId,
-    ref: 'Project'
-  },
   projectId: {
-    type: String,
-    trim: true,
-    uppercase: true,
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Project',
     index: true
   },
   dashboardProjectId: {
@@ -127,28 +112,26 @@ const projectRequestSchema = new mongoose.Schema({
   }
 }, {
   timestamps: true,
-  toJSON: {
-    virtuals: true,
-    transform: function (doc, ret) {
-      ret.organization = ret.organization || ret.client || 'Direct Organization';
-      ret.client = ret.organization;
-      return ret;
-    }
-  },
-  toObject: {
-    virtuals: true,
-    transform: function (doc, ret) {
-      ret.organization = ret.organization || ret.client || 'Direct Organization';
-      ret.client = ret.organization;
-      return ret;
-    }
-  }
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
 
-projectRequestSchema.pre('save', function (next) {
-  if (this.organization && !this.client) this.client = this.organization;
-  if (this.client && !this.organization) this.organization = this.client;
-  next();
+// Backward-compatibility alias: description maps to remarks
+projectRequestSchema.virtual('description').get(function () {
+  return this.remarks;
+}).set(function (v) {
+  this.remarks = v;
 });
 
-module.exports = mongoose.models.ProjectRequest || mongoose.model('ProjectRequest', projectRequestSchema, 'projectrequests');
+const requestCounterSchema = new mongoose.Schema({
+  _id: { type: String, required: true },
+  seq: { type: Number, default: 0 }
+}, { timestamps: true });
+
+const ProjectRequest = mongoose.models.ProjectRequest || mongoose.model('ProjectRequest', projectRequestSchema, 'projectrequests');
+const ProjectRequestCounter = mongoose.models.ProjectRequestCounter || mongoose.model('ProjectRequestCounter', requestCounterSchema, 'projectrequestcounters');
+
+ProjectRequest.ProjectRequest = ProjectRequest;
+ProjectRequest.ProjectRequestCounter = ProjectRequestCounter;
+
+module.exports = ProjectRequest;
