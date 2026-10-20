@@ -568,9 +568,9 @@ class RequestService {
 
     // 1. Tracker backend requests Core Backend
     try {
-      const rawList = await coreApi.getProjects({ isActive: true });
+      const rawList = await coreApi.getProjects();
       if (Array.isArray(rawList) && rawList.length > 0) {
-        coreProjects = rawList.map((p) => ({
+        coreProjects = rawList.filter(p => p.isActive !== false).map((p) => ({
           _id: String(p._id),
           projectId: (p.projectId || String(p._id)).trim().toUpperCase(),
           projectName: p.projectName || p.title || 'Untitled Core Project',

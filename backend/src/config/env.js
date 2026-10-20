@@ -1,4 +1,6 @@
+const path = require('path');
 const dotenv = require('dotenv');
+dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config();
 
 let rawMongoUri = process.env.MONGODB_URI || process.env.MONGO_URI_DEV || process.env.MONGO_URI_PROD;
