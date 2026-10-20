@@ -87,15 +87,37 @@ export default function AppLayout({ children }: AppLayoutProps) {
     });
   }, [pathname, router, isPublicViewPage, isLoginPage]);
 
-  // 2. Background Notification Polling (Only when authenticated)
+  // 2. Smart Focus-Aware Notification Polling (Only when authenticated and tab is active)
   useEffect(() => {
     if (typeof window === 'undefined' || isLoginPage || !isAuthenticated) return;
     const token = localStorage.getItem('token') || localStorage.getItem('accessToken');
     if (!token) return;
 
+    // Initial fetch on mount
     fetchNotifications();
-    const interval = setInterval(fetchNotifications, 10000);
-    return () => clearInterval(interval);
+
+    // 45-second polling interval (only runs when tab is visible)
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchNotifications();
+      }
+    }, 45000);
+
+    // Immediately refresh when user switches back to this tab / window focus
+    const handleFocusOrVisible = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        fetchNotifications();
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleFocusOrVisible);
+    window.addEventListener('focus', handleFocusOrVisible);
+
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('visibilitychange', handleFocusOrVisible);
+      window.removeEventListener('focus', handleFocusOrVisible);
+    };
   }, [fetchNotifications, isLoginPage, isAuthenticated]);
 
   const handleToggleCollapse = useCallback(() => {
