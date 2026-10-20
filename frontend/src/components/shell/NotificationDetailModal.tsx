@@ -49,34 +49,66 @@ export function NotificationDetailModal({
   );
 
   useEffect(() => {
+    let isCancelled = false;
+
     if (isOpen && notification && isProjectReview) {
       const meta = (notification.metadata || {}) as Record<string, any>;
-      const targetReqId = meta.requestId || meta.requestCustomId;
+      const codeMatch = (notification.message || '').match(/REQ-\d{4}-\d+/i) || (notification.title || '').match(/REQ-\d{4}-\d+/i);
+      const extractedCode = codeMatch ? codeMatch[0].toUpperCase() : null;
 
-      if (targetReqId) {
+      const candidateIds = [
+        meta.requestId,
+        meta.requestCustomId,
+        extractedCode,
+      ].filter(Boolean) as string[];
+
+      if (candidateIds.length > 0) {
         setLoadingRequest(true);
         setRequestError(null);
-        requestsApi.getRequestById(targetReqId)
-          .then((res) => {
-            if (res.request) {
-              setProjectRequest(res.request);
-            } else if (res as any) {
-              setProjectRequest(res as any);
+
+        const tryFetch = async () => {
+          let foundRequest = null;
+          let lastErr = null;
+
+          for (const candId of candidateIds) {
+            try {
+              const res = await requestsApi.getRequestById(candId);
+              if (res?.request) {
+                foundRequest = res.request;
+                break;
+              } else if (res as any) {
+                foundRequest = res as any;
+                break;
+              }
+            } catch (err: any) {
+              lastErr = err;
             }
-          })
-          .catch((err) => {
-            console.error('Failed to fetch project request by ID:', err);
-            setRequestError(err.response?.data?.message || err.message || 'Failed to load project request details.');
-          })
-          .finally(() => {
-            setLoadingRequest(false);
-          });
+          }
+
+          if (isCancelled) return;
+
+          if (foundRequest) {
+            setProjectRequest(foundRequest);
+          } else {
+            const reqLabel = extractedCode || meta.requestCustomId || meta.requestId || 'requested item';
+            setRequestError(
+              `Project request '${reqLabel}' no longer exists in the database. It was likely a test request that was cleared or deleted.`
+            );
+          }
+          setLoadingRequest(false);
+        };
+
+        tryFetch();
       }
     } else {
       setProjectRequest(null);
       setLoadingRequest(false);
       setRequestError(null);
     }
+
+    return () => {
+      isCancelled = true;
+    };
   }, [isOpen, notification, isProjectReview]);
 
   const modalRef = useClickOutside<HTMLDivElement>(() => {
@@ -84,6 +116,17 @@ export function NotificationDetailModal({
   }, { enabled: Boolean(isOpen && notification) });
 
   if (!isOpen || !notification) return null;
+
+  const handleDismissStale = async () => {
+    if (notification?._id) {
+      try {
+        const { notificationsApi } = await import('../../lib/api/notifications.api');
+        await notificationsApi.markAsRead(notification._id);
+      } catch (_) {}
+    }
+    if (onRefreshData) onRefreshData();
+    onClose();
+  };
 
   // ── CASE 1: If this is a Project Request Review Notification, render the unified Confirm Modal ──
   if (isProjectReview) {
@@ -124,7 +167,7 @@ export function NotificationDetailModal({
           <div className="bg-white w-full max-w-md rounded-3xl shadow-2xl border border-[#b9c0cb]/40 p-6 space-y-4 animate-in fade-in zoom-in-95">
             <div className="flex items-center justify-between pb-3 border-b border-[#f1f3f6]">
               <h3 className="text-base font-bold text-[#333333] font-heading">
-                Request for Project Creation
+                Request Not Found
               </h3>
               <button
                 onClick={onClose}
@@ -133,15 +176,22 @@ export function NotificationDetailModal({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2 text-xs text-rose-700 font-medium">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl flex items-start gap-2.5 text-xs text-amber-900 font-medium">
+              <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
               <span>{requestError}</span>
             </div>
-            <div className="flex justify-end">
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={handleDismissStale}
+                className="px-4 py-2 text-xs font-bold text-white bg-[#51a8b1] hover:bg-[#43929b] rounded-xl transition shadow-xs cursor-pointer"
+              >
+                Dismiss Notification
+              </button>
               <button
                 type="button"
                 onClick={onClose}
-                className="px-5 py-2 text-xs font-bold text-[#4a5462] hover:bg-[#f8fafb] border border-[#b9c0cb]/50 rounded-xl transition cursor-pointer"
+                className="px-4 py-2 text-xs font-bold text-[#4a5462] hover:bg-[#f8fafb] border border-[#b9c0cb]/50 rounded-xl transition cursor-pointer"
               >
                 Close
               </button>
