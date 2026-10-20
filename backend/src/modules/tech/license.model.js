@@ -36,7 +36,6 @@ const licenseSchema = new mongoose.Schema(
     },
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Project',
       default: null,
       index: true,
     },

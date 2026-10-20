@@ -3,7 +3,6 @@ const Timeline = require('./timeline.model');
 const TimelineNode = require('./timeline-node.model');
 const Activity = require('../activity/activity.model');
 const Notification = require('../notifications/notifications.model');
-const Project = require('../projects/project.model');
 const timelineConfig = require('../../config/timeline');
 const config = require('../../config/env');
 const coreApi = require('../../services/core-api.service');
@@ -16,57 +15,26 @@ class TimelineService {
     if (!projectId) return null;
     const mongoose = require('mongoose');
 
-    // 1. If already a Mongoose ObjectId instance or populated project object
-    if (projectId instanceof mongoose.Types.ObjectId) {
-      return await Project.findById(projectId);
-    }
-    if (typeof projectId === 'object' && projectId._id) {
-      return await Project.findById(projectId._id);
+    // 1. If already an object with title/projectName, return it directly
+    if (typeof projectId === 'object' && (projectId.projectName || projectId.title)) {
+      return projectId;
     }
 
-    const idStr = String(projectId).trim();
+    const idStr = String(typeof projectId === 'object' && projectId._id ? projectId._id : projectId).trim();
     if (!idStr || idStr === '[object Object]' || idStr === 'undefined' || idStr === 'null') {
       return null;
     }
 
-    // 2. Check if valid 24-char ObjectId string
-    if (mongoose.Types.ObjectId.isValid(idStr) && idStr.length === 24) {
-      const proj = await Project.findById(idStr);
-      if (proj) return proj;
-    }
-
-    // 3. Fallback to custom human-readable projectId or id field (case-insensitive)
-    const local = await Project.findOne({
-      $or: [
-        { projectId: idStr },
-        { projectId: idStr.toUpperCase() },
-        { projectId: idStr.toLowerCase() },
-        { id: idStr }
-      ]
-    });
-    if (local) return local;
-
-    // 4. Fallback: check Core Backend REST API via coreApi
+    // 2. Fetch directly from Core Backend API
     try {
       const coreP = await coreApi.getProjectById(idStr);
-
       if (coreP) {
-        const existingLocal = await Project.findOne({
-          $or: [
-            { projectId: (coreP.projectId || idStr).toUpperCase() },
-            { projectId: (coreP.projectId || idStr).toLowerCase() },
-            { projectId: (coreP.projectId || idStr) },
-            { _id: coreP._id }
-          ]
-        });
-        if (existingLocal) return existingLocal;
-
         return {
           _id: coreP._id,
-          projectId: coreP.projectId || idStr,
+          projectId: (coreP.projectId || idStr).toUpperCase(),
           projectName: coreP.projectName || coreP.title || 'Core Project',
           title: coreP.projectName || coreP.title || 'Core Project',
-          organization: coreP.projectName || 'Direct Organization',
+          organization: coreP.projectName || coreP.client || 'Direct Organization',
           email: coreP.email || '',
           phone: coreP.phone || '',
           address: coreP.address || '',
@@ -79,6 +47,29 @@ class TimelineService {
         };
       }
     } catch (_) { }
+
+    // 3. Fallback to Tracker local MongoDB Project model
+    try {
+      const Project = require('../projects/project.model');
+      const isObjectId = mongoose.isValidObjectId(idStr) && idStr.length === 24;
+      const localP = await Project.findOne(
+        isObjectId
+          ? { $or: [{ _id: idStr }, { projectId: idStr }, { projectId: idStr.toUpperCase() }] }
+          : { $or: [{ projectId: idStr }, { projectId: idStr.toUpperCase() }] }
+      ).lean();
+
+      if (localP) {
+        return {
+          ...localP,
+          _id: localP._id,
+          projectId: (localP.projectId || idStr).toUpperCase(),
+          projectName: localP.projectName || localP.title || 'Project',
+          title: localP.projectName || localP.title || 'Project',
+          organization: localP.organization || localP.projectName || 'Organization',
+          source: 'TRACKER_LOCAL_DB'
+        };
+      }
+    } catch (_) {}
 
     return null;
   }
@@ -101,7 +92,7 @@ class TimelineService {
       project = coreProjectOrId;
     } else {
       if (session) {
-        project = await Project.findById(coreProjectOrId).session(session);
+        project = await this._findProject(coreProjectOrId);
       } else {
         project = await this._findProject(coreProjectOrId);
       }
@@ -1853,7 +1844,7 @@ class TimelineService {
 
         // Auto-assign Tech & Content Leads if selected by PM
         try {
-          const project = await Project.findById(projectId);
+          const project = await this._findProject(projectId);
 
           // 1. Tech Lead Assignment
           if (formData.assignedTechLead) {
@@ -1945,7 +1936,7 @@ class TimelineService {
         try {
           const hwManagerId = formData.assignedHardwareManager || node.assignedTo;
           if (hwManagerId) {
-            const project = await Project.findById(projectId);
+            const project = await this._findProject(projectId);
             const stockCheckNode = await TimelineNode.findOne({
               timeline: node.timeline,
               key: 'REQ_AND_STOCK_CHECK'
@@ -2007,7 +1998,7 @@ class TimelineService {
             }
           }
           itemsMap = itemsMap || {};
-          const project = await Project.findById(projectId);
+          const project = await this._findProject(projectId);
           let primaryPurchaseOfficer = formData.purchaseAssignedTo;
 
           for (const [itemKey, itemVal] of Object.entries(itemsMap)) {
@@ -2220,7 +2211,7 @@ class TimelineService {
         };
         reqDoc.markModified('execution');
         try {
-          const project = await Project.findById(projectId);
+          const project = await this._findProject(projectId);
           if (project) {
             this._syncSchoolWiseHardwareExecution(reqDoc, project);
           }
@@ -2230,7 +2221,7 @@ class TimelineService {
       } else if (key === 'INTEGRATION_TESTING') {
         // Feedback & notification iteration for App, Dashboard and Content Testing Results
         try {
-          const project = await Project.findById(projectId);
+          const project = await this._findProject(projectId);
           const results = formData.testingResults || formData;
 
           const streams = [
@@ -2403,7 +2394,7 @@ class TimelineService {
 
           let psDoc = await ProjectSchools.findOne({ project: projectId });
           if (!psDoc) {
-            const projectObj = await Project.findById(projectId);
+            const projectObj = await this._findProject(projectId);
             psDoc = await ProjectSchools.create({
               project: projectId,
               projectId: projectObj?.projectId || String(projectId),
@@ -2556,7 +2547,7 @@ class TimelineService {
           // Also sync to new Training model
           try {
             const Training = require('../training/training.model');
-            const projectObj = await Project.findById(projectId);
+            const projectObj = await this._findProject(projectId);
             let trainingDoc = await Training.findOne({ project: projectId });
             if (!trainingDoc) {
               trainingDoc = new Training({
@@ -2597,7 +2588,7 @@ class TimelineService {
 
           let psDoc = await ProjectSchools.findOne({ project: projectId });
           if (!psDoc) {
-            const projectObj = await Project.findById(projectId);
+            const projectObj = await this._findProject(projectId);
             psDoc = await ProjectSchools.create({
               project: projectId,
               projectId: projectObj?.projectId || String(projectId),
@@ -2709,7 +2700,7 @@ class TimelineService {
           // Also sync to new Training model
           try {
             const Training = require('../training/training.model');
-            const projectObj = await Project.findById(projectId);
+            const projectObj = await this._findProject(projectId);
             let trainingDoc = await Training.findOne({ project: projectId });
             if (!trainingDoc) {
               trainingDoc = new Training({
@@ -2750,7 +2741,7 @@ class TimelineService {
 
           let psDoc = await ProjectSchools.findOne({ project: projectId });
           if (!psDoc) {
-            const projectObj = await Project.findById(projectId);
+            const projectObj = await this._findProject(projectId);
             psDoc = await ProjectSchools.create({
               project: projectId,
               projectId: projectObj?.projectId || String(projectId),
@@ -2822,7 +2813,7 @@ class TimelineService {
           // Also sync to Training collection model
           try {
             const Training = require('../training/training.model');
-            const projectObj = await Project.findById(projectId);
+            const projectObj = await this._findProject(projectId);
             let trainingDoc = await Training.findOne({ project: projectId });
             if (!trainingDoc) {
               trainingDoc = new Training({
@@ -2870,7 +2861,7 @@ class TimelineService {
       // Sync school-wise hardware execution whenever hardware/execution nodes are updated
       const hwSyncKeys = new Set(['HARDWARE_REQUIREMENT', 'REQ_AND_STOCK_CHECK', 'PURCHASE_IF_NEEDED', 'CONSIGNMENT_TRACKING', 'HARDWARE_READY']);
       if (hwSyncKeys.has(key)) {
-        const project = await Project.findById(projectId);
+        const project = await this._findProject(projectId);
         this._syncSchoolWiseHardwareExecution(reqDoc, project);
       }
 
@@ -2970,7 +2961,7 @@ class TimelineService {
         // 3. Send real-time notifications to PM and Admins
         const timeline = await Timeline.findById(timelineId).populate('project');
         const projId = projectId || timeline?.project?._id || timeline?.project;
-        const project = timeline?.project || (projId ? await Project.findById(projId) : null);
+        const project = timeline?.project || (projId ? await this._findProject(projId) : null);
 
         try {
           const notificationService = require('../notifications/notifications.service');

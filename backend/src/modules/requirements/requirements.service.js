@@ -1,7 +1,7 @@
 const Requirement = require('./requirements.model');
 const notificationService = require('../notifications/notifications.service');
 const activityService = require('../activity/activity.service');
-const Project = require('../projects/project.model');
+const coreApi = require('../../services/core-api.service');
 
 /**
  * Deep merge two plain objects. Arrays are replaced (not concatenated) to
@@ -31,12 +31,7 @@ function deepMerge(target = {}, source = {}) {
 
 async function resolveProject(projectId) {
   if (!projectId) return null;
-  const mongoose = require('mongoose');
-  if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
-    const proj = await Project.findById(projectId);
-    if (proj) return proj;
-  }
-  return await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+  return await coreApi.getProjectById(projectId);
 }
 
 async function getProjectRequirements(projectId) {
@@ -82,7 +77,7 @@ async function upsertRequirements(projectId, updateData, employeeId) {
   }
 
   try {
-    const project = await Project.findById(projectId).select('projectName projectId');
+    const project = await resolveProject(projectId);
     const changedSections = Object.keys(updateData || {}).join(', ');
 
     await activityService.log({

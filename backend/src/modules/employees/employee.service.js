@@ -1,5 +1,5 @@
 const Employee = require('./employee.model');
-const Project = require('../projects/project.model');
+const coreApi = require('../../services/core-api.service');
 const ProjectMember = require('../project-members/project-member.model');
 const activityService = require('../activity/activity.service');
 const bcrypt = require('bcryptjs');
@@ -41,7 +41,7 @@ class EmployeeService {
       for (const pr of projectRoles) {
         if (!pr.projectId || !pr.designation || pr.designation === DESIGNATIONS.VIEWER) continue;
         
-        const project = await Project.findById(pr.projectId);
+        const project = await coreApi.getProjectById(pr.projectId);
         if (!project) continue;
 
         await ProjectMember.create({
@@ -144,10 +144,9 @@ class EmployeeService {
     const employee = await Employee.findById(employeeId);
     if (!employee) throw new AppError('Employee not found.', 404, 'EMPLOYEE_NOT_FOUND');
 
-    // Fetch all active projects
-    const allProjects = await Project.find({ isActive: true })
-      .select('projectId projectName organization status')
-      .lean();
+    // Fetch all active projects from Tracker database
+    const Project = require('../projects/project.model');
+    const allProjects = await Project.find({ isActive: { $ne: false } }).lean();
 
     // Fetch explicit project memberships for this employee
     const explicitMemberships = await ProjectMember.find({ employee: employeeId, isActive: true }).lean();
@@ -197,13 +196,7 @@ class EmployeeService {
     const employee = await Employee.findById(employeeId);
     if (!employee) throw new AppError('Employee not found.', 404, 'EMPLOYEE_NOT_FOUND');
 
-    let project = null;
-    const mongoose = require('mongoose');
-    if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
-      project = await Project.findById(projectId);
-    } else {
-      project = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
-    }
+    const project = await coreApi.getProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
 
     const pId = project._id;

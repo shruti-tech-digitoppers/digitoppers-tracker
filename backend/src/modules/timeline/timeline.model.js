@@ -60,7 +60,7 @@ const timelineStageSchema = new mongoose.Schema(
 );
 
 const timelineSchema = new mongoose.Schema({
-  project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: true, unique: true, index: true },
+  project: { type: mongoose.Schema.Types.ObjectId, required: true, unique: true, index: true },
   projectId: { type: String, index: true },
   projectName: { type: String },
   organization: { type: String },

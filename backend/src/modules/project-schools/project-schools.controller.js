@@ -1,18 +1,12 @@
 const ProjectSchools = require('./project-schools.model');
-const Project = require('../projects/project.model');
 const School = require('../schools/school.model');
 const { AppError } = require('../../core/errors');
 const mongoose = require('mongoose');
+const coreApi = require('../../services/core-api.service');
 
 async function resolveProject(paramId) {
   if (!paramId) return null;
-  if (mongoose.Types.ObjectId.isValid(paramId) && String(paramId).length === 24) {
-    const p = await Project.findById(paramId);
-    if (p) return p;
-  }
-  return await Project.findOne({
-    $or: [{ projectId: String(paramId).toUpperCase() }, { projectId: String(paramId) }]
-  });
+  return await coreApi.getProjectById(paramId);
 }
 
 // GET /api/v1/project-schools

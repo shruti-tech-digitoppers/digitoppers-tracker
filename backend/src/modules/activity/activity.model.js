@@ -1,7 +1,7 @@
 const mongoose = require('mongoose');
 
 const activitySchema = new mongoose.Schema({
-  project: { type: mongoose.Schema.Types.ObjectId, ref: 'Project', required: false, index: true },
+  project: { type: mongoose.Schema.Types.ObjectId, required: false, index: true },
   actor: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false, index: true },
   actorName: { type: String },
   actorEmail: { type: String },

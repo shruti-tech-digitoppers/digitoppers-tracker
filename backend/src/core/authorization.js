@@ -2,14 +2,14 @@ const ProjectMember = require('../modules/project-members/project-member.model')
 const { GLOBAL_ROLES, DESIGNATIONS } = require('./constants');
 const { AppError } = require('./errors');
 
-const Project = require('../modules/projects/project.model');
+const coreApi = require('../services/core-api.service');
 const mongoose = require('mongoose');
 
 const checkProjectAccess = async (employeeId, projectId) => {
   if (!projectId) return null;
   let targetId = projectId;
   if (!mongoose.Types.ObjectId.isValid(projectId) || String(projectId).length !== 24) {
-    const proj = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+    const proj = await coreApi.getProjectById(projectId);
     if (proj) targetId = proj._id;
   }
   return await ProjectMember.findOne({ project: targetId, employee: employeeId, isActive: true });

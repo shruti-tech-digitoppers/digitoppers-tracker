@@ -46,8 +46,8 @@ class ActivityService {
     if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
       targetId = projectId;
     } else if (projectId) {
-      const Project = require('../projects/project.model');
-      const proj = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
+      const coreApi = require('../../services/core-api.service');
+      const proj = await coreApi.getProjectById(projectId);
       if (proj) targetId = proj._id;
     }
 

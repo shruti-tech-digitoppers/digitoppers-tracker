@@ -60,24 +60,34 @@ class CoreApiService {
 
   /**
    * Fetch all live projects from Core Backend
+   * Tries /api/projects and /projects
    * @param {Object} query - optional query parameters (e.g. { isActive: true })
    * @returns {Promise<Array>} List of project objects
    */
   async getProjects(query = {}) {
+    const queryString = new URLSearchParams(query).toString();
+    const queryPart = queryString ? `?${queryString}` : '';
+
+    // 1. Try /api/projects
     try {
-      const queryString = new URLSearchParams(query).toString();
-      const endpoint = queryString ? `/api/projects?${queryString}` : '/api/projects';
-      const json = await this.request(endpoint);
-      return json.projects || json.data?.projects || json.data || [];
+      const json = await this.request(`/api/projects${queryPart}`);
+      const list = json.projects || json.data?.projects || (Array.isArray(json.data) ? json.data : (Array.isArray(json) ? json : []));
+      if (Array.isArray(list) && list.length > 0) return list;
     } catch (err) {
+      // 2. Try /projects (without /api prefix)
+      try {
+        const jsonAlt = await this.request(`/projects${queryPart}`);
+        const listAlt = jsonAlt.projects || jsonAlt.data?.projects || (Array.isArray(jsonAlt.data) ? jsonAlt.data : (Array.isArray(jsonAlt) ? jsonAlt : []));
+        if (Array.isArray(listAlt) && listAlt.length > 0) return listAlt;
+      } catch (_) {}
       console.warn('[CoreApiService] getProjects error:', err.message);
-      return [];
     }
+    return [];
   }
 
   /**
    * Fetch a single live project from Core Backend by ID or human-readable code
-   * Checks /api/projects/:id first, then falls back to /api/projects list search
+   * Queries /api/projects/:id directly (with /projects/:id fallback)
    * @param {string} projectIdOrCode - 24-character hex ObjectId or string code (e.g. "REQ-2026-008")
    * @returns {Promise<Object|null>} Single project object or null
    */
@@ -86,28 +96,26 @@ class CoreApiService {
     const cleanId = String(projectIdOrCode).trim();
     if (!cleanId || cleanId === 'undefined' || cleanId === 'null') return null;
 
-    // 1. Direct single endpoint: /api/projects/:id
+    // 1. Primary direct endpoint: /api/projects/:id
     try {
       const json = await this.request(`/api/projects/${encodeURIComponent(cleanId)}`);
       if (json && json.project) return json.project;
       if (json && json.data?.project) return json.data.project;
       if (json && json.data && !Array.isArray(json.data)) return json.data;
+      if (json && !json.data && !Array.isArray(json) && (json.projectName || json.projectId)) return json;
     } catch (singleErr) {
+      // 2. Alternative route: /projects/:id (in case Core Backend route is mounted without /api prefix)
+      try {
+        const jsonAlt = await this.request(`/projects/${encodeURIComponent(cleanId)}`);
+        if (jsonAlt && jsonAlt.project) return jsonAlt.project;
+        if (jsonAlt && jsonAlt.data?.project) return jsonAlt.data.project;
+        if (jsonAlt && jsonAlt.data && !Array.isArray(jsonAlt.data)) return jsonAlt.data;
+        if (jsonAlt && !jsonAlt.data && !Array.isArray(jsonAlt) && (jsonAlt.projectName || jsonAlt.projectId)) return jsonAlt;
+      } catch (_) {}
+
       if (singleErr.status !== 404) {
         console.warn(`[CoreApiService] getProjectById(${cleanId}) warning:`, singleErr.message);
       }
-    }
-
-    // 2. Fallback: Search in full project list
-    try {
-      const list = await this.getProjects();
-      const match = list.find(p =>
-        (p.projectId && p.projectId.toLowerCase() === cleanId.toLowerCase()) ||
-        String(p._id) === cleanId
-      );
-      if (match) return match;
-    } catch (listErr) {
-      console.warn('[CoreApiService] getProjectById list fallback error:', listErr.message);
     }
 
     return null;

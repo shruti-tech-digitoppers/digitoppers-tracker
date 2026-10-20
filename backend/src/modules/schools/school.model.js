@@ -408,7 +408,6 @@ const schoolSchema = new mongoose.Schema(
   {
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Project',
       required: [true, 'School must belong to a project'],
       index: true
     },

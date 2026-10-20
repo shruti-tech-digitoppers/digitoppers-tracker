@@ -13,7 +13,6 @@ const schoolHardwareLicenseSchema = new mongoose.Schema(
     // ── Foreign Keys: Project & School ───────────────────────────
     projectId: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Project',
       required: [true, 'Project ID is required'],
       index: true,
     },

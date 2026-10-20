@@ -93,7 +93,6 @@ const projectRequestSchema = new mongoose.Schema({
   },
   projectId: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'Project',
     index: true
   },
   dashboardProjectId: {

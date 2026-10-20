@@ -4,7 +4,6 @@ const { DESIGNATIONS } = require('../../core/constants');
 const projectMemberSchema = new mongoose.Schema({
   project: { 
     type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Project', 
     required: true, 
     index: true 
   },

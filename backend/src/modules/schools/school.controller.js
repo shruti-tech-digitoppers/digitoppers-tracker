@@ -1,6 +1,11 @@
 const School = require('./school.model');
-const Project = require('../projects/project.model');
 const { AppError } = require('../../core/errors');
+const coreApi = require('../../services/core-api.service');
+
+async function resolveProject(paramId) {
+  if (!paramId) return null;
+  return await coreApi.getProjectById(paramId);
+}
 
 // GET /api/v1/projects/:projectId/schools or /api/v1/schools?projectId=...
 exports.getSchools = async (req, res, next) => {
@@ -9,16 +14,11 @@ exports.getSchools = async (req, res, next) => {
     const filter = { isActive: true };
 
     if (projectId) {
-      const mongoose = require('mongoose');
-      if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
-        filter.projectId = projectId;
+      const proj = await resolveProject(projectId);
+      if (proj) {
+        filter.projectId = proj._id;
       } else {
-        const proj = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
-        if (proj) {
-          filter.projectId = proj._id;
-        } else {
-          return res.status(200).json({ success: true, count: 0, data: [] });
-        }
+        return res.status(200).json({ success: true, count: 0, data: [] });
       }
     }
     if (req.query.installationStatus) filter['installation.status'] = req.query.installationStatus;
@@ -78,10 +78,7 @@ exports.createSchool = async (req, res, next) => {
   try {
     const school = await School.create(req.body);
     
-    // Increment project total schools count
-    if (school.projectId) {
-      await Project.findByIdAndUpdate(school.projectId, { $inc: { numberOfSchools: 1 } });
-    }
+    // Master project school count is managed by Core Backend
 
     res.status(201).json({
       success: true,
@@ -103,10 +100,6 @@ exports.bulkCreateSchools = async (req, res, next) => {
 
     const preparedSchools = schools.map(s => ({ ...s, projectId }));
     const insertedSchools = await School.insertMany(preparedSchools);
-
-    await Project.findByIdAndUpdate(projectId, {
-      $set: { numberOfSchools: await School.countDocuments({ projectId, isActive: true }) }
-    });
 
     res.status(201).json({
       success: true,
@@ -235,17 +228,9 @@ exports.updateSchoolTraining = async (req, res, next) => {
 exports.getProjectSchoolsExecution = async (req, res, next) => {
   try {
     const paramId = req.params.projectId || req.query.projectId;
-    const mongoose = require('mongoose');
-    const Project = require('../projects/project.model');
     const ProjectSchools = require('../project-schools/project-schools.model');
 
-    let projectObj = null;
-    if (mongoose.Types.ObjectId.isValid(paramId) && String(paramId).length === 24) {
-      projectObj = await Project.findById(paramId);
-    }
-    if (!projectObj) {
-      projectObj = await Project.findOne({ $or: [{ projectId: String(paramId).toUpperCase() }, { projectId: String(paramId) }] });
-    }
+    const projectObj = await resolveProject(paramId);
 
     const queryFilter = projectObj 
       ? { $or: [{ project: projectObj._id }, { projectId: projectObj.projectId }] }
@@ -270,15 +255,9 @@ exports.getProjectSchoolProgress = async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const mongoose = require('mongoose');
-    const Project = require('../projects/project.model');
 
-    let pId = null;
-    if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
-      pId = new mongoose.Types.ObjectId(projectId);
-    } else {
-      const proj = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
-      if (proj) pId = proj._id;
-    }
+    const proj = await resolveProject(projectId);
+    let pId = proj ? proj._id : (mongoose.Types.ObjectId.isValid(projectId) ? new mongoose.Types.ObjectId(projectId) : null);
 
     if (!pId) {
       return res.status(200).json({
@@ -356,11 +335,7 @@ exports.raiseVendorPO = async (req, res, next) => {
     const mongoose = require('mongoose');
     const ProjectSchools = require('../project-schools/project-schools.model');
 
-    const projectFilter = mongoose.Types.ObjectId.isValid(projectId)
-      ? { $or: [{ _id: new mongoose.Types.ObjectId(projectId) }, { projectId }] }
-      : { projectId };
-
-    const project = await Project.findOne(projectFilter);
+    const project = await resolveProject(projectId);
     if (!project) return next(new AppError('Project not found', 404, 'PROJECT_NOT_FOUND'));
 
     const poEntry = {
@@ -408,11 +383,7 @@ exports.clearVendorPI = async (req, res, next) => {
     const mongoose = require('mongoose');
     const ProjectSchools = require('../project-schools/project-schools.model');
 
-    const projectFilter = mongoose.Types.ObjectId.isValid(projectId)
-      ? { $or: [{ _id: new mongoose.Types.ObjectId(projectId) }, { projectId }] }
-      : { projectId };
-
-    const project = await Project.findOne(projectFilter);
+    const project = await resolveProject(projectId);
     if (!project) return next(new AppError('Project not found', 404, 'PROJECT_NOT_FOUND'));
 
     const piEntry = {
@@ -466,10 +437,7 @@ exports.getFieldEngineerSchools = async (req, res, next) => {
 
     const matchCriteria = {};
     if (projectId) {
-      const projectFilter = mongoose.Types.ObjectId.isValid(projectId)
-        ? { $or: [{ _id: new mongoose.Types.ObjectId(projectId) }, { projectId }] }
-        : { projectId };
-      const project = await Project.findOne(projectFilter);
+      const project = await resolveProject(projectId);
       if (project) matchCriteria.project = project._id;
     }
 

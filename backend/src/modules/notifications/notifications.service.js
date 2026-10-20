@@ -65,7 +65,7 @@ async function notifyWithAdminsAndPMs(data = {}) {
     if (!title || !message) return [];
 
     const Employee = require('../employees/employee.model');
-    const Project = require('../projects/project.model');
+    const coreApi = require('../../services/core-api.service');
 
     const recipientSet = new Set();
     const excludeSet = new Set((excludeUserIds || []).map((id) => id?.toString()));
@@ -77,12 +77,7 @@ async function notifyWithAdminsAndPMs(data = {}) {
 
     let projectDoc = null;
     if (projectId) {
-      const mongoose = require('mongoose');
-      if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
-        projectDoc = await Project.findById(projectId);
-      } else {
-        projectDoc = await Project.findOne({ $or: [{ projectId: String(projectId).toUpperCase() }, { projectId: String(projectId) }] });
-      }
+      projectDoc = await coreApi.getProjectById(projectId);
       if (projectDoc && projectDoc.projectManager) {
         const pmId = typeof projectDoc.projectManager === 'object'
           ? projectDoc.projectManager._id || projectDoc.projectManager.id

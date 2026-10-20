@@ -12,3 +12,7 @@ services:
         value: 5000
       - key: CORS_ORIGIN
         value: "*"
+      - key: CORE_BACKEND_URL
+        value: https://core-backend-8xcp.onrender.com
+      - key: INTERNAL_SERVICE_SECRET
+        value: tracker_core_shared_secret_2026

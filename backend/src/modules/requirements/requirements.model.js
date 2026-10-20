@@ -133,7 +133,6 @@ const requirementSchema = new mongoose.Schema(
   {
     project: {
       type: mongoose.Schema.ObjectId,
-      ref: 'Project',
       required: [true, 'Requirement must belong to a project'],
       unique: true,
       index: true

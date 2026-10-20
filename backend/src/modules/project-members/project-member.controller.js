@@ -1,19 +1,14 @@
+
 const ProjectMember = require('./project-member.model');
-const Project = require('../projects/project.model');
 const Employee = require('../employees/employee.model');
 const { AppError } = require('../../core/errors');
 const mongoose = require('mongoose');
+const coreApi = require('../../services/core-api.service');
 
 async function resolveProjectId(paramId) {
   if (!paramId) return null;
-  if (mongoose.Types.ObjectId.isValid(paramId) && String(paramId).length === 24) {
-    const p = await Project.findById(paramId);
-    if (p) return p._id;
-  }
-  const p = await Project.findOne({
-    $or: [{ projectId: String(paramId).toUpperCase() }, { projectId: String(paramId) }]
-  });
-  return p ? p._id : null;
+  const p = await coreApi.getProjectById(paramId);
+  return p ? p._id : (mongoose.Types.ObjectId.isValid(paramId) ? paramId : null);
 }
 
 // GET /api/v1/project-members

@@ -1,6 +1,5 @@
 const mongoose = require('mongoose');
 const ProjectRequest = require('./project-request.model');
-const Project = require('../projects/project.model');
 const ProjectMember = require('../project-members/project-member.model');
 const Timeline = require('../timeline/timeline.model');
 const TimelineNode = require('../timeline/timeline-node.model');
@@ -349,13 +348,44 @@ class RequestService {
       }
 
       // ── Fetch live master project strictly via Centralized Core Backend API Client ──
-      const coreProject = await coreApi.getProjectById(inputProjectId);
+      let coreProject = null;
+      try {
+        coreProject = await coreApi.getProjectById(inputProjectId);
+      } catch (err) {
+        console.warn('[RequestService] coreApi.getProjectById error during approval:', err.message);
+      }
+
+      // If not in Core Backend, fallback to Tracker local database Project model
+      if (!coreProject) {
+        const Project = require('../projects/project.model');
+        const isObjectId = mongoose.isValidObjectId(inputProjectId) && inputProjectId.length === 24;
+        const localP = await Project.findOne(
+          isObjectId
+            ? { $or: [{ _id: inputProjectId }, { projectId: inputProjectId }, { projectId: inputProjectId.toUpperCase() }] }
+            : { $or: [{ projectId: inputProjectId }, { projectId: inputProjectId.toUpperCase() }] }
+        ).session(session);
+
+        if (localP) {
+          coreProject = {
+            _id: localP._id,
+            projectId: localP.projectId || inputProjectId,
+            projectName: localP.projectName,
+            title: localP.projectName,
+            email: localP.email || '',
+            phone: localP.phone || '',
+            address: localP.address || '',
+            numberOfSchools: localP.numberOfSchools || 0,
+            numberOfLicenses: localP.numberOfLicenses || 0,
+            source: 'TRACKER_LOCAL_DB'
+          };
+        }
+      }
 
       if (!coreProject) {
         throw new AppError(
-          `Project '${inputProjectId}' was not found in Core Backend. Please ensure the project exists in Core Backend before approving.`,
+          `Project '${inputProjectId}' was not found in Core Backend or Tracker database.`,
           404,
-          'CORE_PROJECT_NOT_FOUND'
+          'PROJECT_NOT_FOUND'
         );
       }
 
@@ -530,24 +560,68 @@ class RequestService {
 
   /**
    * 6. Get Available Dashboard Projects for Dropdown Selection
-   * Strictly queries Core Backend REST API via coreApi (/api/projects).
-   * EXCLUSIVELY returns projects from Core Backend.
+   * Tracker backend requests Core Backend to fetch live available projects.
+   * Core Backend serves as the primary source of truth.
    */
   async getAvailableDashboardProjects() {
-    const rawList = await coreApi.getProjects();
-    return rawList.map((p) => ({
-      _id: String(p._id),
-      projectId: p.projectId || String(p._id),
-      projectName: p.projectName || p.title || 'Untitled Core Project',
-      email: p.email || '',
-      phone: p.phone || '',
-      address: p.address || '',
-      numberOfSchools: p.numberOfSchools || 0,
-      numberOfLicenses: p.numberOfLicenses || 0,
-      country: typeof p.country === 'object' && p.country ? p.country.name : (p.country || ''),
-      isActive: p.isActive !== false,
-      source: 'CORE_BACKEND_API'
-    }));
+    let coreProjects = [];
+
+    // 1. Tracker backend requests Core Backend
+    try {
+      const rawList = await coreApi.getProjects({ isActive: true });
+      if (Array.isArray(rawList) && rawList.length > 0) {
+        coreProjects = rawList.map((p) => ({
+          _id: String(p._id),
+          projectId: (p.projectId || String(p._id)).trim().toUpperCase(),
+          projectName: p.projectName || p.title || 'Untitled Core Project',
+          title: p.projectName || p.title || 'Untitled Core Project',
+          organization: p.organization || p.client || p.projectName || 'Core Organization',
+          email: p.email || '',
+          phone: p.phone || '',
+          address: p.address || '',
+          numberOfSchools: p.numberOfSchools || 0,
+          numberOfLicenses: p.numberOfLicenses || 0,
+          country: typeof p.country === 'object' && p.country ? p.country.name : (p.country || ''),
+          isActive: p.isActive !== false,
+          source: 'CORE_BACKEND'
+        }));
+      }
+    } catch (coreErr) {
+      console.warn('[RequestService] Core Backend available projects request error:', coreErr.message);
+    }
+
+    // If Core Backend returned projects, return them directly
+    if (coreProjects.length > 0) {
+      return coreProjects;
+    }
+
+    // 2. Fallback to Tracker local database in case Core Backend is not reachable
+    try {
+      const Project = require('../projects/project.model');
+      const localProjects = await Project.find({ isActive: { $ne: false } })
+        .select('_id projectId projectName organization email phone address numberOfSchools numberOfLicenses country isActive')
+        .sort({ createdAt: -1 })
+        .lean();
+
+      return localProjects.map((p) => ({
+        _id: String(p._id),
+        projectId: (p.projectId || String(p._id)).trim().toUpperCase(),
+        projectName: p.projectName || p.title || 'Untitled Project',
+        title: p.projectName || p.title || 'Untitled Project',
+        organization: p.organization || p.projectName || 'Direct Organization',
+        email: p.email || '',
+        phone: p.phone || '',
+        address: p.address || '',
+        numberOfSchools: p.numberOfSchools || 0,
+        numberOfLicenses: p.numberOfLicenses || 0,
+        country: typeof p.country === 'object' && p.country ? p.country.name : (p.country || ''),
+        isActive: p.isActive !== false,
+        source: 'TRACKER_LOCAL_DB'
+      }));
+    } catch (err) {
+      console.warn('[RequestService] getAvailableDashboardProjects fallback error:', err.message);
+      return [];
+    }
   }
 }
 

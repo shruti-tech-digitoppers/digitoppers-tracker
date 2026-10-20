@@ -241,8 +241,8 @@ const getHardwareAllocations = async (req, res) => {
       if (mongoose.Types.ObjectId.isValid(projectId)) {
         filter.projectId = projectId;
       } else {
-        const Project = require('../projects/project.model');
-        const proj = await Project.findOne({ projectId: projectId });
+        const coreApi = require('../../services/core-api.service');
+        const proj = await coreApi.getProjectById(projectId);
         if (proj) {
           filter.projectId = proj._id;
         } else {

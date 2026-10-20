@@ -1,20 +1,14 @@
 const Training = require('./training.model');
-const Project = require('../projects/project.model');
 const ProjectSchools = require('../project-schools/project-schools.model');
 const School = require('../schools/school.model');
 const { AppError } = require('../../core/errors');
 const mongoose = require('mongoose');
+const coreApi = require('../../services/core-api.service');
 
-// Helper to resolve project by ObjectId or projectId code
+// Helper to resolve project by ObjectId or projectId code via Core Backend
 async function resolveProject(paramId) {
   if (!paramId) return null;
-  if (mongoose.Types.ObjectId.isValid(paramId) && String(paramId).length === 24) {
-    const p = await Project.findById(paramId);
-    if (p) return p;
-  }
-  return await Project.findOne({
-    $or: [{ projectId: String(paramId).toUpperCase() }, { projectId: String(paramId) }]
-  });
+  return await coreApi.getProjectById(paramId);
 }
 
 // Helper: Ensure or initialize Training document from Project & ProjectSchools

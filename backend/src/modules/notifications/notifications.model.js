@@ -1,3 +1,5 @@
+
+
 const mongoose = require('mongoose');
 
 const notificationSchema = new mongoose.Schema({
@@ -69,8 +71,8 @@ notificationSchema.post('save', function (doc) {
       projectId: doc.metadata?.projectId || doc.metadata?.projectCustomId,
       projectName: doc.metadata?.projectName,
       metadata: doc.metadata || {}
-    }).catch(() => {});
-  } catch (e) {}
+    }).catch(() => { });
+  } catch (e) { }
 });
 
 module.exports = mongoose.model('Notification', notificationSchema);
