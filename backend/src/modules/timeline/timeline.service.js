@@ -25,7 +25,90 @@ class TimelineService {
       return null;
     }
 
-    // 2. Fetch directly from Core Backend API
+    // 2. Lookup in Tracker local MongoDB Project model
+    const isObjectId = mongoose.isValidObjectId(idStr) && idStr.length === 24;
+    try {
+      const Project = require('../projects/project.model');
+      const localP = await Project.findOne(
+        isObjectId
+          ? { $or: [{ _id: idStr }, { projectId: idStr }, { projectId: idStr.toUpperCase() }] }
+          : { $or: [{ projectId: idStr }, { projectId: idStr.toUpperCase() }] }
+      ).lean();
+
+      if (localP) {
+        return {
+          ...localP,
+          _id: localP._id,
+          projectId: (localP.projectId || idStr).toUpperCase(),
+          projectName: localP.projectName || localP.title || 'Project',
+          title: localP.projectName || localP.title || 'Project',
+          organization: localP.organization || localP.projectName || 'Organization',
+          source: 'TRACKER_LOCAL_DB'
+        };
+      }
+    } catch (_) {}
+
+    // 3. Lookup in Tracker ProjectRequest model (for approved / synthetic requests)
+    try {
+      const ProjectRequest = require('../project-requests/project-request.model');
+      const reqDoc = await ProjectRequest.findOne(
+        isObjectId
+          ? { $or: [{ _id: idStr }, { projectId: idStr }, { requestId: idStr }, { requestId: idStr.toUpperCase() }] }
+          : { $or: [{ requestId: idStr }, { requestId: idStr.toUpperCase() }, { title: idStr }] }
+      ).populate('projectManager', 'name email employeeCode globalRole designation').lean();
+
+      if (reqDoc) {
+        return {
+          _id: reqDoc.projectId || reqDoc._id,
+          projectId: (reqDoc.requestId || reqDoc.title || idStr).toUpperCase(),
+          projectName: reqDoc.title || reqDoc.projectName || 'Project Request',
+          title: reqDoc.title || reqDoc.projectName || 'Project Request',
+          organization: reqDoc.organization || reqDoc.projectName || reqDoc.title || 'Direct Organization',
+          email: reqDoc.email || '',
+          phone: reqDoc.phone || '',
+          address: reqDoc.address || '',
+          numberOfSchools: 0,
+          numberOfLicenses: 0,
+          country: reqDoc.country || '',
+          status: 'ACTIVE',
+          isActive: true,
+          projectManager: reqDoc.projectManager || null,
+          source: 'PROJECT_REQUEST'
+        };
+      }
+    } catch (_) {}
+
+    // 4. Lookup in Timeline collection (if timeline already exists for this ID/code)
+    try {
+      const Timeline = require('./timeline.model');
+      const existingT = await Timeline.findOne(
+        isObjectId
+          ? { $or: [{ _id: idStr }, { project: idStr }, { projectId: idStr }, { projectId: idStr.toUpperCase() }] }
+          : { $or: [{ projectId: idStr }, { projectId: idStr.toUpperCase() }] }
+      ).populate('projectManager', 'name email employeeCode globalRole designation').lean();
+
+      if (existingT) {
+        return {
+          _id: existingT.project || existingT._id,
+          projectId: (existingT.projectId || idStr).toUpperCase(),
+          projectName: existingT.projectName || 'Project',
+          title: existingT.projectName || 'Project',
+          organization: existingT.organization || 'Direct Organization',
+          email: existingT.email || '',
+          phone: existingT.phone || '',
+          address: existingT.address || '',
+          numberOfSchools: existingT.numberOfSchools || 0,
+          numberOfLicenses: existingT.numberOfLicenses || 0,
+          country: existingT.country || '',
+          status: 'ACTIVE',
+          isActive: true,
+          projectManager: existingT.projectManager || null,
+          source: 'TIMELINE_DOC'
+        };
+      }
+    } catch (_) {}
+
+    // 5. Fetch directly from Core Backend API
     try {
       const coreP = await coreApi.getProjectById(idStr);
       if (coreP) {
@@ -47,29 +130,6 @@ class TimelineService {
         };
       }
     } catch (_) { }
-
-    // 3. Fallback to Tracker local MongoDB Project model
-    try {
-      const Project = require('../projects/project.model');
-      const isObjectId = mongoose.isValidObjectId(idStr) && idStr.length === 24;
-      const localP = await Project.findOne(
-        isObjectId
-          ? { $or: [{ _id: idStr }, { projectId: idStr }, { projectId: idStr.toUpperCase() }] }
-          : { $or: [{ projectId: idStr }, { projectId: idStr.toUpperCase() }] }
-      ).lean();
-
-      if (localP) {
-        return {
-          ...localP,
-          _id: localP._id,
-          projectId: (localP.projectId || idStr).toUpperCase(),
-          projectName: localP.projectName || localP.title || 'Project',
-          title: localP.projectName || localP.title || 'Project',
-          organization: localP.organization || localP.projectName || 'Organization',
-          source: 'TRACKER_LOCAL_DB'
-        };
-      }
-    } catch (_) {}
 
     return null;
   }
