@@ -75,29 +75,37 @@ class TimelineService {
   }
 
   /**
-   * Dedicated Timeline Creation on Project Approval / Confirmation
-   * Directly creates Timeline document referencing the approved Project (Core Mongo ID)
-   * and generates all 8 stages and tasks from timelineConfig.
+   * ── Single Unified Method to Create Timeline for a Project ───────────────
+   * Creates the Timeline document referencing the Project (Core Backend Mongo ID / code)
+   * with initial stages array and generates all 8 canonical stages and tasks.
    *
-   * @param {Object|string} coreProjectOrId - Core Project object or Mongo ID
+   * @param {Object|string} coreProjectOrId - Project object or ID from Core Backend / Tracker DB
    * @param {string|ObjectId} pmId - Assigned Project Manager employee ID
    * @param {ClientSession|null} session - Optional MongoDB transaction session
    * @returns {Promise<Timeline>} Created or existing Timeline document
    */
-  async createTimelineForApprovedProject(coreProjectOrId, pmId = null, session = null) {
+  async createTimelineForProject(coreProjectOrId, pmId = null, session = null) {
     let project = null;
     let effectivePmId = pmId;
 
     if (coreProjectOrId && typeof coreProjectOrId === 'object' && coreProjectOrId._id) {
       project = coreProjectOrId;
     } else {
-      if (session) {
-        project = await this._findProject(coreProjectOrId);
-      } else {
-        project = await this._findProject(coreProjectOrId);
+      project = await this._findProject(coreProjectOrId);
+    }
+
+    if (!effectivePmId && project) {
+      effectivePmId = project.projectManager;
+      if (effectivePmId && typeof effectivePmId === 'object' && effectivePmId._id) {
+        effectivePmId = effectivePmId._id;
       }
-      if (!effectivePmId && project) {
-        effectivePmId = project.projectManager;
+    }
+
+    if (!effectivePmId && project) {
+      const ProjectMember = require('../project-members/project-member.model');
+      const pmMember = await ProjectMember.findOne({ project: project._id, designation: 'PROJECT_MANAGER', isActive: true });
+      if (pmMember && pmMember.employee) {
+        effectivePmId = (typeof pmMember.employee === 'object' && pmMember.employee._id) ? pmMember.employee._id : pmMember.employee;
       }
     }
 
@@ -147,7 +155,8 @@ class TimelineService {
       coreBackendData: project ? (project.toObject ? project.toObject() : project) : {},
       metadata: project ? (project.metadata || {}) : {},
       templateVersion: timelineConfig.version || 'v1',
-      status: NODE_STATUSES.IN_PROGRESS
+      status: NODE_STATUSES.IN_PROGRESS,
+      stages: []
     };
 
     const sessionOpts = session ? { session } : {};
@@ -219,44 +228,14 @@ class TimelineService {
     return createdTimeline;
   }
 
-  async initializeTimelineForProject(projectId, force = false) {
-    const project = await this._findProject(projectId);
-    if (!project) {
-      throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
-    }
+  // Backward compatibility alias for single method
+  async initializeTimelineForProject(projectId, pmId = null, session = null) {
+    return this.createTimelineForProject(projectId, pmId, session);
+  }
 
-    if ((project.status === 'PENDING_REVIEW' || project.reviewStatus === 'PENDING') && !force) {
-      return null;
-    }
-
-    let pmId = project.projectManager;
-    if (pmId && typeof pmId === 'object' && pmId._id) {
-      pmId = pmId._id;
-    }
-    if (!pmId) {
-      const ProjectMember = require('../project-members/project-member.model');
-      const pmMember = await ProjectMember.findOne({ project: project._id, designation: 'PROJECT_MANAGER', isActive: true });
-      if (pmMember && pmMember.employee) {
-        pmId = (typeof pmMember.employee === 'object' && pmMember.employee._id) ? pmMember.employee._id : pmMember.employee;
-      } else {
-        const ProjectRequest = require('../project-requests/project-request.model');
-        const reqDoc = await ProjectRequest.findOne({
-          $or: [{ projectId: project._id }, { title: project.projectName }]
-        });
-        if (reqDoc && reqDoc.projectManager) {
-          pmId = (typeof reqDoc.projectManager === 'object' && reqDoc.projectManager._id) ? reqDoc.projectManager._id : reqDoc.projectManager;
-        }
-      }
-    }
-
-    if (pmId && !project.projectManager) {
-      project.projectManager = pmId;
-      if (typeof project.save === 'function') {
-        await project.save();
-      }
-    }
-
-    return await this.createTimelineForApprovedProject(project, pmId);
+  // Backward compatibility alias for single method
+  async createTimelineForApprovedProject(coreProjectOrId, pmId = null, session = null) {
+    return this.createTimelineForProject(coreProjectOrId, pmId, session);
   }
 
   getSchemaMap() {
@@ -281,16 +260,6 @@ class TimelineService {
     const project = await this._findProject(projectId);
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
-    }
-
-    if (project.status === 'PENDING_REVIEW' || project.reviewStatus === 'PENDING') {
-      return {
-        timeline: null,
-        nodes: [],
-        hierarchy: [],
-        isPendingReview: true,
-        message: 'Project request is pending review. Timeline will be created upon confirmation.'
-      };
     }
 
     // Robust PM resolution: Project -> ProjectMember -> ProjectRequest -> Default PM
@@ -329,8 +298,9 @@ class TimelineService {
         { projectId: project.projectId ? project.projectId.toLowerCase() : undefined }
       ].filter(Boolean)
     }).populate('projectManager', 'name email employeeCode globalRole designation');
+
     if (!timeline) {
-      timeline = await this.initializeTimelineForProject(project._id);
+      timeline = await this.createTimelineForProject(project, effectivePmId);
       if (timeline) {
         timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole designation');
       }
@@ -338,16 +308,6 @@ class TimelineService {
       timeline.projectManager = effectivePmId;
       await timeline.save();
       timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole designation');
-    }
-
-    if (!timeline) {
-      return {
-        timeline: null,
-        nodes: [],
-        hierarchy: [],
-        isPendingReview: true,
-        message: 'Project request is pending review. Timeline will be created upon confirmation.'
-      };
     }
 
     let nodes = await TimelineNode.find({ timeline: timeline._id })
@@ -372,7 +332,7 @@ class TimelineService {
     }
 
     if (nodes.length === 0) {
-      await this.initializeTimelineForProject(project._id);
+      await this.createTimelineForProject(project, effectivePmId);
       nodes = await TimelineNode.find({ timeline: timeline._id })
         .populate('assignedTo', 'name email employeeCode')
         .sort({ order: 1 });
@@ -2995,77 +2955,32 @@ class TimelineService {
     }
   }
 
-  // Delete all nodes for a project's timeline and re-create from current config
+  // Delete all nodes for a project's timeline and re-create from current config using single method
   async resetTimelineForProject(projectId) {
     const project = await this._findProject(projectId);
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
     }
 
-    let timeline = await Timeline.findOne({ project: project._id });
-    if (!timeline) {
-      return await this.initializeTimelineForProject(project._id, true);
+    const pId = project._id;
+    const projectCode = project.projectId || String(project._id);
+
+    const query = {
+      $or: [
+        { project: pId },
+        { projectId: projectCode },
+        { projectId: projectCode.toUpperCase() },
+        { projectId: projectCode.toLowerCase() }
+      ]
+    };
+
+    const timeline = await Timeline.findOne(query);
+    if (timeline) {
+      await TimelineNode.deleteMany({ timeline: timeline._id });
+      await Timeline.deleteOne({ _id: timeline._id });
     }
 
-    // Delete all existing nodes
-    await TimelineNode.deleteMany({ timeline: timeline._id });
-
-    const pmId = project.projectManager;
-
-    // Re-create from config with default PM assignment
-    for (const stageDef of timelineConfig.stages) {
-      const stageNode = await TimelineNode.create({
-        timeline: timeline._id,
-        parentNode: null,
-        type: NODE_TYPES.STAGE,
-        key: stageDef.key,
-        name: stageDef.name,
-        order: stageDef.order,
-        status: NODE_STATUSES.PENDING,
-        assignedTo: pmId || null,
-        dependencies: stageDef.dependencies || [],
-        metadata: stageDef.metadata || {}
-      });
-
-      if (stageDef.substages) {
-        for (const subDef of stageDef.substages) {
-          const subTaskNode = await TimelineNode.create({
-            timeline: timeline._id,
-            parentNode: stageNode._id,
-            type: NODE_TYPES.TASK,
-            key: subDef.key,
-            name: subDef.name,
-            order: subDef.order,
-            status: NODE_STATUSES.PENDING,
-            assignedTo: pmId || null,
-            formSchema: subDef.formSchema || null,
-            metadata: subDef.metadata || {}
-          });
-
-          if (subDef.nested) {
-            for (const nestedDef of subDef.nested) {
-              await TimelineNode.create({
-                timeline: timeline._id,
-                parentNode: subTaskNode._id,
-                type: NODE_TYPES.TASK,
-                key: nestedDef.key,
-                name: nestedDef.name,
-                order: nestedDef.order,
-                status: NODE_STATUSES.PENDING,
-                assignedTo: pmId || null,
-                formSchema: nestedDef.formSchema || null,
-                metadata: {
-                  ...(nestedDef.metadata || {}),
-                  supportsConditional: nestedDef.supportsConditional || false,
-                  conditionalOnly: nestedDef.conditionalOnly || null
-                }
-              });
-            }
-          }
-        }
-      }
-    }
-
+    await this.createTimelineForProject(project);
     return await this.getTimelineHierarchy(projectId);
   }
 

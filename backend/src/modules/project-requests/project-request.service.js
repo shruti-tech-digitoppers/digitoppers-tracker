@@ -403,13 +403,6 @@ class RequestService {
       request.isManualDashboardCreated = true;
       await request.save({ session });
 
-      // ── Initialize Full 8-Stage Timeline referencing Core Backend Project via TimelineService ──
-      const timeline = await timelineService.createTimelineForApprovedProject(
-        coreProject,
-        request.projectManager,
-        session
-      );
-
       // ── Assign Project Manager Membership (for access / permissions) ──
       if (request.projectManager) {
         await ProjectMember.findOneAndUpdate(

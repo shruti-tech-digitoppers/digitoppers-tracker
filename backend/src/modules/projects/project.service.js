@@ -80,14 +80,60 @@ class ProjectService {
       }
     }
 
-    const allProjectsList = [...localProjects, ...syntheticProjectsFromRequests];
+    // 3. Fetch live projects directly from Core Backend API
+    let coreProjects = [];
+    try {
+      const rawList = await coreApi.getProjects();
+      if (Array.isArray(rawList)) {
+        coreProjects = rawList.filter(p => p.isActive !== false);
+      }
+    } catch (e) {
+      console.warn('[ProjectService] coreApi.getProjects warning:', e.message);
+    }
+
+    const coreProjectsMapped = [];
+    for (const cp of coreProjects) {
+      const code = (cp.projectId || String(cp._id)).toUpperCase();
+      if (code && !existingProjectIds.has(code)) {
+        coreProjectsMapped.push({
+          _id: cp._id,
+          projectId: code,
+          projectName: cp.projectName || cp.title || 'Core Project',
+          title: cp.projectName || cp.title || 'Core Project',
+          organization: cp.projectName || cp.client || 'Direct Organization',
+          email: cp.email || '',
+          phone: cp.phone || '',
+          address: cp.address || '',
+          numberOfSchools: cp.numberOfSchools || 0,
+          numberOfLicenses: cp.numberOfLicenses || 0,
+          country: typeof cp.country === 'object' && cp.country ? cp.country.name : (cp.country || ''),
+          status: 'ACTIVE',
+          projectManager: null,
+          isActive: true,
+          createdAt: cp.createdAt || new Date(),
+          updatedAt: cp.updatedAt || new Date(),
+          source: 'CORE_BACKEND'
+        });
+        existingProjectIds.add(code);
+      }
+    }
+
+    // Automatically ensure timeline is created for projects from Core Backend
+    const timelineService = require('../timeline/timeline.service');
+    for (const cp of coreProjectsMapped) {
+      timelineService.createTimelineForProject(cp).catch((e) => {
+        console.warn(`[ProjectService] Auto-init timeline for ${cp.projectId}:`, e.message);
+      });
+    }
+
+    const allProjectsList = [...localProjects, ...syntheticProjectsFromRequests, ...coreProjectsMapped];
 
     const allProjectMongoIds = allProjectsList
       .map(p => p._id)
       .filter(id => mongoose.isValidObjectId(id))
       .map(id => new mongoose.Types.ObjectId(id));
 
-    // 3. Fetch project members in bulk
+    // 4. Fetch project members in bulk
     const allMembers = await ProjectMember.find({
       project: { $in: allProjectMongoIds },
       isActive: true
@@ -345,7 +391,7 @@ class ProjectService {
     ).populate('projectManager', 'name email employeeCode globalRole designation').lean().catch(() => null);
 
     if (coreP) {
-      return {
+      const resolvedP = {
         _id: String(coreP._id || (localP ? localP._id : idStr)),
         projectId: String(coreP.projectId || (localP ? localP.projectId : idStr)).toUpperCase(),
         projectName: coreP.projectName || coreP.title || (localP ? localP.projectName : 'Core Project'),
@@ -364,6 +410,13 @@ class ProjectService {
         projectManager: localP?.projectManager || null,
         source: 'CORE_BACKEND_WITH_LOCAL_MERGE'
       };
+
+      try {
+        const timelineService = require('../timeline/timeline.service');
+        timelineService.createTimelineForProject(resolvedP).catch(() => {});
+      } catch (_) {}
+
+      return resolvedP;
     }
 
     if (localP) {
