@@ -29,4 +29,20 @@ scratch/
 # Seed scripts with internal/seed data
 src/utils/seed*.js
 src/utils/cleanDatabase.js
+src/utils/checkConnection.js
+
+# Scripts & Inspection
+scripts/
+**/scripts/**
+
+# Test files & test suites
+test/
+tests/
+**/test/**
+**/tests/**
+*.test.*
+*.spec.*
+*qa_test*
+*test_suite*
+*verifier*
 

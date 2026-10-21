@@ -1,14 +1,9 @@
 const mongoose = require('mongoose');
 const ProjectRequest = require('./project-request.model');
 const ProjectMember = require('../project-members/project-member.model');
-const Timeline = require('../timeline/timeline.model');
-const TimelineNode = require('../timeline/timeline-node.model');
-const timelineService = require('../timeline/timeline.service');
 const Employee = require('../employees/employee.model');
 const Notification = require('../notifications/notifications.model');
 const Activity = require('../activity/activity.model');
-const Requirement = require('../requirements/requirements.model');
-const timelineConfig = require('../../config/timeline');
 const config = require('../../config/env');
 const coreApi = require('../../services/core-api.service');
 const { DESIGNATIONS, PROJECT_STATUSES, NODE_TYPES, NODE_STATUSES } = require('../../core/constants');
@@ -308,8 +303,8 @@ class RequestService {
 
   /**
    * 4. Confirm / Approve Request & Link Live Core Backend Project
-   * Adds the Core Backend Mongo project reference to ProjectRequest only,
-   * and initializes an 8-stage Timeline referencing the Core Backend Project.
+   * Adds the Core Backend Mongo project reference to ProjectRequest strictly via Core Backend API.
+   * No direct DB interaction and no timeline initialization.
    */
   async approveRequest(requestId, approverEmployeeId, payload = {}) {
     const session = await mongoose.startSession();
@@ -355,35 +350,9 @@ class RequestService {
         console.warn('[RequestService] coreApi.getProjectById error during approval:', err.message);
       }
 
-      // If not in Core Backend, fallback to Tracker local database Project model
-      if (!coreProject) {
-        const Project = require('../projects/project.model');
-        const isObjectId = mongoose.isValidObjectId(inputProjectId) && inputProjectId.length === 24;
-        const localP = await Project.findOne(
-          isObjectId
-            ? { $or: [{ _id: inputProjectId }, { projectId: inputProjectId }, { projectId: inputProjectId.toUpperCase() }] }
-            : { $or: [{ projectId: inputProjectId }, { projectId: inputProjectId.toUpperCase() }] }
-        ).session(session);
-
-        if (localP) {
-          coreProject = {
-            _id: localP._id,
-            projectId: localP.projectId || inputProjectId,
-            projectName: localP.projectName,
-            title: localP.projectName,
-            email: localP.email || '',
-            phone: localP.phone || '',
-            address: localP.address || '',
-            numberOfSchools: localP.numberOfSchools || 0,
-            numberOfLicenses: localP.numberOfLicenses || 0,
-            source: 'TRACKER_LOCAL_DB'
-          };
-        }
-      }
-
       if (!coreProject) {
         throw new AppError(
-          `Project '${inputProjectId}' was not found in Core Backend or Tracker database.`,
+          `Project '${inputProjectId}' was not found in Core Backend.`,
           404,
           'PROJECT_NOT_FOUND'
         );
@@ -500,8 +469,7 @@ class RequestService {
           projectId: finalCoreProjectId,
           projectName: coreProject.projectName || request.title,
           source: 'CORE_BACKEND'
-        },
-        timeline
+        }
       };
     } catch (error) {
       await session.abortTransaction();
@@ -583,38 +551,7 @@ class RequestService {
       console.warn('[RequestService] Core Backend available projects request error:', coreErr.message);
     }
 
-    // If Core Backend returned projects, return them directly
-    if (coreProjects.length > 0) {
-      return coreProjects;
-    }
-
-    // 2. Fallback to Tracker local database in case Core Backend is not reachable
-    try {
-      const Project = require('../projects/project.model');
-      const localProjects = await Project.find({ isActive: { $ne: false } })
-        .select('_id projectId projectName organization email phone address numberOfSchools numberOfLicenses country isActive')
-        .sort({ createdAt: -1 })
-        .lean();
-
-      return localProjects.map((p) => ({
-        _id: String(p._id),
-        projectId: (p.projectId || String(p._id)).trim().toUpperCase(),
-        projectName: p.projectName || p.title || 'Untitled Project',
-        title: p.projectName || p.title || 'Untitled Project',
-        organization: p.organization || p.projectName || 'Direct Organization',
-        email: p.email || '',
-        phone: p.phone || '',
-        address: p.address || '',
-        numberOfSchools: p.numberOfSchools || 0,
-        numberOfLicenses: p.numberOfLicenses || 0,
-        country: typeof p.country === 'object' && p.country ? p.country.name : (p.country || ''),
-        isActive: p.isActive !== false,
-        source: 'TRACKER_LOCAL_DB'
-      }));
-    } catch (err) {
-      console.warn('[RequestService] getAvailableDashboardProjects fallback error:', err.message);
-      return [];
-    }
+    return coreProjects;
   }
 }
 

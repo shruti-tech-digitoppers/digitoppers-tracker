@@ -121,47 +121,6 @@ class CoreApiService {
     return null;
   }
 
-  // ──────────────────────────────────────────
-  // Schools Endpoints (Ready for immediate & future use)
-  // ──────────────────────────────────────────
-
-  /**
-   * Fetch schools from Core Backend
-   * @param {Object} query - optional query parameters (e.g. { projectId })
-   * @returns {Promise<Array>} List of school objects
-   */
-  async getSchools(query = {}) {
-    try {
-      const queryString = new URLSearchParams(query).toString();
-      const endpoint = queryString ? `/api/schools?${queryString}` : '/api/schools';
-      const json = await this.request(endpoint);
-      return json.schools || json.data?.schools || json.data || [];
-    } catch (err) {
-      console.warn('[CoreApiService] getSchools error:', err.message);
-      return [];
-    }
-  }
-
-  // ──────────────────────────────────────────
-  // Languages Endpoints (Ready for immediate & future use)
-  // ──────────────────────────────────────────
-
-  /**
-   * Fetch languages from Core Backend
-   * @param {Object} query - optional query parameters
-   * @returns {Promise<Array>} List of language objects
-   */
-  async getLanguages(query = {}) {
-    try {
-      const queryString = new URLSearchParams(query).toString();
-      const endpoint = queryString ? `/api/languages?${queryString}` : '/api/languages';
-      const json = await this.request(endpoint);
-      return json.languages || json.data?.languages || json.data || [];
-    } catch (err) {
-      console.warn('[CoreApiService] getLanguages error:', err.message);
-      return [];
-    }
-  }
 }
 
 module.exports = new CoreApiService();

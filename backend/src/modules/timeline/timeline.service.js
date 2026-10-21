@@ -154,6 +154,33 @@ class TimelineService {
       project = await this._findProject(coreProjectOrId);
     }
 
+    if (!project) {
+      console.warn(`[TimelineService] Project not found for timeline creation: ${coreProjectOrId}`);
+      return null;
+    }
+
+    // STRICT VALIDATION: Timeline can ONLY be created for projects that strictly exist in Core Backend.
+    let isCoreProject = false;
+    if (project.source === 'CORE_BACKEND' || project.source === 'CORE_BACKEND_WITH_LOCAL_MERGE') {
+      isCoreProject = true;
+    } else {
+      const lookupCode = project.projectId || project._id;
+      try {
+        const verifiedCoreP = await coreApi.getProjectById(lookupCode);
+        if (verifiedCoreP) {
+          isCoreProject = true;
+          project.source = 'CORE_BACKEND';
+        }
+      } catch (err) {
+        console.warn(`[TimelineService] Core Backend verification error for ${lookupCode}:`, err.message);
+      }
+    }
+
+    if (!isCoreProject) {
+      console.warn(`[TimelineService] Timeline creation aborted: Project '${project.projectId || coreProjectOrId}' is not in Core Backend.`);
+      return null;
+    }
+
     if (!effectivePmId && project) {
       effectivePmId = project.projectManager;
       if (effectivePmId && typeof effectivePmId === 'object' && effectivePmId._id) {
@@ -360,10 +387,17 @@ class TimelineService {
     }).populate('projectManager', 'name email employeeCode globalRole designation');
 
     if (!timeline) {
-      timeline = await this.createTimelineForProject(project, effectivePmId);
-      if (timeline) {
-        timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole designation');
-      }
+      return {
+        timeline: null,
+        project: {
+          _id: project._id,
+          projectId: project.projectId,
+          projectName: project.projectName || project.title
+        },
+        nodes: [],
+        stages: [],
+        structure: []
+      };
     } else if (effectivePmId && (!timeline.projectManager || (typeof timeline.projectManager === 'object' && timeline.projectManager._id.toString() !== effectivePmId.toString()) || timeline.projectManager.toString() !== effectivePmId.toString())) {
       timeline.projectManager = effectivePmId;
       await timeline.save();
@@ -392,10 +426,17 @@ class TimelineService {
     }
 
     if (nodes.length === 0) {
-      await this.createTimelineForProject(project, effectivePmId);
-      nodes = await TimelineNode.find({ timeline: timeline._id })
-        .populate('assignedTo', 'name email employeeCode')
-        .sort({ order: 1 });
+      return {
+        timeline,
+        project: {
+          _id: project._id,
+          projectId: project.projectId,
+          projectName: project.projectName || project.title
+        },
+        nodes: [],
+        stages: [],
+        structure: []
+      };
     }
 
     // Auto-migrate Tech Stream to latest 2 tasks if not yet created
@@ -3020,6 +3061,19 @@ class TimelineService {
     const project = await this._findProject(projectId);
     if (!project) {
       throw new AppError('Project not found', 404, 'PROJECT_NOT_FOUND');
+    }
+
+    // STRICT CHECK: Ensure project strictly exists in Core Backend
+    const lookupCode = project.projectId || project._id;
+    let isCore = project.source === 'CORE_BACKEND' || project.source === 'CORE_BACKEND_WITH_LOCAL_MERGE';
+    if (!isCore) {
+      try {
+        const verified = await coreApi.getProjectById(lookupCode);
+        if (verified) isCore = true;
+      } catch (_) {}
+    }
+    if (!isCore) {
+      throw new AppError('Cannot reset timeline: This project does not exist in Core Backend.', 400, 'NOT_CORE_PROJECT');
     }
 
     const pId = project._id;
