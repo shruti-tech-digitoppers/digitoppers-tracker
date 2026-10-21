@@ -1,4 +1,5 @@
 import "./globals.css";
+import "./responsive-screen.css";
 import type { Metadata } from "next";
 import AppLayout from "@/components/shell/AppLayout";
 

@@ -41,9 +41,9 @@ export function DashboardRoadmapList({
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-2 sm:space-y-2.5">
         {[1, 2, 3].map((i) => (
-          <div key={i} className="h-40 rounded-2xl bg-white border border-[#b9c0cb]/30 p-6 animate-pulse" />
+          <div key={i} className="h-20 sm:h-24 rounded-xl bg-white border border-[#b9c0cb]/30 p-4 animate-pulse" />
         ))}
       </div>
     );
@@ -107,10 +107,10 @@ export function DashboardRoadmapList({
   }
 
   return (
-    <div className="space-y-4">
-      {projects.map((project) => (
+    <div className="space-y-2 sm:space-y-2.5">
+      {projects.map((project, idx) => (
         <ProjectRoadmapCard
-          key={project._id}
+          key={`${project._id || 'proj'}-${project.projectId || idx}`}
           project={project}
           currentUser={currentUser}
           isExpanded={Boolean(expandedMap[project._id])}

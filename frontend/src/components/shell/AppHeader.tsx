@@ -74,44 +74,38 @@ export function AppHeader({
   };
 
   return (
-    <header className="w-full h-16 bg-white border-b border-slate-200/90 sticky top-0 z-20 px-4 sm:px-6 flex items-center justify-between gap-4 shadow-2xs font-sans">
+    <header className="w-full h-16 bg-white border-b border-slate-200/90 sticky top-0 z-20 px-3 sm:px-4 md:px-6 flex items-center justify-between gap-2 sm:gap-4 shadow-2xs font-sans">
       {/* Left: 3-line Menu Hamburger Toggle & Page Title */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2 sm:gap-3 min-w-0">
         {onToggleSidebar && (
           <button
             type="button"
             onClick={onToggleSidebar}
-            className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:text-[#2d6b73] hover:bg-[#f0f8f9] border border-slate-200 hover:border-[#b6e0e4] transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
-            title={collapsed ? 'Expand Sidebar' : 'Collapse Sidebar'}
+            className="menu-hamburger-btn w-9 h-9 rounded-xl flex items-center justify-center text-slate-600 hover:text-[#2d6b73] hover:bg-[#f0f8f9] border border-slate-200 hover:border-[#b6e0e4] transition-all cursor-pointer shadow-2xs active:scale-95 shrink-0"
+            title="Toggle Navigation Menu"
           >
             <Menu className="w-5 h-5 stroke-[2.2]" />
           </button>
         )}
 
-        {!currentUser && !onToggleSidebar && (
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#3a7d84] to-[#51a8b1] flex items-center justify-center text-white shadow-xs">
-            <LayoutDashboard className="w-4 h-4" />
-          </div>
-        )}
-
-        <div>
-          <h1 className="font-heading text-xl sm:text-2xl font-bold text-[#2d6b73] tracking-tight">
-            {!currentUser ? 'DigiToppers Project Tracker' : getPageTitle()}
+        <div className="min-w-0">
+          <h1 className="font-heading text-sm sm:text-lg md:text-xl font-bold text-[#2d6b73] tracking-tight truncate">
+            {!currentUser ? 'DigiToppers Tracker' : getPageTitle()}
           </h1>
         </div>
       </div>
 
       {/* Right: Search, Date, Notifications, Profile / Login */}
-      <div className="flex items-center gap-3 sm:gap-4">
+      <div className="flex items-center gap-2 sm:gap-3 md:gap-4 shrink-0">
         {/* Interactive Global Search Input */}
         <div className="relative flex items-center">
-          <Search className="w-3.5 h-3.5 text-[#51a8b1] absolute left-3 pointer-events-none" />
+          <Search className="w-3.5 h-3.5 text-[#51a8b1] absolute left-2.5 pointer-events-none" />
           <input
             type="text"
             placeholder={getSearchPlaceholder()}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            className="pl-8 pr-8 py-1.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl w-36 sm:w-52 md:w-64 lg:w-72 text-[#1e293b] placeholder-[#556987]/70 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] focus:bg-white transition-all shadow-2xs font-medium"
+            className="pl-8 pr-7 py-1.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl w-28 sm:w-44 md:w-56 lg:w-68 text-[#1e293b] placeholder-[#556987]/70 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] focus:bg-white transition-all shadow-2xs font-medium"
           />
           {query && (
             <button

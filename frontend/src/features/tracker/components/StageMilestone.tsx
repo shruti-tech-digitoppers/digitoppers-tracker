@@ -48,13 +48,25 @@ export function StageMilestone({
     <div className="relative flex items-start">
       <div className="flex flex-col items-center">
         {/* Stage Number Tag */}
-        <div className="flex items-center gap-1 mb-1.5">
+        <div className="flex items-center gap-1 mb-1.5 flex-wrap justify-center">
           <span className={`flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-mono font-bold border ${theme.numberBg} ${theme.numberText} ${theme.numberBorder}`}>
             {orderNumber}
           </span>
           <span className={`text-[9.5px] font-heading font-black uppercase tracking-wider ${theme.badgeText}`}>
             Phase {orderNumber}
           </span>
+          {stage.status === 'ON_HOLD' && (
+            <span className="px-1.5 py-0.2 rounded-full bg-orange-500 text-white font-mono text-[8px] font-black uppercase animate-pulse shadow-2xs flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              HOLD
+            </span>
+          )}
+          {stage.status === 'IN_PROGRESS' && (
+            <span className="px-1.5 py-0.2 rounded-full bg-[#51a8b1] text-white font-mono text-[8px] font-black uppercase animate-pulse shadow-2xs flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              ACTIVE
+            </span>
+          )}
         </div>
 
         {/* Stage Card */}
@@ -122,12 +134,24 @@ export function StageMilestone({
         <div className="flex items-center h-[70px] px-1 mt-5">
           <div
             className={`h-[3px] w-6 rounded-sm ${
-              stage.status === 'COMPLETED' ? 'bg-[#a8cf45]' : theme.connectorLine
+              stage.status === 'COMPLETED'
+                ? 'bg-[#a8cf45]'
+                : stage.status === 'ON_HOLD'
+                ? 'bg-orange-500 animate-pulse'
+                : stage.status === 'IN_PROGRESS'
+                ? 'bg-[#51a8b1] animate-pulse'
+                : theme.connectorLine
             }`}
           />
           <ChevronRight
             className={`w-4 h-4 -ml-1.5 stroke-[3] ${
-              stage.status === 'COMPLETED' ? 'text-[#759724]' : theme.connectorArrow
+              stage.status === 'COMPLETED'
+                ? 'text-[#759724]'
+                : stage.status === 'ON_HOLD'
+                ? 'text-orange-600'
+                : stage.status === 'IN_PROGRESS'
+                ? 'text-[#3a7d84]'
+                : theme.connectorArrow
             }`}
           />
         </div>

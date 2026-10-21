@@ -142,7 +142,7 @@ export function ProjectsTable({
 
               return (
                 <tr 
-                  key={project._id || `proj-${idx}`} 
+                  key={`${project._id || 'proj'}-${project.projectId || idx}`} 
                   className="hover:bg-[#f0f8f9]/30 transition-colors group"
                 >
                   {/* Column 1: Project ID & Name */}

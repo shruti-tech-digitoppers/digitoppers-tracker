@@ -55,17 +55,37 @@ export function ExecutionParallelContainer({
   const isExpanded = isNodeExpanded(executionStage._id);
   const theme = getStageTheme(4);
 
+  const streams = [
+    { name: 'Hardware', node: hardwareStream },
+    { name: 'Tech', node: techStream },
+    { name: 'Content', node: contentStream },
+  ];
+  const inProgressStreams = streams.filter(s => s.node?.status === 'IN_PROGRESS');
+  const onHoldStreams = streams.filter(s => s.node?.status === 'ON_HOLD');
+
   return (
     <div className="relative flex items-start">
       <div className="flex flex-col items-center">
         {/* Stage Number Tag */}
-        <div className="flex items-center gap-1 mb-1.5">
+        <div className="flex items-center gap-1 mb-1.5 flex-wrap justify-center">
           <span className={`flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-mono font-bold border ${theme.numberBg} ${theme.numberText} ${theme.numberBorder}`}>
             04
           </span>
           <span className={`font-heading text-[9.5px] font-black uppercase tracking-wider ${theme.badgeText}`}>
             Execution Stage
           </span>
+          {inProgressStreams.length >= 2 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-[#51a8b1] text-white font-mono text-[8px] font-black uppercase animate-pulse shadow-2xs flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              PARALLEL
+            </span>
+          )}
+          {onHoldStreams.length > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full bg-orange-500 text-white font-mono text-[8px] font-black uppercase animate-pulse shadow-2xs flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              HOLD
+            </span>
+          )}
         </div>
 
         {/* Stage Milestone Node */}
@@ -93,9 +113,25 @@ export function ExecutionParallelContainer({
             {/* 3 Parallel Streams Container */}
             <div className="p-3 rounded-3xl bg-gradient-to-b from-teal-50/40 via-white to-teal-50/20 border-2 border-teal-200/90 shadow-xs">
               {/* Split Indicator Badge */}
-              <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold text-teal-900 bg-teal-50 border border-teal-200/90 px-3 py-1 rounded-full mb-3 shadow-2xs mx-auto w-fit">
-                <Split className="w-2.5 h-2.5 text-teal-600" />
-                3 Parallel Workstreams (Hardware • Tech • Content)
+              <div className="flex items-center justify-center gap-2 flex-wrap mb-3 mx-auto w-fit">
+                <div className="flex items-center gap-1.5 text-[9px] font-bold text-teal-900 bg-teal-50 border border-teal-200/90 px-3 py-1 rounded-full shadow-2xs">
+                  <Split className="w-2.5 h-2.5 text-teal-600" />
+                  <span>3 Parallel Workstreams (Hardware • Tech • Content)</span>
+                </div>
+
+                {inProgressStreams.length >= 2 && (
+                  <div className="inline-flex items-center gap-1.5 text-[9px] font-extrabold text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-0.5 rounded-full shadow-2xs animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-[#51a8b1]" />
+                    <span>{inProgressStreams.length} Parallel Running ({inProgressStreams.map(s => s.name).join(' • ')})</span>
+                  </div>
+                )}
+
+                {onHoldStreams.length > 0 && (
+                  <div className="inline-flex items-center gap-1.5 text-[9px] font-extrabold text-orange-950 bg-orange-100 border border-orange-300 px-2.5 py-0.5 rounded-full shadow-2xs animate-pulse">
+                    <span className="w-2 h-2 rounded-full bg-orange-500 ring-2 ring-orange-300" />
+                    <span>⏸ {onHoldStreams.length} Stream on Hold ({onHoldStreams.map(s => s.name).join(' • ')})</span>
+                  </div>
+                )}
               </div>
 
               {/* 3 Parallel Stream Columns Side-by-Side */}

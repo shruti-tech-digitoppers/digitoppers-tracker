@@ -305,9 +305,9 @@ export function ProjectsListWorkspace() {
       ) : (
         /* Grid Card View */
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredProjects.map((project) => (
+          {filteredProjects.map((project, idx) => (
             <ProjectCard
-              key={project._id}
+              key={`${project._id || 'proj'}-${project.projectId || idx}`}
               project={project}
               onDelete={handleDelete}
             />

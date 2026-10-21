@@ -3,7 +3,7 @@ module.exports = {
   stages: [
     {
       key: 'PROJECT_REVIEWER',
-      name: '01 — PROJECT CREATED & REVIEW',
+      name: 'Project Review',
       order: 1,
       metadata: { noAssignment: true },
       formSchema: {
@@ -24,7 +24,7 @@ module.exports = {
     },
     {
       key: 'PO_AND_PI',
-      name: '02 — PO, PI & TAX INVOICE',
+      name: 'PO & PI',
       order: 2,
       substages: [
         {
@@ -81,7 +81,7 @@ module.exports = {
     },
     {
       key: 'ORDER_REQUIREMENT',
-      name: '03 — ORDER REQUIREMENT',
+      name: 'Order Requirement',
       order: 3,
       metadata: { noAssignment: true },
       substages: [
@@ -221,7 +221,7 @@ module.exports = {
     },
     {
       key: 'EXECUTION',
-      name: '04 — EXECUTION',
+      name: 'Execution',
       order: 4,
       substages: [
         {
@@ -425,7 +425,7 @@ module.exports = {
     },
     {
       key: 'TECH_AND_CONTENT_TESTING',
-      name: '05 — TECH + CONTENT TESTING',
+      name: 'Testing',
       order: 5,
       dependencies: ['TECH_READY', 'CONTENT_READY'],
       substages: [
@@ -469,7 +469,7 @@ module.exports = {
     },
     {
       key: 'INSTALLATION',
-      name: '06 — INSTALLATION',
+      name: 'Installation',
       order: 6,
       substages: [
         {
@@ -535,7 +535,7 @@ module.exports = {
     },
     {
       key: 'TRAINING',
-      name: '07 — TRAINING',
+      name: 'Training',
       order: 7,
       department: 'TRAINING',
       primaryDepartment: 'TRAINING',
@@ -604,7 +604,7 @@ module.exports = {
     },
     {
       key: 'PROJECT_CLOSURE',
-      name: '08 — PROJECT CLOSURE',
+      name: 'Project Closure',
       order: 8,
       substages: [
         {

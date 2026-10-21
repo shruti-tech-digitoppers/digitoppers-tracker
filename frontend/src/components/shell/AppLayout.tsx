@@ -24,6 +24,7 @@ export default function AppLayout({ children }: AppLayoutProps) {
   const isPublicViewPage = pathname === '/dashboard' || pathname === '/' || pathname.startsWith('/tracker');
 
   const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [notifications, setNotifications] = useState<INotificationItem[]>([]);
   const [isNotifOpen, setIsNotifOpen] = useState<boolean>(false);
@@ -120,6 +121,19 @@ export default function AppLayout({ children }: AppLayoutProps) {
     };
   }, [fetchNotifications, isLoginPage, isAuthenticated]);
 
+  // Auto-close mobile drawer on route change
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [pathname]);
+
+  const handleToggleSidebar = useCallback(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      setMobileSidebarOpen((prev) => !prev);
+    } else {
+      setCollapsed((prev) => !prev);
+    }
+  }, []);
+
   const handleToggleCollapse = useCallback(() => {
     setCollapsed((prev) => !prev);
   }, []);
@@ -181,16 +195,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
       <SearchProvider>
         <PermissionProvider permissions={permissions}>
           <div className="min-h-screen flex bg-[#f8fafb] text-[#333333] font-sans">
-            {/* ── Left Sidebar Navigation Panel (Only for authenticated users) ── */}
-            {currentUser && (
-              <AppSidebar
-                collapsed={collapsed}
-                onToggleCollapse={handleToggleCollapse}
-                currentUser={currentUser}
-                onLogout={handleLogout}
-                unreadCount={unreadNotificationsCount}
-              />
-            )}
+            {/* ── Left Sidebar Navigation Panel & Responsive Mobile Drawer ── */}
+            <AppSidebar
+              collapsed={collapsed}
+              onToggleCollapse={handleToggleSidebar}
+              currentUser={currentUser}
+              onLogout={handleLogout}
+              unreadCount={unreadNotificationsCount}
+              mobileOpen={mobileSidebarOpen}
+              onCloseMobile={() => setMobileSidebarOpen(false)}
+            />
 
             {/* ── Main App Container with Top Header ──────────────── */}
             <div className="flex-1 flex flex-col min-w-0 min-h-screen">
@@ -203,11 +217,11 @@ export default function AppLayout({ children }: AppLayoutProps) {
                 onMarkAllAsRead={handleMarkAllAsRead}
                 onSelectNotification={handleSelectNotification}
                 collapsed={collapsed}
-                onToggleSidebar={currentUser ? handleToggleCollapse : undefined}
+                onToggleSidebar={handleToggleSidebar}
               />
 
               {/* Page Content */}
-              <main className="flex-1 min-w-0 p-3 sm:p-4 md:p-6 overflow-x-hidden">
+              <main className="flex-1 min-w-0 p-2 sm:p-3 md:p-4 lg:p-4.5 overflow-x-hidden">
                 {children}
               </main>
             </div>

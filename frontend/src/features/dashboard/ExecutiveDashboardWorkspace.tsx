@@ -14,7 +14,6 @@ import { NotificationDetailModal } from '../../components/shell/NotificationDeta
 import { requestsApi } from '../../lib/api/requests.api';
 import { ICreateProjectRequestPayload } from '../../types/request';
 import { 
-  RefreshCw, 
   Send, 
   Search, 
   X, 
@@ -27,8 +26,6 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronRight,
-  Maximize2,
-  Minimize2,
   Eye,
   EyeOff
 } from 'lucide-react';
@@ -59,6 +56,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
   // Independent Partition Open/Close Toggles
   const [isTimelineOpen, setIsTimelineOpen] = useState<boolean>(true);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState<boolean>(true);
+  const [isCompactMode, setIsCompactMode] = useState<boolean>(true);
 
   const isAdmin = currentUser?.globalRole === 'ADMIN' || (currentUser as any)?.role === 'ADMIN';
   const canRequestProject = isAdmin || Boolean(currentUser?.canRequestNewProject || currentUser?.permissions?.canRequestNewProject);
@@ -308,45 +306,29 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
   };
 
   return (
-    <div className="max-w-[1700px] mx-auto space-y-5 font-sans">
+    <div className={`adaptive-dashboard-container font-sans ${isCompactMode ? 'high-density-view' : ''}`}>
       {/* ── Top Page Welcome & Actions Bar ─────────────────────── */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-1 pb-1">
-        <div className="space-y-1">
-          <h2 suppressHydrationWarning className="font-heading text-lg sm:text-2xl font-extrabold text-[#2d6b73] tracking-tight">
+      <div className="adaptive-welcome-bar">
+        <div className="space-y-0.5">
+          <h2 suppressHydrationWarning className="font-heading text-base sm:text-xl font-extrabold text-[#2d6b73] tracking-tight">
             Hello{currentUser?.name ? `, ${currentUser.name}` : ''}
           </h2>
-          <p className="text-xs sm:text-sm font-medium text-[#556987]">
+          <p className="text-[11px] sm:text-xs font-medium text-[#556987]">
             Welcome to <span className="font-semibold text-[#3a7d84]">DigiToppers Project Tracker</span>
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5 self-end sm:self-auto flex-wrap">
+        <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
           {canRequestProject && (
             <button
               type="button"
               onClick={() => setIsModalOpen(true)}
-              className="bg-gradient-to-r from-[#3a7d84] to-[#51a8b1] text-white px-4 py-2.5 rounded-xl text-xs font-bold hover:opacity-95 active:scale-95 transition-all flex items-center gap-2 shadow-xs cursor-pointer"
+              className="bg-gradient-to-r from-[#3a7d84] to-[#51a8b1] text-white px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold hover:opacity-95 active:scale-95 transition-all flex items-center gap-1.5 shadow-2xs cursor-pointer"
             >
               <Send className="w-3.5 h-3.5" />
               <span>New Project Request</span>
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => {
-              showLoading({
-                message: 'Refreshing DigiToppers Dashboard...',
-                subtext: 'Syncing project roadmaps and real-time activities',
-              });
-              fetchDashboardData(true).finally(() => {
-                setTimeout(hideLoading, 600);
-              });
-            }}
-            className="border border-[#b6e0e4] bg-white px-4 py-2.5 rounded-xl text-xs font-bold text-[#2d6b73] hover:bg-[#f0f8f9] transition flex items-center gap-2 shadow-xs cursor-pointer"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-[#51a8b1] ${loading ? 'animate-spin' : ''}`} />
-            <span>Refresh All</span>
-          </button>
         </div>
       </div>
 
@@ -362,7 +344,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
         const unreadCount = notifications.filter((n) => !n.isRead).length;
 
         return (
-          <div className="flex flex-wrap items-center justify-between gap-4 w-full">
+          <div className="flex flex-wrap items-center justify-between gap-2.5 w-full">
             {/* Projects Timeline Toggle Button */}
             <button
               type="button"
@@ -372,21 +354,21 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                 color: isTimelineOpen ? '#ffffff' : '#2d6b73',
                 borderColor: '#2d6b73',
               }}
-              className="inline-flex items-center gap-2.5 px-3.5 py-2 sm:px-4 sm:py-2 rounded-xl border transition-all duration-200 cursor-pointer select-none shadow-2xs hover:shadow-xs active:scale-[0.98] group"
+              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 cursor-pointer select-none shadow-2xs hover:shadow-xs active:scale-[0.98] group"
             >
               <div
                 style={{
                   backgroundColor: isTimelineOpen ? '#ffffff' : '#2d6b73',
                   color: isTimelineOpen ? '#2d6b73' : '#ffffff',
                 }}
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 shrink-0"
+                className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 shrink-0"
               >
-                <Layers className="w-4 h-4" />
+                <Layers className="w-3.5 h-3.5" />
               </div>
 
               <span
                 style={{ color: isTimelineOpen ? '#ffffff' : '#2d6b73' }}
-                className="font-heading font-extrabold text-xs sm:text-sm tracking-tight"
+                className="font-heading font-extrabold text-xs tracking-tight"
               >
                 Projects Timeline
               </span>
@@ -396,7 +378,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                   backgroundColor: isTimelineOpen ? '#ffffff' : '#2d6b73',
                   color: isTimelineOpen ? '#2d6b73' : '#ffffff',
                 }}
-                className="font-mono text-xs font-bold px-2 py-0.5 rounded-full shadow-2xs"
+                className="font-mono text-[11px] font-bold px-1.5 py-0.2 rounded-full shadow-2xs"
               >
                 {filteredProjects.length}
               </span>
@@ -406,12 +388,12 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                   backgroundColor: isTimelineOpen ? '#ffffff' : '#2d6b73',
                   color: isTimelineOpen ? '#2d6b73' : '#ffffff',
                 }}
-                className="w-6 h-6 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 ml-0.5"
+                className="w-5 h-5 rounded-md flex items-center justify-center shadow-2xs transition-all duration-200 ml-0.5"
               >
                 {isTimelineOpen ? (
-                  <ChevronUp className="w-3.5 h-3.5" />
+                  <ChevronUp className="w-3 h-3" />
                 ) : (
-                  <ChevronDown className="w-3.5 h-3.5" />
+                  <ChevronDown className="w-3 h-3" />
                 )}
               </div>
             </button>
@@ -426,16 +408,16 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                   color: isNotificationsOpen ? '#ffffff' : '#2d6b73',
                   borderColor: '#2d6b73',
                 }}
-                className="inline-flex items-center gap-2.5 px-3.5 py-2 sm:px-4 sm:py-2 rounded-xl border transition-all duration-200 cursor-pointer select-none shadow-2xs hover:shadow-xs active:scale-[0.98] group"
+                className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl border transition-all duration-200 cursor-pointer select-none shadow-2xs hover:shadow-xs active:scale-[0.98] group"
               >
                 <div
                   style={{
                     backgroundColor: isNotificationsOpen ? '#ffffff' : '#2d6b73',
                     color: isNotificationsOpen ? '#2d6b73' : '#ffffff',
                   }}
-                  className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 shrink-0 relative"
+                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 shrink-0 relative"
                 >
-                  <Bell className="w-4 h-4" />
+                  <Bell className="w-3.5 h-3.5" />
                   {unreadCount > 0 && (
                     <span
                       className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${
@@ -449,14 +431,14 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
 
                 <span
                   style={{ color: isNotificationsOpen ? '#ffffff' : '#2d6b73' }}
-                  className="font-heading font-extrabold text-xs sm:text-sm tracking-tight"
+                  className="font-heading font-extrabold text-xs tracking-tight"
                 >
                   Assignments &amp; Notifications
                 </span>
 
                 {unreadCount > 0 ? (
                   <span
-                    className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white shadow-2xs"
+                    className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-500 text-white shadow-2xs"
                   >
                     {unreadCount} new
                   </span>
@@ -466,7 +448,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                       backgroundColor: isNotificationsOpen ? '#ffffff' : '#2d6b73',
                       color: isNotificationsOpen ? '#2d6b73' : '#ffffff',
                     }}
-                    className="font-mono text-xs font-bold px-2 py-0.5 rounded-full shadow-2xs"
+                    className="font-mono text-[11px] font-bold px-1.5 py-0.2 rounded-full shadow-2xs"
                   >
                     {notifications.length}
                   </span>
@@ -477,12 +459,12 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                     backgroundColor: isNotificationsOpen ? '#ffffff' : '#2d6b73',
                     color: isNotificationsOpen ? '#2d6b73' : '#ffffff',
                   }}
-                  className="w-6 h-6 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 ml-0.5"
+                  className="w-5 h-5 rounded-md flex items-center justify-center shadow-2xs transition-all duration-200 ml-0.5"
                 >
                   {isNotificationsOpen ? (
-                    <ChevronUp className="w-3.5 h-3.5" />
+                    <ChevronUp className="w-3 h-3" />
                   ) : (
-                    <ChevronDown className="w-3.5 h-3.5" />
+                    <ChevronDown className="w-3 h-3" />
                   )}
                 </div>
               </button>
@@ -535,27 +517,30 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                 )}
               </div>
 
-              {/* Action Buttons: Expand All & Collapse All */}
-              <div className="flex items-center gap-1.5">
-                <button
-                  type="button"
-                  onClick={expandAll}
-                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs"
-                >
-                  Expand All
-                </button>
-                <button
-                  type="button"
-                  onClick={collapseAll}
-                  className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs"
-                >
-                  Collapse All
-                </button>
-              </div>
+              {/* Action Button: Toggle Expand All / Collapse All */}
+              <button
+                type="button"
+                onClick={allExpanded ? collapseAll : expandAll}
+                disabled={filteredProjects.length === 0}
+                className="px-2.5 py-1.5 rounded-lg bg-white hover:bg-[#f0f8f9] text-[11px] font-bold text-[#2d6b73] border border-[#b6e0e4] transition cursor-pointer shadow-2xs flex items-center gap-1.5 disabled:opacity-40 disabled:cursor-not-allowed select-none"
+                title={allExpanded ? 'Collapse all project roadmaps' : 'Expand all project roadmaps'}
+              >
+                {allExpanded ? (
+                  <>
+                    <ChevronUp className="w-3.5 h-3.5" />
+                    <span>Collapse All</span>
+                  </>
+                ) : (
+                  <>
+                    <ChevronDown className="w-3.5 h-3.5" />
+                    <span>Expand All</span>
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Timeline Roadmap List */}
-            <div className="p-3 sm:p-4 md:p-5 space-y-4">
+            <div className="p-2 sm:p-2.5 md:p-3 space-y-2.5">
               <DashboardRoadmapList
                 projects={filteredProjects}
                 loading={loading}
@@ -599,14 +584,14 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           return null;
         }
 
-        // Case 1: Both Open (70% Timeline / 30% Notifications side-by-side)
+        // Case 1: Both Open (Adaptive Split Layout)
         if (isTimelineOpen && isNotificationsOpen) {
           return (
-            <div className="flex flex-col lg:flex-row items-start gap-6 transition-all duration-300">
-              <div className="w-full lg:w-[70%] min-w-0 transition-all duration-300">
+            <div className="adaptive-dual-container transition-all duration-300">
+              <div className="w-full adaptive-timeline-pane min-w-0 transition-all duration-300">
                 {renderTimelineCard(true)}
               </div>
-              <div className="w-full lg:w-[30%] min-w-0 lg:sticky lg:top-4 transition-all duration-300">
+              <div className="w-full adaptive-notifications-pane min-w-0 transition-all duration-300">
                 {renderNotificationsCard()}
               </div>
             </div>

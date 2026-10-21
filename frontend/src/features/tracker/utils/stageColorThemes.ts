@@ -91,7 +91,7 @@ export const STAGE_COLOR_THEMES: Record<number, StageColorTheme> = {
   // Phase 2: Ice Sky Blue / Crystal Blue
   2: {
     stageNumber: 2,
-    name: 'PO & PI Generation',
+    name: 'PO & PI',
     family: 'sky',
     badgeBg: 'bg-sky-100/90',
     badgeText: 'text-sky-900',
@@ -163,7 +163,7 @@ export const STAGE_COLOR_THEMES: Record<number, StageColorTheme> = {
   // Phase 4: Nordic Ocean / Soft Aqua Slate
   4: {
     stageNumber: 4,
-    name: 'Execution Stage',
+    name: 'Execution',
     family: 'teal',
     badgeBg: 'bg-teal-100/90',
     badgeText: 'text-teal-900',
@@ -199,7 +199,7 @@ export const STAGE_COLOR_THEMES: Record<number, StageColorTheme> = {
   // Phase 5: Soft Purple / Lavender Amethyst
   5: {
     stageNumber: 5,
-    name: 'Tech & Content QA',
+    name: 'Testing',
     family: 'purple',
     badgeBg: 'bg-purple-100/90',
     badgeText: 'text-purple-900',
@@ -235,7 +235,7 @@ export const STAGE_COLOR_THEMES: Record<number, StageColorTheme> = {
   // Phase 6: Warm Peach / Soft Apricot
   6: {
     stageNumber: 6,
-    name: 'Field Installation',
+    name: 'Installation',
     family: 'orange',
     badgeBg: 'bg-orange-100/90',
     badgeText: 'text-orange-900',
@@ -271,7 +271,7 @@ export const STAGE_COLOR_THEMES: Record<number, StageColorTheme> = {
   // Phase 7: Soft Indigo / Periwinkle Twilight (replaces rose/red)
   7: {
     stageNumber: 7,
-    name: 'Teacher Training',
+    name: 'Training',
     family: 'indigo',
     badgeBg: 'bg-indigo-100/90',
     badgeText: 'text-indigo-900',
@@ -307,7 +307,7 @@ export const STAGE_COLOR_THEMES: Record<number, StageColorTheme> = {
   // Phase 8: Cool Slate / Silver Platinum
   8: {
     stageNumber: 8,
-    name: 'Handover & Closure',
+    name: 'Project Closure',
     family: 'slate',
     badgeBg: 'bg-slate-200/90',
     badgeText: 'text-slate-800',

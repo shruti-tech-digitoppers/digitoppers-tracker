@@ -67,28 +67,26 @@ export function DashboardFilterBar({
         ))}
       </div>
 
-      {/* Global Expand All / Collapse All */}
-      <div className="flex items-center gap-2">
+      {/* Global Expand All / Collapse All Toggle */}
+      <div className="flex items-center">
         <button
           type="button"
-          onClick={onExpandAll}
-          disabled={isAllExpanded || !hasProjects}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-[#b6e0e4] bg-[#f0f8f9] text-[#3a7d84] hover:bg-[#d9eef0] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-xs"
-          title="Expand all filtered project roadmaps"
+          onClick={isAllExpanded ? onCollapseAll : onExpandAll}
+          disabled={!hasProjects}
+          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-[#b6e0e4] bg-[#f0f8f9] text-[#3a7d84] hover:bg-[#d9eef0] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer shadow-xs select-none"
+          title={isAllExpanded ? 'Collapse all project roadmaps' : 'Expand all filtered project roadmaps'}
         >
-          <ChevronDown className="w-3.5 h-3.5" />
-          <span>Expand All</span>
-        </button>
-
-        <button
-          type="button"
-          onClick={onCollapseAll}
-          disabled={isAllCollapsed || !hasProjects}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border border-[#b9c0cb]/60 bg-[#f8fafb] text-[#4a5462] hover:bg-[#f1f3f6] disabled:opacity-40 disabled:cursor-not-allowed transition cursor-pointer"
-          title="Collapse all project roadmaps"
-        >
-          <ChevronUp className="w-3.5 h-3.5" />
-          <span>Collapse All</span>
+          {isAllExpanded ? (
+            <>
+              <ChevronUp className="w-3.5 h-3.5" />
+              <span>Collapse All</span>
+            </>
+          ) : (
+            <>
+              <ChevronDown className="w-3.5 h-3.5" />
+              <span>Expand All</span>
+            </>
+          )}
         </button>
       </div>
     </div>

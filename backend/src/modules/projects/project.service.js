@@ -53,13 +53,23 @@ class ProjectService {
     const existingProjectIds = new Set(
       localProjects.map(p => (p.projectId || '').toUpperCase())
     );
+    const existingMongoIds = new Set(
+      localProjects.map(p => String(p._id))
+    );
 
     const syntheticProjectsFromRequests = [];
     for (const req of approvedRequests) {
       const code = (req.dashboardProjectId || req.requestId || '').toUpperCase();
       if (code && !existingProjectIds.has(code)) {
+        // Guarantee unique Mongo/Document ID for each synthetic project
+        let chosenId = String(req._id);
+        if (existingMongoIds.has(chosenId)) {
+          chosenId = new mongoose.Types.ObjectId().toString();
+        }
+        existingMongoIds.add(chosenId);
+
         syntheticProjectsFromRequests.push({
-          _id: req.projectId || req._id,
+          _id: chosenId,
           projectId: code,
           projectName: req.projectName || req.title,
           title: req.projectName || req.title,
@@ -95,8 +105,14 @@ class ProjectService {
     for (const cp of coreProjects) {
       const code = (cp.projectId || String(cp._id)).toUpperCase();
       if (code && !existingProjectIds.has(code)) {
+        let chosenCpId = String(cp._id);
+        if (existingMongoIds.has(chosenCpId)) {
+          chosenCpId = new mongoose.Types.ObjectId().toString();
+        }
+        existingMongoIds.add(chosenCpId);
+
         coreProjectsMapped.push({
-          _id: cp._id,
+          _id: chosenCpId,
           projectId: code,
           projectName: cp.projectName || cp.title || 'Core Project',
           title: cp.projectName || cp.title || 'Core Project',
@@ -199,7 +215,21 @@ class ProjectService {
       }
     }
 
-    return mergedProjects;
+    // Final safety deduplication pass to ensure strictly 100% unique _id across all items
+    const seenFinalIds = new Set();
+    const finalUniqueProjects = [];
+    for (const p of mergedProjects) {
+      let pIdStr = String(p._id);
+      if (seenFinalIds.has(pIdStr)) {
+        pIdStr = `${pIdStr}-${p.projectId || Math.random().toString(36).substring(2, 7)}`;
+        p._id = pIdStr;
+        p.coreMongoId = pIdStr;
+      }
+      seenFinalIds.add(pIdStr);
+      finalUniqueProjects.push(p);
+    }
+
+    return finalUniqueProjects;
   }
 
   /**
@@ -429,6 +459,35 @@ class ProjectService {
         source: 'TRACKER_LOCAL_DB'
       };
     }
+
+    // 3. Lookup in ProjectRequest
+    try {
+      const ProjectRequest = require('../project-requests/project-request.model');
+      const reqDoc = await ProjectRequest.findOne(
+        isObjectId
+          ? { $or: [{ _id: idStr }, { requestId: idStr }, { requestId: idStr.toUpperCase() }, { dashboardProjectId: idStr.toUpperCase() }] }
+          : { $or: [{ requestId: idStr }, { requestId: idStr.toUpperCase() }, { dashboardProjectId: idStr.toUpperCase() }] }
+      ).populate('projectManager', 'name email employeeCode globalRole designation').lean().catch(() => null);
+
+      if (reqDoc) {
+        return {
+          _id: String(reqDoc._id),
+          projectId: (reqDoc.dashboardProjectId || reqDoc.requestId || idStr).toUpperCase(),
+          projectName: reqDoc.projectName || reqDoc.title || 'Project Request',
+          title: reqDoc.projectName || reqDoc.title || 'Project Request',
+          organization: reqDoc.projectName || reqDoc.title || 'Direct Organization',
+          email: reqDoc.email || '',
+          phone: reqDoc.phone || '',
+          address: reqDoc.address || '',
+          numberOfSchools: 0,
+          numberOfLicenses: 0,
+          status: 'ACTIVE',
+          projectManager: reqDoc.projectManager || null,
+          isActive: true,
+          source: 'PROJECT_REQUEST'
+        };
+      }
+    } catch (_) {}
 
     return null;
   }

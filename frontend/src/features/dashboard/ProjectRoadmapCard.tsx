@@ -18,6 +18,8 @@ import {
   ExternalLink,
   Check,
   User,
+  Pause,
+  Clock,
 } from 'lucide-react';
 
 interface ProjectRoadmapCardProps {
@@ -31,32 +33,21 @@ interface ProjectRoadmapCardProps {
   employees?: IUser[];
 }
 
-const DEFAULT_STAGE_LABELS = [
-  'Lead & Negotiation',
-  'PO & PI Generation',
-  'Order Requirement & Stock',
-  'Execution & Implementation',
-  'Quality & Content QA',
-  'Field Installation & Dispatch',
-  'Teacher Training',
-  'Handover & Closure',
-];
-
-const SHORT_STAGE_LABELS = [
-  'Lead',
-  'PO / PI',
-  'Order Req',
+const CANONICAL_STAGE_NAMES = [
+  'Project Review',
+  'PO & PI',
+  'Order Requirement',
   'Execution',
-  'QA Check',
-  'Dispatch',
+  'Testing',
+  'Installation',
   'Training',
-  'Closure',
+  'Project Closure',
 ];
 
 const STATUS_CONFIG: Record<string, { label: string; cls: string; dot: string; icon: string }> = {
   ACTIVE: { label: 'Active', cls: 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6]', dot: 'bg-[#a8cf45]', icon: 'text-[#759724]' },
   PENDING_REVIEW: { label: 'Pending Review', cls: 'bg-amber-50 text-amber-800 border-amber-300', dot: 'bg-amber-500', icon: 'text-amber-600' },
-  ON_HOLD: { label: 'On Hold', cls: 'bg-amber-50 text-amber-800 border-amber-200', dot: 'bg-amber-500', icon: 'text-amber-600' },
+  ON_HOLD: { label: 'On Hold', cls: 'bg-orange-50 text-orange-900 border-orange-300 shadow-2xs font-extrabold', dot: 'bg-orange-500 animate-pulse', icon: 'text-orange-600' },
   COMPLETED: { label: 'Completed', cls: 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4]', dot: 'bg-[#51a8b1]', icon: 'text-[#3a7d84]' },
   ARCHIVED: { label: 'Archived', cls: 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40', dot: 'bg-[#b9c0cb]', icon: 'text-[#4a5462]' },
 };
@@ -276,6 +267,15 @@ export function ProjectRoadmapCard({
   const completedStages = stagesToCount.filter((n) => n.status === 'COMPLETED').length;
   const progressPct = Math.round((completedStages / totalStages) * 100);
 
+  // Parallel and hold status checks across stages and sub-streams
+  const hasAnyHold = stagesToCount.some(s => s.status === 'ON_HOLD' || (s.children && s.children.some(c => c.status === 'ON_HOLD')));
+  const inProgressCount = stagesToCount.filter(s => s.status === 'IN_PROGRESS' || (s.children && s.children.some(c => c.status === 'IN_PROGRESS'))).length;
+  const parallelSubstreamsCount = stagesToCount.reduce((acc, s) => {
+    const activeChildren = s.children ? s.children.filter(c => c.status === 'IN_PROGRESS').length : 0;
+    return acc + (activeChildren > 1 ? activeChildren : 0);
+  }, 0);
+  const totalParallelActive = Math.max(inProgressCount, parallelSubstreamsCount);
+
   // Resolve Project Manager name cleanly
   const pmObj = typeof project.projectManager === 'object' && project.projectManager !== null
     ? project.projectManager
@@ -285,9 +285,9 @@ export function ProjectRoadmapCard({
   return (
     <div
       ref={cardRef}
-      className={`rounded-2xl border bg-white shadow-xs transition-all duration-300 overflow-hidden font-sans ${isCardExpanded
-          ? 'border-[#51a8b1]/60 shadow-md ring-1 ring-[#51a8b1]/20'
-          : 'border-[#b9c0cb]/40 hover:border-[#51a8b1]/50 hover:shadow-md'
+      className={`adaptive-project-card rounded-xl border bg-white shadow-2xs transition-all duration-200 overflow-hidden font-sans ${isCardExpanded
+          ? 'border-[#51a8b1]/60 shadow-xs ring-1 ring-[#51a8b1]/20'
+          : 'border-[#b9c0cb]/40 hover:border-[#51a8b1]/50 hover:shadow-xs'
         }`}
     >
       {/* ── Card Header — Compact 2-Row Layout in Split Mode, Spacious 3-Col Layout in Full Width Mode ── */}
@@ -297,45 +297,45 @@ export function ProjectRoadmapCard({
           onClick={onToggle}
         >
           {/* Top Row: Meta details on Left + Actions on Right */}
-          <div className="flex items-center justify-between gap-3 px-4 sm:px-5 py-3.5">
+          <div className="flex items-center justify-between gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5">
             {/* Left: Icon + Code + Title + Org */}
-            <div className="flex items-center gap-3 min-w-0 flex-1">
+            <div className="flex items-center gap-2.5 min-w-0 flex-1">
               <div
-                className={`flex-shrink-0 w-10 h-10 rounded-2xl flex items-center justify-center bg-[#f0f8f9] border border-[#b6e0e4] ${statusCfg.icon} shadow-2xs`}
+                className={`flex-shrink-0 w-8 h-8 sm:w-8.5 sm:h-8.5 rounded-xl flex items-center justify-center bg-[#f0f8f9] border border-[#b6e0e4] ${statusCfg.icon} shadow-2xs`}
               >
-                <Building2 className="w-5 h-5 text-[#51a8b1]" />
+                <Building2 className="w-4 h-4 text-[#51a8b1]" />
               </div>
 
               <div className="min-w-0 space-y-0.5">
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-[10px] font-black text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2 py-0.5 rounded-md shrink-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="font-mono text-[9.5px] font-black text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-1.5 py-0.2 rounded shrink-0">
                     {project.projectId}
                   </span>
                   <span
-                    className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}
+                    className={`inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.2 rounded-full border ${statusCfg.cls}`}
                   >
                     <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
                     {statusCfg.label}
                   </span>
                 </div>
 
-                <h3 className="font-heading text-sm font-bold text-slate-900 leading-tight truncate">
+                <h3 className="font-heading text-xs sm:text-[13px] font-bold text-slate-900 leading-tight truncate">
                   {project.projectName || project.title}
                 </h3>
-                <p className="text-[11px] text-slate-500 truncate font-medium">{project.organization || 'Direct Organization'}</p>
+                <p className="text-[10px] text-slate-500 truncate font-medium">{project.organization || 'Direct Organization'}</p>
               </div>
             </div>
 
             {/* Right: Open Tracker + Chevron */}
-            <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <Link
                 href={`/tracker?projectId=${project._id}`}
                 onClick={(e) => e.stopPropagation()}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-xs font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
+                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#f0f8f9] border border-[#b6e0e4] text-[11px] font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
                 title="Open in Tracker workspace"
               >
-                <span>Open Tracker</span>
-                <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+                <span>Tracker</span>
+                <ExternalLink className="w-3 h-3 opacity-80" />
               </Link>
 
               {isCardExpanded && (
@@ -345,50 +345,62 @@ export function ProjectRoadmapCard({
                     e.stopPropagation();
                     fetchTimeline(true);
                   }}
-                  className="p-1.5 rounded-xl border border-[#b9c0cb]/50 text-[#4a5462] hover:bg-[#f0f8f9] hover:text-[#3a7d84] transition cursor-pointer"
+                  className="p-1 rounded-lg border border-[#b9c0cb]/50 text-[#4a5462] hover:bg-[#f0f8f9] hover:text-[#3a7d84] transition cursor-pointer"
                   title="Refresh timeline"
                 >
-                  <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#51a8b1]' : ''}`} />
+                  <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin text-[#51a8b1]' : ''}`} />
                 </button>
               )}
 
               <div
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
+                className={`w-7 h-7 rounded-lg flex items-center justify-center transition-all duration-200 ${
                   isCardExpanded
                     ? 'bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]'
                     : 'bg-[#f8fafb] text-[#4a5462] border border-[#b9c0cb]/40 group-hover:text-[#3a7d84]'
                 }`}
               >
                 {isCardExpanded ? (
-                  <ChevronUp className="w-4 h-4" />
+                  <ChevronUp className="w-3.5 h-3.5" />
                 ) : (
-                  <ChevronDown className="w-4 h-4" />
+                  <ChevronDown className="w-3.5 h-3.5" />
                 )}
               </div>
             </div>
           </div>
 
           {/* Bottom Row: Full-width PM + Stage Progress Bar */}
-          <div className="px-4 sm:px-5 py-2.5 bg-gradient-to-r from-slate-50/90 via-[#f8fafb] to-slate-50/90 border-t border-slate-100 flex items-center justify-between gap-4 text-xs">
+          <div className="px-3 sm:px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-slate-50/90 via-[#f8fafb] to-slate-50/90 border-t border-slate-100 flex items-center justify-between gap-3 text-xs">
             {/* PM Name */}
-            <div className="flex items-center gap-1.5 min-w-0">
-              <User className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
-              <span className="text-slate-500 font-medium text-[11px] shrink-0">PM:</span>
-              <span className="font-bold text-slate-800 truncate text-[11.5px]">{pmName}</span>
+            <div className="flex items-center gap-1 min-w-0">
+              <User className="w-3 h-3 text-[#51a8b1] shrink-0" />
+              <span className="text-slate-500 font-medium text-[10.5px] shrink-0">PM:</span>
+              <span className="font-bold text-slate-800 truncate text-[11px]">{pmName}</span>
             </div>
 
             {/* Progress Bar & Stage Count */}
-            <div className="flex items-center gap-2.5 flex-1 max-w-[260px] sm:max-w-[320px] justify-end">
-              <span className="text-[11px] font-bold text-slate-600 shrink-0">
-                <strong className="text-[#3a7d84]">{completedStages}</strong>/8 Stages
+            <div className="flex items-center gap-2 flex-1 max-w-[260px] sm:max-w-[340px] justify-end flex-wrap">
+              {hasAnyHold && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-orange-100 text-orange-800 border border-orange-300 animate-pulse shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-orange-500" />
+                  Hold
+                </span>
+              )}
+              {totalParallelActive >= 2 && (
+                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] animate-pulse shadow-2xs">
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#51a8b1]" />
+                  {totalParallelActive} Parallel Active
+                </span>
+              )}
+              <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-600 shrink-0">
+                <strong className="text-[#3a7d84]">{completedStages}</strong>/8
               </span>
-              <div className="flex-1 h-2 bg-slate-200/90 rounded-full overflow-hidden shadow-inner min-w-[70px]">
+              <div className="flex-1 h-1.5 bg-slate-200/90 rounded-full overflow-hidden shadow-inner min-w-[50px]">
                 <div
                   className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] rounded-full transition-all duration-500"
                   style={{ width: `${Math.max(progressPct, 4)}%` }}
                 />
               </div>
-              <span className="font-mono font-black text-[10.5px] text-[#3a7d84] bg-white border border-[#b6e0e4] px-1.5 py-0.5 rounded-md shadow-2xs shrink-0">
+              <span className="font-mono font-black text-[9.5px] text-[#3a7d84] bg-white border border-[#b6e0e4] px-1 py-0.2 rounded shadow-2xs shrink-0">
                 {progressPct}%
               </span>
             </div>
@@ -396,24 +408,24 @@ export function ProjectRoadmapCard({
         </div>
       ) : (
         <div
-          className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 px-5 py-4 cursor-pointer select-none group"
+          className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 px-3.5 sm:px-4 py-2.5 sm:py-3 cursor-pointer select-none group"
           onClick={onToggle}
         >
           {/* Left: Project Meta Details */}
-          <div className="flex items-center gap-3.5 min-w-0 max-w-full lg:max-w-[280px] xl:max-w-[320px] flex-shrink-0">
+          <div className="flex items-center gap-2.5 min-w-0 max-w-full lg:max-w-[260px] xl:max-w-[300px] flex-shrink-0">
             <div
-              className={`flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center bg-[#f0f8f9] border border-[#b6e0e4] ${statusCfg.icon} shadow-2xs`}
+              className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-[#f0f8f9] border border-[#b6e0e4] ${statusCfg.icon} shadow-2xs`}
             >
-              <Building2 className="w-5 h-5 text-[#51a8b1]" />
+              <Building2 className="w-4.5 h-4.5 text-[#51a8b1]" />
             </div>
 
             <div className="min-w-0 space-y-0.5">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-[10.5px] font-black text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2.5 py-0.5 rounded-lg">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="font-mono text-[9.5px] font-black text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2 py-0.2 rounded-md">
                   {project.projectId}
                 </span>
                 <span
-                  className={`lg:hidden inline-flex items-center gap-1.5 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}
+                  className={`lg:hidden inline-flex items-center gap-1 text-[9.5px] font-bold px-1.5 py-0.2 rounded-full border ${statusCfg.cls}`}
                 >
                   <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
                   {statusCfg.label}
@@ -421,20 +433,20 @@ export function ProjectRoadmapCard({
               </div>
 
               <div>
-                <h3 className="font-heading text-sm font-bold text-[#1e293b] leading-tight truncate max-w-[260px] sm:max-w-[300px]">
+                <h3 className="font-heading text-xs sm:text-[13px] font-bold text-[#1e293b] leading-tight truncate max-w-[240px] sm:max-w-[280px]">
                   {project.projectName || project.title}
                 </h3>
-                <p className="text-[11px] text-[#556987] truncate">{project.organization || 'Direct Organization'}</p>
+                <p className="text-[10.5px] text-[#556987] truncate">{project.organization || 'Direct Organization'}</p>
               </div>
             </div>
           </div>
 
           {/* Center: Full 8-Stage Stepper in Full Width Mode */}
-          <div className="w-full lg:flex-1 max-w-full lg:max-w-[580px] xl:max-w-[690px] mx-0 lg:mx-6 px-1 sm:px-3 py-1.5 flex flex-col justify-center">
+          <div className="w-full lg:flex-1 max-w-full lg:max-w-[560px] xl:max-w-[660px] mx-0 lg:mx-4 px-1 sm:px-2 py-1 flex flex-col justify-center">
             {/* Horizontal Stepper Track */}
-            <div className="flex items-center justify-between w-full relative">
+            <div className="adaptive-stepper-track">
               {/* Background connecting track line */}
-              <div className="absolute top-3.5 sm:top-4 left-4 right-4 -translate-y-1/2 h-2 bg-slate-100 border border-slate-200/90 rounded-full z-0 overflow-hidden shadow-inner">
+              <div className="absolute top-3 sm:top-3.5 left-3 right-3 -translate-y-1/2 h-1.5 bg-slate-100 border border-slate-200/90 rounded-full z-0 overflow-hidden shadow-inner">
                 <div
                   className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] transition-all duration-700 rounded-full"
                   style={{ width: `${Math.max(progressPct, 4)}%` }}
@@ -445,26 +457,46 @@ export function ProjectRoadmapCard({
               {Array.from({ length: 8 }).map((_, idx) => {
                 const stageNode = stageNodes[idx];
                 const isCompleted = stageNode ? stageNode.status === 'COMPLETED' : idx < completedStages;
-                const isCurrent = stageNode ? stageNode.status === 'IN_PROGRESS' : (!isCompleted && idx === completedStages);
-                const shortLabel = SHORT_STAGE_LABELS[idx] || `S0${idx + 1}`;
+                const isOnHold = stageNode 
+                  ? (stageNode.status === 'ON_HOLD' || Boolean(stageNode.children && stageNode.children.some(c => c.status === 'ON_HOLD'))) 
+                  : false;
+                const isCurrent = stageNode 
+                  ? (stageNode.status === 'IN_PROGRESS' || Boolean(stageNode.children && stageNode.children.some(c => c.status === 'IN_PROGRESS'))) 
+                  : (!isCompleted && !isOnHold && idx === completedStages);
+                const shortLabel = stageNode?.name
+                  ? stageNode.name.replace(/^\d+\s*[—–-]\s*/, '').trim()
+                  : (CANONICAL_STAGE_NAMES[idx] || `S0${idx + 1}`);
+
+                // Parallel workstreams active check (e.g. Stage 04 Execution having multiple parallel streams running)
+                const parallelRunningCount = stageNode?.children
+                  ? stageNode.children.filter((c) => c.status === 'IN_PROGRESS').length
+                  : 0;
+                const parallelHoldCount = stageNode?.children
+                  ? stageNode.children.filter((c) => c.status === 'ON_HOLD').length
+                  : 0;
+                const isParallelActive = parallelRunningCount > 1;
 
                 return (
                   <div
                     key={idx}
-                    className="relative z-10 flex flex-col items-center max-w-[58px] sm:max-w-[70px]"
+                    className="relative z-10 flex flex-col items-center max-w-[50px] sm:max-w-[62px]"
                   >
                     {/* Step Bubble showing clear progress status */}
                     <div
-                      className={`w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-[11px] sm:text-xs font-extrabold transition-all duration-200 shadow-2xs ${
+                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-extrabold transition-all duration-200 shadow-2xs relative ${
                         isCompleted
-                          ? 'bg-[#a8cf45] text-white border-2 border-white ring-2 ring-[#a8cf45]/60 shadow-sm'
-                          : isCurrent
-                            ? 'bg-[#51a8b1] text-white border-2 border-white ring-4 ring-[#51a8b1]/30 shadow-md animate-pulse'
-                            : 'bg-white border-2 border-slate-300 text-slate-500'
+                          ? 'bg-[#a8cf45] text-white border border-white ring-2 ring-[#a8cf45]/60 shadow-xs'
+                          : isOnHold
+                            ? 'bg-orange-500 text-white border-2 border-white ring-3 ring-orange-400/50 shadow-xs animate-pulse'
+                            : isCurrent
+                              ? 'bg-[#51a8b1] text-white border-2 border-white ring-3 ring-[#51a8b1]/40 shadow-xs animate-pulse'
+                              : 'bg-white border border-slate-300 text-slate-500'
                       }`}
                     >
                       {isCompleted ? (
-                        <Check className="w-4 h-4 stroke-[3.5] text-white" />
+                        <Check className="w-3.5 h-3.5 stroke-[3.5] text-white" />
+                      ) : isOnHold ? (
+                        <Pause className="w-3 h-3 stroke-[3] text-white" />
                       ) : (
                         <span>{idx + 1}</span>
                       )}
@@ -472,15 +504,27 @@ export function ProjectRoadmapCard({
 
                     {/* Phase Name under bubble */}
                     <span
-                      className={`text-[9.5px] sm:text-[10.5px] tracking-tight mt-1.5 text-center truncate w-full leading-tight select-none ${
+                      className={`text-[9px] sm:text-[9.5px] tracking-tight mt-1 text-center truncate w-full leading-tight select-none ${
                         isCompleted
                           ? 'text-[#465b1c] font-black'
-                          : isCurrent
-                            ? 'text-[#3a7d84] font-black'
-                            : 'text-[#556987] font-semibold'
+                          : isOnHold
+                            ? 'text-orange-600 font-black'
+                            : isCurrent
+                              ? 'text-[#3a7d84] font-black'
+                              : 'text-[#556987] font-semibold'
                       }`}
                     >
                       {shortLabel}
+                      {isOnHold && (
+                        <span className="block text-[8px] text-orange-600 font-black uppercase tracking-tight mt-0.5">
+                          HOLD
+                        </span>
+                      )}
+                      {isCurrent && !isOnHold && (
+                        <span className="block text-[8px] text-[#3a7d84] font-bold uppercase tracking-tight mt-0.5">
+                          {isParallelActive ? 'PARALLEL' : 'ACTIVE'}
+                        </span>
+                      )}
                     </span>
                   </div>
                 );
@@ -488,19 +532,19 @@ export function ProjectRoadmapCard({
             </div>
 
             {/* Project Manager & Stage Count Subtext */}
-            <div className="flex items-center justify-between w-full mt-2.5 px-1 text-[11px] sm:text-xs">
-              <div className="flex items-center gap-1.5 text-[#556987] font-medium truncate max-w-[320px] sm:max-w-[380px]">
-                <User className="w-3.5 h-3.5 text-[#51a8b1] flex-shrink-0" />
-                <span>Project Manager:</span>
+            <div className="flex items-center justify-between w-full mt-1.5 px-1 text-[10.5px]">
+              <div className="flex items-center gap-1 text-[#556987] font-medium truncate max-w-[280px] sm:max-w-[340px]">
+                <User className="w-3 h-3 text-[#51a8b1] flex-shrink-0" />
+                <span>PM:</span>
                 <strong className="text-[#3a7d84] font-bold truncate">
                   {pmName}
                 </strong>
               </div>
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-[#556987] font-semibold text-[11px]">
-                  <strong className="text-[#3a7d84]">{completedStages}</strong> of {totalStages} Stages
+              <div className="flex items-center gap-1.5 flex-shrink-0">
+                <span className="text-[#556987] font-semibold text-[10.5px]">
+                  <strong className="text-[#3a7d84]">{completedStages}</strong>/8 Stages
                 </span>
-                <span className="font-mono font-black text-[10.5px] text-[#1e293b] bg-slate-100 px-1.5 py-0.5 rounded-md border border-slate-200 shadow-2xs">
+                <span className="font-mono font-black text-[9.5px] text-[#1e293b] bg-slate-100 px-1 py-0.2 rounded border border-slate-200 shadow-2xs">
                   {progressPct}%
                 </span>
               </div>
@@ -508,9 +552,9 @@ export function ProjectRoadmapCard({
           </div>
 
           {/* Right: Status Badge + Open Tracker button + Refresh + Chevron */}
-          <div className="flex items-center gap-3 sm:gap-3.5 flex-shrink-0 self-end lg:self-center">
+          <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0 self-end lg:self-center">
             <span
-              className={`hidden lg:inline-flex items-center gap-1.5 text-[10.5px] font-bold px-2.5 py-1 rounded-full border ${statusCfg.cls}`}
+              className={`hidden lg:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}
             >
               <span className={`w-1.5 h-1.5 rounded-full ${statusCfg.dot}`} />
               {statusCfg.label}
@@ -519,11 +563,11 @@ export function ProjectRoadmapCard({
             <Link
               href={`/tracker?projectId=${project._id}`}
               onClick={(e) => e.stopPropagation()}
-              className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-xs font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
+              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-[11px] font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
               title="Open in Tracker workspace"
             >
-              <span>Open Tracker</span>
-              <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+              <span>Tracker</span>
+              <ExternalLink className="w-3 h-3 opacity-80" />
             </Link>
 
             {isCardExpanded && (
@@ -533,24 +577,24 @@ export function ProjectRoadmapCard({
                   e.stopPropagation();
                   fetchTimeline(true);
                 }}
-                className="p-2 rounded-xl border border-[#b9c0cb]/50 text-[#4a5462] hover:bg-[#f0f8f9] hover:text-[#3a7d84] transition cursor-pointer"
+                className="p-1.5 rounded-xl border border-[#b9c0cb]/50 text-[#4a5462] hover:bg-[#f0f8f9] hover:text-[#3a7d84] transition cursor-pointer"
                 title="Refresh timeline"
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin text-[#51a8b1]' : ''}`} />
+                <RefreshCw className={`w-3 h-3 ${loading ? 'animate-spin text-[#51a8b1]' : ''}`} />
               </button>
             )}
 
             <div
-              className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all duration-200 ${
+              className={`w-7 h-7 sm:w-8 sm:h-8 rounded-xl flex items-center justify-center transition-all duration-200 ${
                 isCardExpanded
                   ? 'bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]'
                   : 'bg-[#f8fafb] text-[#4a5462] border border-[#b9c0cb]/40 group-hover:text-[#3a7d84]'
               }`}
             >
               {isCardExpanded ? (
-                <ChevronUp className="w-4 h-4" />
+                <ChevronUp className="w-3.5 h-3.5" />
               ) : (
-                <ChevronDown className="w-4 h-4" />
+                <ChevronDown className="w-3.5 h-3.5" />
               )}
             </div>
           </div>

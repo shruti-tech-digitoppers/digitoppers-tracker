@@ -87,24 +87,24 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
         };
       case 'IN_PROGRESS':
         return {
-          badgeBg: 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4]',
-          dotBg: 'bg-[#51a8b1] animate-pulse',
+          badgeBg: 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4] font-bold shadow-2xs',
+          dotBg: 'bg-[#51a8b1] animate-pulse ring-2 ring-[#51a8b1]/30',
           border: 'border-[#51a8b1] hover:border-[#3a7d84]',
           borderSelected: 'border-[#51a8b1] ring-2 ring-[#51a8b1]/40 shadow-sm',
-          icon: <PlayCircle className="w-2.5 h-2.5 text-[#51a8b1]" />,
+          icon: <PlayCircle className="w-2.5 h-2.5 text-[#51a8b1] animate-pulse" />,
           cardBg: 'bg-white',
-          headerBg: 'bg-[#51a8b1]',
+          headerBg: 'bg-gradient-to-r from-[#3a7d84] to-[#51a8b1] animate-pulse',
           label: 'In Progress'
         };
       case 'ON_HOLD':
         return {
-          badgeBg: 'bg-amber-50 text-amber-800 border-amber-200',
-          dotBg: 'bg-amber-500',
-          border: 'border-amber-200 hover:border-amber-400',
-          borderSelected: 'border-amber-500 ring-2 ring-amber-500/25',
-          icon: <Clock className="w-2.5 h-2.5 text-amber-600" />,
-          cardBg: 'bg-white',
-          headerBg: 'bg-amber-500',
+          badgeBg: 'bg-orange-100 text-orange-950 border-orange-300 font-extrabold shadow-2xs',
+          dotBg: 'bg-orange-500 animate-pulse ring-2 ring-orange-300',
+          border: 'border-orange-400 hover:border-orange-500 bg-orange-50/20',
+          borderSelected: 'border-orange-500 ring-2 ring-orange-500/40 shadow-sm',
+          icon: <AlertCircle className="w-2.5 h-2.5 text-orange-600 animate-pulse" />,
+          cardBg: 'bg-orange-50/15',
+          headerBg: 'bg-gradient-to-r from-orange-500 to-amber-500 animate-pulse',
           label: 'On Hold'
         };
       case 'CANCELLED':
@@ -223,8 +223,8 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
         className={`
           relative w-52 rounded-xl transition-all duration-200 select-none text-left
           border shadow-xs overflow-hidden
-          ${cardBgClass}
-          ${cardBorderClass}
+          ${node.status === 'ON_HOLD' ? 'border-orange-400 bg-orange-50/20 ring-1 ring-orange-400/40' : node.status === 'IN_PROGRESS' ? 'border-[#51a8b1] ring-1 ring-[#51a8b1]/30' : cardBgClass}
+          ${node.status === 'ON_HOLD' ? 'border-orange-400' : cardBorderClass}
           ${isClickable ? 'cursor-pointer' : 'cursor-default'}
           ${isGateLocked ? 'opacity-70 saturate-50' : isClickable ? 'hover:shadow-md hover:-translate-y-0.5' : ''}
         `}

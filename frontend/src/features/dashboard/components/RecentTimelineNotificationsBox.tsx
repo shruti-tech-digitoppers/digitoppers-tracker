@@ -301,23 +301,23 @@ export function RecentTimelineNotificationsBox({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-[#b6e0e4]/80 shadow-xs hover:shadow-sm overflow-hidden font-sans flex flex-col h-[calc(100vh-180px)] min-h-[620px] max-h-[850px] transition-all duration-200">
+    <div className="adaptive-notifications-box bg-white border border-[#b6e0e4]/80 shadow-2xs hover:shadow-xs overflow-hidden font-sans flex flex-col transition-all duration-200">
       {/* ── Filter Tabs & Action Controls ─────────────────────────────────── */}
-      <div className="p-3 sm:p-4 border-b border-[#b6e0e4]/50 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] space-y-2.5">
+      <div className="p-2 sm:p-2.5 border-b border-[#b6e0e4]/50 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] space-y-1.5">
         {/* ── Main Filter Tabs (Assignments / Requests / Updates) ── */}
-        <div className="flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-[11px] sm:text-xs shadow-inner gap-1">
+        <div className="flex items-center p-1 bg-slate-100/90 rounded-xl border border-slate-200/80 text-[10.5px] sm:text-[11px] shadow-inner gap-1">
           <button
             type="button"
             onClick={() => setCategory('ASSIGNMENT')}
-            className={`flex-1 py-2 rounded-xl font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+            className={`flex-1 py-1.5 rounded-lg font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
               category === 'ASSIGNMENT'
-                ? 'bg-white text-indigo-700 shadow-sm border border-slate-200/90 font-black'
+                ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/90 font-black'
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            <UserCheck className="w-4 h-4 text-indigo-600" />
+            <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
             <span>Assignments</span>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-extrabold border ${
+            <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full font-extrabold border ${
               category === 'ASSIGNMENT' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-200/70 text-slate-700 border-slate-300'
             }`}>
               {counts.assignmentTotal}
@@ -450,17 +450,17 @@ export function RecentTimelineNotificationsBox({
       </div>
 
       {/* ── Scrollable Notifications Cards Feed ────────────── */}
-      <div className="flex-1 overflow-y-auto p-3 sm:p-4 space-y-3.5 divide-y divide-transparent">
+      <div className="flex-1 overflow-y-auto p-2 sm:p-2.5 space-y-2 adaptive-scroll divide-y divide-transparent">
         {displayedItems.length === 0 ? (
-          <div className="text-center py-14 px-4 rounded-3xl border-2 border-dashed border-slate-200 bg-slate-50/60 space-y-3">
-            <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 shadow-sm mx-auto flex items-center justify-center text-[#0d9488]">
-              <Inbox className="w-6 h-6" />
+          <div className="text-center py-10 px-3 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/60 space-y-2">
+            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 shadow-sm mx-auto flex items-center justify-center text-[#0d9488]">
+              <Inbox className="w-5 h-5" />
             </div>
             <div>
-              <p className="font-heading font-extrabold text-sm text-slate-800">
+              <p className="font-heading font-extrabold text-xs text-slate-800">
                 No notifications in this category
               </p>
-              <p className="text-xs text-slate-500 mt-1 max-w-xs mx-auto">
+              <p className="text-[11px] text-slate-500 mt-0.5 max-w-xs mx-auto">
                 Real-time project assignments, requests, and roadmap milestones will stream here automatically.
               </p>
             </div>
@@ -514,10 +514,10 @@ export function RecentTimelineNotificationsBox({
               <div
                 key={item._id}
                 onClick={() => onSelectNotification(item)}
-                className={`group relative p-4 rounded-2xl border transition-all duration-200 cursor-pointer space-y-3 ${
+                className={`group relative p-2.5 sm:p-3 rounded-xl border transition-all duration-200 cursor-pointer space-y-2 ${
                   visual.borderLeft
                 } ${visual.bgCard} ${
-                  !item.isRead ? 'ring-1 ring-slate-300/80 shadow-md' : 'opacity-95 hover:opacity-100 shadow-xs'
+                  !item.isRead ? 'ring-1 ring-slate-300/80 shadow-xs' : 'opacity-95 hover:opacity-100 shadow-2xs'
                 }`}
               >
                 {/* 1. Header Row: Badge, Relative Time & Unread Beacon */}
