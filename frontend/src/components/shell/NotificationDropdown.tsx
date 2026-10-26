@@ -73,8 +73,8 @@ export const NotificationDropdown = React.memo(function NotificationDropdown({
       >
         <Bell className="w-4 h-4" />
         {unreadCount > 0 && (
-          <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[9.5px] font-black min-w-[18px] h-[18px] px-1 rounded-full flex items-center justify-center shadow-md ring-2 ring-white animate-pulse">
-            {unreadCount > 9 ? '9+' : unreadCount}
+          <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[11px] font-black min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white">
+            {unreadCount > 99 ? '99+' : unreadCount}
           </span>
         )}
       </button>
@@ -87,11 +87,12 @@ export const NotificationDropdown = React.memo(function NotificationDropdown({
             <div className="flex items-center gap-2">
               <span className="font-heading font-bold text-xs text-[#333333]">Notifications</span>
               {unreadCount > 0 ? (
-                <span className="text-[10px] font-extrabold bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] px-2 py-0.5 rounded-full">
+                <span className="text-xs font-black bg-red-50 text-red-600 border border-red-200 px-2.5 py-0.5 rounded-full shadow-2xs flex items-center gap-1.5">
+                  <span className="w-1.5 h-1.5 rounded-full bg-red-600 animate-pulse" />
                   {unreadCount} New
                 </span>
               ) : (
-                <span className="text-[10px] text-[#759724] bg-[#f7fbe9] px-2 py-0.5 rounded-full font-bold">
+                <span className="text-xs text-[#759724] bg-[#f7fbe9] px-2.5 py-0.5 rounded-full font-bold">
                   All caught up
                 </span>
               )}
@@ -159,7 +160,7 @@ export const NotificationDropdown = React.memo(function NotificationDropdown({
                   </div>
 
                   {!item.isRead && (
-                    <span className="w-2 h-2 rounded-full bg-rose-500 flex-shrink-0 mt-1.5 shadow-xs ring-1 ring-white" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-red-600 flex-shrink-0 mt-1.5 shadow-xs ring-2 ring-white animate-pulse" />
                   )}
                 </div>
               ))

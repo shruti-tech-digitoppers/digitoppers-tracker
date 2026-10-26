@@ -23,14 +23,20 @@ export function useFaviconBadge(unreadCount: number) {
 
     // 2. Update Browser Favicon with dynamic Canvas badge
     const updateFavicon = () => {
-      const linkIcons: HTMLLinkElement[] = Array.from(
-        document.querySelectorAll("link[rel*='icon']")
-      );
+      // Find or create the primary favicon link
+      let link = document.querySelector("link[rel*='icon']") as HTMLLinkElement | null;
+      if (!link) {
+        link = document.createElement('link');
+        link.rel = 'icon';
+        document.head.appendChild(link);
+      }
 
       if (unreadCount <= 0) {
-        linkIcons.forEach((link) => {
-          link.href = '/digitoppers-icon.png';
-        });
+        // Reset to original icon cleanly with cache-busting timestamp
+        const cleanIconHref = `/digitoppers-icon.png?v=${Date.now()}`;
+        const newLink = link.cloneNode(true) as HTMLLinkElement;
+        newLink.href = cleanIconHref;
+        link.parentNode?.replaceChild(newLink, link);
         return;
       }
 
@@ -50,43 +56,107 @@ export function useFaviconBadge(unreadCount: number) {
         ctx.clearRect(0, 0, size, size);
         ctx.drawImage(img, 0, 0, size, size);
 
-        // Draw Badge Background (Vibrant Rose Red with Soft Glow - 20% larger)
-        const badgeRadius = 17;
-        const badgeCenterX = size - badgeRadius;
-        const badgeCenterY = badgeRadius;
+        // Display string (e.g. "1", "19", "22", or "99+")
+        const displayCount = unreadCount > 99 ? '99+' : String(unreadCount);
 
-        // White border ring around badge
-        ctx.beginPath();
-        ctx.arc(badgeCenterX, badgeCenterY, badgeRadius + 3.5, 0, 2 * Math.PI);
-        ctx.fillStyle = '#ffffff';
-        ctx.fill();
+        const drawRoundedBadge = (
+          x: number,
+          y: number,
+          w: number,
+          h: number,
+          r: number,
+          fillColor: string
+        ) => {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.lineTo(x + w - r, y);
+          ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+          ctx.lineTo(x + w, y + h - r);
+          ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+          ctx.lineTo(x + r, y + h);
+          ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+          ctx.lineTo(x, y + r);
+          ctx.quadraticCurveTo(x, y, x + r, y);
+          ctx.closePath();
+          ctx.fillStyle = fillColor;
+          ctx.fill();
+        };
 
-        // Red badge circle
-        ctx.beginPath();
-        ctx.arc(badgeCenterX, badgeCenterY, badgeRadius, 0, 2 * Math.PI);
-        ctx.fillStyle = '#e11d48'; // Rose-600
-        ctx.fill();
+        // Vibrant Red: #dc2626
+        const redColor = '#dc2626';
 
-        // Badge Text (Unread Count)
-        ctx.font = 'bold 19px "Montserrat", "Roboto", sans-serif';
-        ctx.fillStyle = '#ffffff';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const displayCount = unreadCount > 9 ? '9+' : String(unreadCount);
-        ctx.fillText(displayCount, badgeCenterX, badgeCenterY + 1);
+        if (displayCount.length === 1) {
+          // Single digit: Big bold circle
+          const radius = 22;
+          const cx = size - radius - 1;
+          const cy = radius + 1;
+
+          // White border
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius + 4.5, 0, 2 * Math.PI);
+          ctx.fillStyle = '#ffffff';
+          ctx.fill();
+
+          // Vibrant Red Badge
+          ctx.beginPath();
+          ctx.arc(cx, cy, radius, 0, 2 * Math.PI);
+          ctx.fillStyle = redColor;
+          ctx.fill();
+
+          // Badge Number Text
+          ctx.font = '900 28px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(displayCount, cx, cy + 1.5);
+        } else if (displayCount.length === 2) {
+          // Two digits (e.g. 19, 22): Large pill shape to fit both digits clearly without clipping
+          const pillW = 50;
+          const pillH = 36;
+          const pillR = 18;
+          const px = size - pillW - 1;
+          const py = 1;
+
+          // White outer border ring
+          drawRoundedBadge(px - 4, py - 4, pillW + 8, pillH + 8, pillR + 4, '#ffffff');
+
+          // Vibrant Red Badge Pill
+          drawRoundedBadge(px, py, pillW, pillH, pillR, redColor);
+
+          // Large Bold Number
+          ctx.font = '900 24px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(displayCount, px + pillW / 2, py + pillH / 2 + 1.5);
+        } else {
+          // 3 digits (e.g. 99+)
+          const pillW = 56;
+          const pillH = 36;
+          const pillR = 18;
+          const px = size - pillW;
+          const py = 1;
+
+          // White outer border ring
+          drawRoundedBadge(px - 3.5, py - 3.5, pillW + 7, pillH + 7, pillR + 3.5, '#ffffff');
+
+          // Vibrant Red Badge Pill
+          drawRoundedBadge(px, py, pillW, pillH, pillR, redColor);
+
+          // Text
+          ctx.font = '900 20px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif';
+          ctx.fillStyle = '#ffffff';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(displayCount, px + pillW / 2, py + pillH / 2 + 1.5);
+        }
 
         const newFaviconUrl = canvas.toDataURL('image/png');
 
-        if (linkIcons.length > 0) {
-          linkIcons.forEach((link) => {
-            link.href = newFaviconUrl;
-          });
-        } else {
-          const newLink = document.createElement('link');
-          newLink.rel = 'icon';
-          newLink.href = newFaviconUrl;
-          document.head.appendChild(newLink);
-        }
+        // Replace link element in DOM to force browser tab repaint
+        const newLink = link!.cloneNode(true) as HTMLLinkElement;
+        newLink.href = newFaviconUrl;
+        link!.parentNode?.replaceChild(newLink, link!);
       };
     };
 

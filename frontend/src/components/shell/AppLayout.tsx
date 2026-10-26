@@ -127,8 +127,18 @@ export default function AppLayout({ children }: AppLayoutProps) {
   }, [pathname]);
 
   useEffect(() => {
-    const handleSync = () => {
-      fetchNotifications();
+    const handleSync = (e: any) => {
+      if (e?.detail?.notifications && Array.isArray(e.detail.notifications)) {
+        setNotifications(e.detail.notifications);
+      } else if (e?.detail?.markAllRead) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      } else if (e?.detail?.readId) {
+        setNotifications((prev) =>
+          prev.map((n) => (n._id === e.detail.readId ? { ...n, isRead: true } : n))
+        );
+      } else {
+        fetchNotifications();
+      }
     };
     window.addEventListener('notifications-changed', handleSync);
     return () => {
@@ -154,13 +164,17 @@ export default function AppLayout({ children }: AppLayoutProps) {
 
   const handleMarkAsRead = useCallback(async (id: string, isRead = true) => {
     try {
-      await notificationsApi.markAsRead(id, isRead);
-      setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead } : n))
-      );
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('notifications-changed'));
-      }
+      const targetReadState = typeof isRead === 'boolean' ? isRead : true;
+      await notificationsApi.markAsRead(id, targetReadState);
+      setNotifications((prev) => {
+        const next = prev.map((n) => (n._id === id ? { ...n, isRead: targetReadState } : n));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notifications-changed', {
+            detail: { readId: id, isRead: targetReadState, notifications: next }
+          }));
+        }
+        return next;
+      });
     } catch {}
   }, []);
 
@@ -168,10 +182,15 @@ export default function AppLayout({ children }: AppLayoutProps) {
     try {
       const targetReadState = typeof isRead === 'boolean' ? isRead : true;
       await notificationsApi.markAllAsRead(targetReadState);
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: targetReadState })));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('notifications-changed'));
-      }
+      setNotifications((prev) => {
+        const next = prev.map((n) => ({ ...n, isRead: targetReadState }));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notifications-changed', {
+            detail: { markAllRead: true, isRead: targetReadState, notifications: next }
+          }));
+        }
+        return next;
+      });
     } catch (err) {
       console.error('Failed to mark all as read:', err);
     }

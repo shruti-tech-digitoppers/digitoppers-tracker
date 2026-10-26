@@ -132,13 +132,17 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
 
   const handleMarkNotificationRead = useCallback(async (id: string, isRead = true) => {
     try {
-      await notificationsApi.markAsRead(id, isRead);
-      setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead } : n))
-      );
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('notifications-changed'));
-      }
+      const targetReadState = typeof isRead === 'boolean' ? isRead : true;
+      await notificationsApi.markAsRead(id, targetReadState);
+      setNotifications((prev) => {
+        const next = prev.map((n) => (n._id === id ? { ...n, isRead: targetReadState } : n));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notifications-changed', {
+            detail: { readId: id, isRead: targetReadState, notifications: next }
+          }));
+        }
+        return next;
+      });
     } catch {}
   }, []);
 
@@ -146,18 +150,33 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
     try {
       const targetReadState = typeof isRead === 'boolean' ? isRead : true;
       await notificationsApi.markAllAsRead(targetReadState);
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: targetReadState })));
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent('notifications-changed'));
-      }
+      setNotifications((prev) => {
+        const next = prev.map((n) => ({ ...n, isRead: targetReadState }));
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notifications-changed', {
+            detail: { markAllRead: true, isRead: targetReadState, notifications: next }
+          }));
+        }
+        return next;
+      });
     } catch (err) {
       console.error('Failed to mark all as read:', err);
     }
   }, []);
 
   useEffect(() => {
-    const handleSync = () => {
-      refreshNotificationsOnly();
+    const handleSync = (e: any) => {
+      if (e?.detail?.notifications && Array.isArray(e.detail.notifications)) {
+        setNotifications(e.detail.notifications);
+      } else if (e?.detail?.markAllRead) {
+        setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      } else if (e?.detail?.readId) {
+        setNotifications((prev) =>
+          prev.map((n) => (n._id === e.detail.readId ? { ...n, isRead: e.detail.isRead ?? true } : n))
+        );
+      } else {
+        refreshNotificationsOnly();
+      }
     };
     window.addEventListener('notifications-changed', handleSync);
     return () => {
@@ -439,12 +458,10 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                   <Bell className="w-3.5 h-3.5" />
                   {unreadCount > 0 && (
                     <span
-                      className={`absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 ${
-                        isNotificationsOpen
-                          ? 'bg-rose-500 border-[#2d6b73]'
-                          : 'bg-rose-500 border-white'
-                      }`}
-                    />
+                      className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9.5px] font-black flex items-center justify-center border-2 border-white shadow-xs"
+                    >
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
                   )}
                 </div>
 
@@ -457,8 +474,9 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
 
                 {unreadCount > 0 ? (
                   <span
-                    className="font-mono text-[10px] font-bold px-1.5 py-0.2 rounded-full bg-rose-500 text-white shadow-2xs"
+                    className="font-mono text-xs font-black px-2.5 py-0.5 rounded-full bg-red-600 text-white shadow-sm flex items-center gap-1 animate-pulse"
                   >
+                    <span className="w-1.5 h-1.5 rounded-full bg-white" />
                     {unreadCount} new
                   </span>
                 ) : (
@@ -467,7 +485,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                       backgroundColor: isNotificationsOpen ? '#ffffff' : '#f1f5f9',
                       color: isNotificationsOpen ? '#2d6b73' : '#64748b',
                     }}
-                    className="font-mono text-[10.5px] font-bold px-1.5 py-0.2 rounded-full shadow-2xs"
+                    className="font-mono text-xs font-bold px-2 py-0.5 rounded-full shadow-2xs"
                   >
                     0
                   </span>

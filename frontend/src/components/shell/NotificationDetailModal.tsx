@@ -118,7 +118,9 @@ export function NotificationDetailModal({
       import('../../lib/api/notifications.api').then(({ notificationsApi }) => {
         notificationsApi.markAsRead(notification._id, true).then(() => {
           if (typeof window !== 'undefined') {
-            window.dispatchEvent(new CustomEvent('notifications-changed'));
+            window.dispatchEvent(new CustomEvent('notifications-changed', {
+              detail: { readId: notification._id, isRead: true }
+            }));
           }
         }).catch(() => {});
       });
@@ -135,7 +137,12 @@ export function NotificationDetailModal({
     if (notification?._id) {
       try {
         const { notificationsApi } = await import('../../lib/api/notifications.api');
-        await notificationsApi.markAsRead(notification._id);
+        await notificationsApi.markAsRead(notification._id, true);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('notifications-changed', {
+            detail: { readId: notification._id, isRead: true }
+          }));
+        }
       } catch (_) {}
     }
     if (onRefreshData) onRefreshData();

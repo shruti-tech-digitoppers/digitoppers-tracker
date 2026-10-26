@@ -428,17 +428,19 @@ export function RecentTimelineNotificationsBox({
           </div>
         )}
 
-        {/* ── Dedicated Action Bar (Mark all read button & Test Slack) ──────────── */}
         <div className="flex items-center justify-between pt-0.5 px-0.5 text-xs">
-          <span className="text-[11px] text-slate-500 font-medium">
+          <div className="flex items-center">
             {unreadCount > 0 ? (
-              <span className="text-amber-700 font-semibold">{unreadCount} unread update{unreadCount > 1 ? 's' : ''}</span>
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-50 text-rose-600 border border-rose-200 shadow-2xs">
+                <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
+                <span>{unreadCount} unread update{unreadCount > 1 ? 's' : ''}</span>
+              </span>
             ) : (
-              <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                <Check className="w-3.5 h-3.5 text-emerald-600" /> All caught up
+              <span className="text-emerald-700 font-bold flex items-center gap-1 text-xs">
+                <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" /> All caught up
               </span>
             )}
-          </span>
+          </div>
 
           <div className="flex items-center gap-1.5">
             <button
@@ -573,13 +575,13 @@ export function RecentTimelineNotificationsBox({
                     </span>
 
                     {isUnread ? (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-md shadow-2xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                      <span className="inline-flex items-center gap-1.5 text-[9.5px] font-black text-white bg-red-600 px-2 py-0.5 rounded-md shadow-xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
                         NEW
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 border border-slate-200/80 px-1.5 py-0.2 rounded-md">
-                        <Check className="w-2.5 h-2.5 text-emerald-600" />
+                      <span className="inline-flex items-center gap-1 text-[9.5px] font-bold text-slate-400 bg-slate-50 border border-slate-200/80 px-1.5 py-0.2 rounded-md">
+                        <Check className="w-2.5 h-2.5 text-emerald-600 stroke-[2.5]" />
                         READ
                       </span>
                     )}
