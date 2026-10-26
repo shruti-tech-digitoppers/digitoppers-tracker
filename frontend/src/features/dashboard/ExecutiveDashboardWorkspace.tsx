@@ -453,16 +453,9 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                     backgroundColor: isNotificationsOpen ? '#ffffff' : '#2d6b73',
                     color: isNotificationsOpen ? '#2d6b73' : '#ffffff',
                   }}
-                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 shrink-0 relative"
+                  className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg flex items-center justify-center shadow-2xs transition-all duration-200 shrink-0"
                 >
                   <Bell className="w-3.5 h-3.5" />
-                  {unreadCount > 0 && (
-                    <span
-                      className="absolute -top-1.5 -right-1.5 min-w-[18px] h-[18px] px-1 rounded-full bg-red-600 text-white text-[9.5px] font-black flex items-center justify-center border-2 border-white shadow-xs"
-                    >
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
                 </div>
 
                 <span

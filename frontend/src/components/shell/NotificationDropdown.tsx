@@ -72,11 +72,6 @@ export const NotificationDropdown = React.memo(function NotificationDropdown({
         aria-label="Notifications"
       >
         <Bell className="w-4 h-4" />
-        {unreadCount > 0 && (
-          <span className="absolute -top-1.5 -right-1.5 bg-red-600 text-white text-[11px] font-black min-w-[22px] h-[22px] px-1.5 rounded-full flex items-center justify-center shadow-md ring-2 ring-white">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
       </button>
 
       {/* Floating Dropdown Panel */}

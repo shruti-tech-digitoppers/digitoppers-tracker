@@ -122,30 +122,21 @@ export const AppSidebar = React.memo(function AppSidebar({
                     `}
                     title={collapsed ? item.label : undefined}
                   >
-                    <div className="relative flex items-center justify-center">
-                      <Icon
-                        className={`
-                          ${collapsed ? 'w-5 h-5' : 'w-4 h-4'} 
-                          flex-shrink-0 transition-colors
-                          ${isActive ? 'text-[#2c6870] stroke-[2.2]' : 'text-[#475569] group-hover:text-[#2c6870] stroke-[1.9]'}
-                        `}
-                      />
-                      {collapsed && item.href === '/requests' && unreadCount > 0 && (
-                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-red-600 ring-2 ring-white" />
-                      )}
-                    </div>
+                    <Icon
+                      className={`
+                        ${collapsed ? 'w-5 h-5' : 'w-4 h-4'} 
+                        flex-shrink-0 transition-colors
+                        ${isActive ? 'text-[#2c6870] stroke-[2.2]' : 'text-[#475569] group-hover:text-[#2c6870] stroke-[1.9]'}
+                      `}
+                    />
                     {!collapsed && (
                       <div className="flex items-center justify-between flex-1 min-w-0">
                         <span className="truncate">{item.label}</span>
-                        {item.href === '/requests' && unreadCount > 0 ? (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white shadow-2xs">
-                            {unreadCount > 99 ? '99+' : unreadCount}
-                          </span>
-                        ) : item.badge ? (
+                        {item.badge && (
                           <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#e6f4f6] text-[#3a7d84] border border-[#b6e0e4]/60">
                             {item.badge}
                           </span>
-                        ) : null}
+                        )}
                       </div>
                     )}
                   </Link>
@@ -267,15 +258,11 @@ export const AppSidebar = React.memo(function AppSidebar({
                 >
                   <Icon className={`w-4.5 h-4.5 flex-shrink-0 ${isActive ? 'text-[#2c6870] stroke-[2.2]' : 'text-[#475569] stroke-[1.9]'}`} />
                   <span className="flex-1 truncate">{item.label}</span>
-                  {item.href === '/requests' && unreadCount > 0 ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white shadow-2xs">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  ) : item.badge ? (
+                  {item.badge && (
                     <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-[#e6f4f6] text-[#3a7d84] border border-[#b6e0e4]/60">
                       {item.badge}
                     </span>
-                  ) : null}
+                  )}
                 </Link>
               );
             })}

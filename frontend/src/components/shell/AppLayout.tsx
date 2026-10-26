@@ -36,8 +36,8 @@ export default function AppLayout({ children }: AppLayoutProps) {
   // Calculate unread notification count
   const unreadNotificationsCount = notifications.filter((n) => !n.isRead).length;
 
-  // Dynamically update browser tab favicon and document title with unread badge
-  useFaviconBadge(unreadNotificationsCount);
+  // Dynamically format browser tab title: "({unreadCount}) {PageName} - DigiToppers"
+  useFaviconBadge(isLoginPage ? 0 : unreadNotificationsCount, pathname);
 
   const fetchNotifications = useCallback(async () => {
     if (typeof window === 'undefined') return;
