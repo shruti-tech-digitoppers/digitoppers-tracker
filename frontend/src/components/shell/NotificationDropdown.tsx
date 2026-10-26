@@ -100,7 +100,7 @@ export const NotificationDropdown = React.memo(function NotificationDropdown({
             {unreadCount > 0 && (
               <button
                 type="button"
-                onClick={onMarkAllAsRead}
+                onClick={() => onMarkAllAsRead()}
                 className="text-[10.5px] text-[#51a8b1] hover:text-[#3a7d84] font-bold flex items-center gap-1 cursor-pointer transition hover:underline"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
