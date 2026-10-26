@@ -144,12 +144,15 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
 
   const handleMarkAllNotificationsRead = useCallback(async (isRead = true) => {
     try {
-      await notificationsApi.markAllAsRead(isRead);
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead })));
+      const targetReadState = typeof isRead === 'boolean' ? isRead : true;
+      await notificationsApi.markAllAsRead(targetReadState);
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: targetReadState })));
       if (typeof window !== 'undefined') {
         window.dispatchEvent(new CustomEvent('notifications-changed'));
       }
-    } catch {}
+    } catch (err) {
+      console.error('Failed to mark all as read:', err);
+    }
   }, []);
 
   useEffect(() => {

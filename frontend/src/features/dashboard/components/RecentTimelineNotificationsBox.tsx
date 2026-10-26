@@ -452,27 +452,15 @@ export function RecentTimelineNotificationsBox({
               <span>{testingSlack ? 'Sending...' : 'Test Slack'}</span>
             </button>
 
-            {unreadCount > 0 ? (
+            {unreadCount > 0 && (
               <button
                 type="button"
-                onClick={onMarkAllAsRead}
+                onClick={() => onMarkAllAsRead()}
                 className="text-[11px] font-bold text-[#0d9488] hover:text-[#0f766e] flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 border border-teal-200 shadow-2xs transition-all cursor-pointer active:scale-95"
                 title="Mark all notifications as read"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>Mark all as read</span>
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => {
-                  notificationsApi.markAllAsRead(false).then(() => onRefresh());
-                }}
-                className="text-[10.5px] font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-2xs transition-all cursor-pointer active:scale-95"
-                title="Mark all as unread (test toggle)"
-              >
-                <Inbox className="w-3 h-3 text-slate-500" />
-                <span>Reset to unread</span>
               </button>
             )}
           </div>
@@ -601,26 +589,20 @@ export function RecentTimelineNotificationsBox({
                     <Clock className="w-3 h-3 text-slate-400" />
                     <span>{formatItemTime(item.createdAt)}</span>
 
-                    {/* Quick Single Mark Read / Unread Button */}
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (isUnread) {
+                    {/* Quick Single Mark Read Button: Only shown when unread, removed once marked as read */}
+                    {isUnread && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
                           onMarkAsRead(item._id);
-                        } else {
-                          notificationsApi.markAsRead(item._id, false).then(() => onRefresh());
-                        }
-                      }}
-                      className={`p-1 rounded-md border transition-all cursor-pointer ${
-                        isUnread
-                          ? 'text-teal-700 hover:text-white bg-teal-50 hover:bg-teal-600 border-teal-200'
-                          : 'text-slate-400 hover:text-slate-700 bg-white hover:bg-slate-100 border-slate-200'
-                      }`}
-                      title={isUnread ? 'Mark as read' : 'Mark as unread'}
-                    >
-                      {isUnread ? <Check className="w-3 h-3 stroke-[2.5]" /> : <CheckCheck className="w-3 h-3 text-emerald-600 stroke-[2.5]" />}
-                    </button>
+                        }}
+                        className="p-1 rounded-md border text-teal-700 hover:text-white bg-teal-50 hover:bg-teal-600 border-teal-200 transition-all cursor-pointer shadow-2xs"
+                        title="Mark as read"
+                      >
+                        <Check className="w-3 h-3 stroke-[2.5]" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
