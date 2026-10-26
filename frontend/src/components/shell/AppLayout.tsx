@@ -126,6 +126,16 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setMobileSidebarOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    const handleSync = () => {
+      fetchNotifications();
+    };
+    window.addEventListener('notifications-changed', handleSync);
+    return () => {
+      window.removeEventListener('notifications-changed', handleSync);
+    };
+  }, [fetchNotifications]);
+
   const handleToggleSidebar = useCallback(() => {
     if (typeof window !== 'undefined' && window.innerWidth < 1024) {
       setMobileSidebarOpen((prev) => !prev);
@@ -142,19 +152,25 @@ export default function AppLayout({ children }: AppLayoutProps) {
     setIsNotifOpen((prev) => !prev);
   }, []);
 
-  const handleMarkAsRead = useCallback(async (id: string) => {
+  const handleMarkAsRead = useCallback(async (id: string, isRead = true) => {
     try {
-      await notificationsApi.markAsRead(id);
+      await notificationsApi.markAsRead(id, isRead);
       setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+        prev.map((n) => (n._id === id ? { ...n, isRead } : n))
       );
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notifications-changed'));
+      }
     } catch {}
   }, []);
 
-  const handleMarkAllAsRead = useCallback(async () => {
+  const handleMarkAllAsRead = useCallback(async (isRead = true) => {
     try {
-      await notificationsApi.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await notificationsApi.markAllAsRead(isRead);
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead })));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notifications-changed'));
+      }
     } catch {}
   }, []);
 

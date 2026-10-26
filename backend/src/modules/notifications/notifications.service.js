@@ -141,12 +141,20 @@ async function notifyWithAdminsAndPMs(data = {}) {
   }
 }
 
-async function markAsRead(notificationId) {
-  return await Notification.findByIdAndUpdate(notificationId, { isRead: true }, { new: true });
+async function markAsRead(notificationId, isRead = true) {
+  return await Notification.findByIdAndUpdate(
+    notificationId,
+    { isRead: Boolean(isRead) },
+    { new: true }
+  );
 }
 
-async function markAllAsRead(employeeId) {
-  return await Notification.updateMany({ recipient: employeeId, isRead: false }, { isRead: true });
+async function markAllAsRead(employeeId, options = {}) {
+  const isRead = options.isRead !== undefined ? Boolean(options.isRead) : true;
+  return await Notification.updateMany(
+    { recipient: employeeId },
+    { isRead: isRead }
+  );
 }
 
 module.exports = {

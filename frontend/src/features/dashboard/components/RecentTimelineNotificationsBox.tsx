@@ -117,8 +117,38 @@ export function RecentTimelineNotificationsBox({
     return { main: 'UPDATES', sub: 'TIMELINE' };
   };
 
-  // ── Counts for Categories & Sub-filters ───────────────────────────────
-  const counts = useMemo(() => {
+  // ── Unread Counts for Categories & Sub-filters (Decreases as marked read) ──────
+  const unreadCounts = useMemo(() => {
+    let assignmentTotal = 0;
+    let projectAssignment = 0;
+    let taskAssignment = 0;
+    let requests = 0;
+    let updates = 0;
+
+    notifications.filter((n) => !n.isRead).forEach((n) => {
+      const cls = classifyItem(n);
+      if (cls.main === 'ASSIGNMENT') {
+        assignmentTotal++;
+        if (cls.sub === 'PROJECT') projectAssignment++;
+        else if (cls.sub === 'TASK') taskAssignment++;
+      } else if (cls.main === 'REQUESTS') {
+        requests++;
+      } else if (cls.main === 'UPDATES') {
+        updates++;
+      }
+    });
+
+    return {
+      assignmentTotal,
+      projectAssignment,
+      taskAssignment,
+      requests,
+      updates
+    };
+  }, [notifications]);
+
+  // ── Total Counts for Reference ──────────────────────────────────────
+  const totalCounts = useMemo(() => {
     let assignmentTotal = 0;
     let projectAssignment = 0;
     let taskAssignment = 0;
@@ -317,10 +347,12 @@ export function RecentTimelineNotificationsBox({
           >
             <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
             <span>Assignments</span>
-            <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full font-extrabold border ${
-              category === 'ASSIGNMENT' ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-slate-200/70 text-slate-700 border-slate-300'
+            <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
+              unreadCounts.assignmentTotal > 0
+                ? (category === 'ASSIGNMENT' ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-black' : 'bg-indigo-100/70 text-indigo-800 border-indigo-300 font-bold')
+                : 'bg-slate-200/50 text-slate-400 border-slate-300 font-semibold'
             }`}>
-              {counts.assignmentTotal}
+              {unreadCounts.assignmentTotal}
             </span>
           </button>
 
@@ -335,10 +367,12 @@ export function RecentTimelineNotificationsBox({
           >
             <FileText className="w-4 h-4 text-purple-600" />
             <span>Requests</span>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-extrabold border ${
-              category === 'REQUESTS' ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-slate-200/70 text-slate-700 border-slate-300'
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border transition-all ${
+              unreadCounts.requests > 0
+                ? (category === 'REQUESTS' ? 'bg-purple-50 text-purple-700 border-purple-200 font-black' : 'bg-purple-100/70 text-purple-800 border-purple-300 font-bold')
+                : 'bg-slate-200/50 text-slate-400 border-slate-300 font-semibold'
             }`}>
-              {counts.requests}
+              {unreadCounts.requests}
             </span>
           </button>
 
@@ -353,10 +387,12 @@ export function RecentTimelineNotificationsBox({
           >
             <Activity className="w-4 h-4 text-amber-600" />
             <span>Updates</span>
-            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-extrabold border ${
-              category === 'UPDATES' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-200/70 text-slate-700 border-slate-300'
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border transition-all ${
+              unreadCounts.updates > 0
+                ? (category === 'UPDATES' ? 'bg-amber-50 text-amber-800 border-amber-200 font-black' : 'bg-amber-100/70 text-amber-900 border-amber-300 font-bold')
+                : 'bg-slate-200/50 text-slate-400 border-slate-300 font-semibold'
             }`}>
-              {counts.updates}
+              {unreadCounts.updates}
             </span>
           </button>
         </div>
@@ -374,7 +410,7 @@ export function RecentTimelineNotificationsBox({
               }`}
             >
               <Briefcase className="w-3.5 h-3.5" />
-              <span>Projects ({counts.projectAssignment})</span>
+              <span>Projects ({unreadCounts.projectAssignment})</span>
             </button>
 
             <button
@@ -387,7 +423,7 @@ export function RecentTimelineNotificationsBox({
               }`}
             >
               <ListTodo className="w-3.5 h-3.5" />
-              <span>Tasks ({counts.taskAssignment})</span>
+              <span>Tasks ({unreadCounts.taskAssignment})</span>
             </button>
           </div>
         )}
@@ -416,7 +452,7 @@ export function RecentTimelineNotificationsBox({
               <span>{testingSlack ? 'Sending...' : 'Test Slack'}</span>
             </button>
 
-            {unreadCount > 0 && (
+            {unreadCount > 0 ? (
               <button
                 type="button"
                 onClick={onMarkAllAsRead}
@@ -425,6 +461,18 @@ export function RecentTimelineNotificationsBox({
               >
                 <CheckCheck className="w-3.5 h-3.5" />
                 <span>Mark all as read</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => {
+                  notificationsApi.markAllAsRead(false).then(() => onRefresh());
+                }}
+                className="text-[10.5px] font-medium text-slate-500 hover:text-slate-800 flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 shadow-2xs transition-all cursor-pointer active:scale-95"
+                title="Mark all as unread (test toggle)"
+              >
+                <Inbox className="w-3 h-3 text-slate-500" />
+                <span>Reset to unread</span>
               </button>
             )}
           </div>
@@ -470,6 +518,7 @@ export function RecentTimelineNotificationsBox({
             const visual = getItemVisuals(item);
             const meta = (item.metadata || {}) as Record<string, any>;
             const isMongoObjectId = (val: any) => typeof val === 'string' && /^[0-9a-fA-F]{24}$/.test(val);
+            const isUnread = !item.isRead;
             
             // Extract Project/Request code
             let projCode = 
@@ -513,42 +562,87 @@ export function RecentTimelineNotificationsBox({
             return (
               <div
                 key={item._id}
-                onClick={() => onSelectNotification(item)}
+                onClick={() => {
+                  if (isUnread) {
+                    onMarkAsRead(item._id);
+                  }
+                  onSelectNotification(item);
+                }}
                 className={`group relative p-2.5 sm:p-3 rounded-xl border transition-all duration-200 cursor-pointer space-y-2 ${
-                  visual.borderLeft
-                } ${visual.bgCard} ${
-                  !item.isRead ? 'ring-1 ring-slate-300/80 shadow-xs' : 'opacity-95 hover:opacity-100 shadow-2xs'
+                  isUnread
+                    ? `${visual.borderLeft} ${visual.bgCard} ring-1 ring-slate-300/80 shadow-xs`
+                    : 'border-l-[4px] border-l-slate-300 bg-white hover:bg-slate-50/70 border-slate-200 text-slate-600 shadow-2xs'
                 }`}
               >
-                {/* 1. Header Row: Badge, Relative Time & Unread Beacon */}
+                {/* 1. Header Row: Badge, Relative Time & Unread Status Indicator */}
                 <div className="flex items-center justify-between gap-2">
-                  <span className={`inline-flex items-center gap-1.5 text-[10.5px] font-extrabold px-3 py-1 rounded-xl border ${visual.tagBg}`}>
-                    <visual.icon className="w-3.5 h-3.5" />
-                    <span>{visual.label}</span>
-                  </span>
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <span className={`inline-flex items-center gap-1.5 text-[10px] font-extrabold px-2.5 py-0.5 rounded-lg border ${
+                      isUnread ? visual.tagBg : 'bg-slate-100 text-slate-600 border-slate-200'
+                    }`}>
+                      <visual.icon className="w-3.5 h-3.5" />
+                      <span>{visual.label}</span>
+                    </span>
 
-                  <div className="flex items-center gap-1.5 text-[11px] text-slate-500 font-mono font-medium">
-                    <Clock className="w-3.5 h-3.5 text-slate-400" />
-                    <span>{formatItemTime(item.createdAt)}</span>
-                    {!item.isRead && (
-                      <span className="w-2.5 h-2.5 rounded-full bg-rose-500 ring-2 ring-white shadow-xs ml-0.5 animate-ping" />
+                    {isUnread ? (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-black text-rose-600 bg-rose-50 border border-rose-200 px-1.5 py-0.2 rounded-md shadow-2xs">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
+                        NEW
+                      </span>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 text-[9px] font-bold text-slate-400 bg-slate-50 border border-slate-200/80 px-1.5 py-0.2 rounded-md">
+                        <Check className="w-2.5 h-2.5 text-emerald-600" />
+                        READ
+                      </span>
                     )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 text-[10.5px] text-slate-500 font-mono font-medium shrink-0">
+                    <Clock className="w-3 h-3 text-slate-400" />
+                    <span>{formatItemTime(item.createdAt)}</span>
+
+                    {/* Quick Single Mark Read / Unread Button */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isUnread) {
+                          onMarkAsRead(item._id);
+                        } else {
+                          notificationsApi.markAsRead(item._id, false).then(() => onRefresh());
+                        }
+                      }}
+                      className={`p-1 rounded-md border transition-all cursor-pointer ${
+                        isUnread
+                          ? 'text-teal-700 hover:text-white bg-teal-50 hover:bg-teal-600 border-teal-200'
+                          : 'text-slate-400 hover:text-slate-700 bg-white hover:bg-slate-100 border-slate-200'
+                      }`}
+                      title={isUnread ? 'Mark as read' : 'Mark as unread'}
+                    >
+                      {isUnread ? <Check className="w-3 h-3 stroke-[2.5]" /> : <CheckCheck className="w-3 h-3 text-emerald-600 stroke-[2.5]" />}
+                    </button>
                   </div>
                 </div>
 
                 {/* 2. Project Code & Step Breadcrumb */}
                 {(projCode || cleanProjTitle || nodeKey) && (
-                  <div className={`px-3 py-2 rounded-xl border text-xs space-y-1 ${visual.badgePill}`}>
+                  <div className={`px-3 py-2 rounded-xl border text-xs space-y-1 ${
+                    isUnread ? visual.badgePill : 'bg-slate-50/80 border-slate-200 text-slate-700'
+                  }`}>
                     {(cleanProjTitle || projCode) && (
                       <div className="font-bold flex items-center gap-1.5 truncate">
-                        <Layers className={`w-4 h-4 ${visual.iconColor} shrink-0`} />
+                        <Layers className={`w-4 h-4 ${isUnread ? visual.iconColor : 'text-slate-400'} shrink-0`} />
                         <span className="truncate">
                           {projCode ? (
-                            <span className={`font-mono font-extrabold mr-1.5 px-1.5 py-0.5 rounded-md border text-[11px] ${visual.badgeIdText}`}>
+                            <span className={`font-mono font-extrabold mr-1.5 px-1.5 py-0.5 rounded-md border text-[11px] ${
+                              isUnread ? visual.badgeIdText : 'bg-slate-200/70 text-slate-600 border-slate-300'
+                            }`}>
                               {projCode}
                             </span>
                           ) : null}
-                          <span className="text-slate-900 font-extrabold">{cleanProjTitle}</span>
+                          <span className={`${isUnread ? 'text-slate-900 font-extrabold' : 'text-slate-700 font-bold'}`}>
+                            {cleanProjTitle}
+                          </span>
                         </span>
                       </div>
                     )}
@@ -562,10 +656,14 @@ export function RecentTimelineNotificationsBox({
 
                 {/* 3. Title & Full Description */}
                 <div className="space-y-1">
-                  <h4 className="font-heading font-black text-xs sm:text-[13.5px] text-slate-900 leading-snug">
+                  <h4 className={`font-heading font-black text-xs sm:text-[13.5px] leading-snug ${
+                    isUnread ? 'text-slate-900' : 'text-slate-700'
+                  }`}>
                     {normalizedTitle}
                   </h4>
-                  <p className="text-[12px] text-slate-700 leading-relaxed line-clamp-2 font-normal">
+                  <p className={`text-[12px] leading-relaxed line-clamp-2 font-normal ${
+                    isUnread ? 'text-slate-700' : 'text-slate-500'
+                  }`}>
                     {item.message}
                   </p>
                 </div>

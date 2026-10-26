@@ -36,13 +36,13 @@ export const notificationsApi = {
   },
 
 
-  markAsRead: async (id: string): Promise<{ success: boolean; notification: INotificationItem }> => {
-    const response = await apiClient.patch<{ success: boolean; notification: INotificationItem }>(`/notifications/${id}/read`);
+  markAsRead: async (id: string, isRead = true): Promise<{ success: boolean; notification?: INotificationItem }> => {
+    const response = await apiClient.patch<{ success: boolean; notification?: INotificationItem }>(`/notifications/${id}/read`, { isRead });
     return response.data;
   },
 
-  markAllAsRead: async (): Promise<{ success: boolean }> => {
-    const response = await apiClient.patch<{ success: boolean }>('/notifications/read-all');
+  markAllAsRead: async (isRead = true): Promise<{ success: boolean }> => {
+    const response = await apiClient.patch<{ success: boolean }>('/notifications/read-all', { isRead });
     return response.data;
   },
 

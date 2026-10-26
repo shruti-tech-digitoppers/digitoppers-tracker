@@ -130,21 +130,37 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
     }
   }, []);
 
-  const handleMarkNotificationRead = useCallback(async (id: string) => {
+  const handleMarkNotificationRead = useCallback(async (id: string, isRead = true) => {
     try {
-      await notificationsApi.markAsRead(id);
+      await notificationsApi.markAsRead(id, isRead);
       setNotifications((prev) =>
-        prev.map((n) => (n._id === id ? { ...n, isRead: true } : n))
+        prev.map((n) => (n._id === id ? { ...n, isRead } : n))
       );
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notifications-changed'));
+      }
     } catch {}
   }, []);
 
-  const handleMarkAllNotificationsRead = useCallback(async () => {
+  const handleMarkAllNotificationsRead = useCallback(async (isRead = true) => {
     try {
-      await notificationsApi.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, isRead: true })));
+      await notificationsApi.markAllAsRead(isRead);
+      setNotifications((prev) => prev.map((n) => ({ ...n, isRead })));
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('notifications-changed'));
+      }
     } catch {}
   }, []);
+
+  useEffect(() => {
+    const handleSync = () => {
+      refreshNotificationsOnly();
+    };
+    window.addEventListener('notifications-changed', handleSync);
+    return () => {
+      window.removeEventListener('notifications-changed', handleSync);
+    };
+  }, [refreshNotificationsOnly]);
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? (localStorage.getItem('token') || localStorage.getItem('accessToken')) : null;
@@ -445,12 +461,12 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                 ) : (
                   <span
                     style={{
-                      backgroundColor: isNotificationsOpen ? '#ffffff' : '#2d6b73',
-                      color: isNotificationsOpen ? '#2d6b73' : '#ffffff',
+                      backgroundColor: isNotificationsOpen ? '#ffffff' : '#f1f5f9',
+                      color: isNotificationsOpen ? '#2d6b73' : '#64748b',
                     }}
-                    className="font-mono text-[11px] font-bold px-1.5 py-0.2 rounded-full shadow-2xs"
+                    className="font-mono text-[10.5px] font-bold px-1.5 py-0.2 rounded-full shadow-2xs"
                   >
-                    {notifications.length}
+                    0
                   </span>
                 )}
 

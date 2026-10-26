@@ -1,3 +1,4 @@
+
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -110,6 +111,19 @@ export function NotificationDetailModal({
       isCancelled = true;
     };
   }, [isOpen, notification, isProjectReview]);
+
+  // Auto-mark notification as read when opened in modal
+  useEffect(() => {
+    if (isOpen && notification && !notification.isRead && notification._id) {
+      import('../../lib/api/notifications.api').then(({ notificationsApi }) => {
+        notificationsApi.markAsRead(notification._id, true).then(() => {
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('notifications-changed'));
+          }
+        }).catch(() => {});
+      });
+    }
+  }, [isOpen, notification]);
 
   const modalRef = useClickOutside<HTMLDivElement>(() => {
     onClose();

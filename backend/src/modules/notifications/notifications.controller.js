@@ -25,11 +25,14 @@ const getNotifications = async (req, res, next) => {
 const markAsRead = async (req, res, next) => {
   try {
     const { id } = req.params;
-    await notificationService.markAsRead(id);
+    const isRead = req.body?.isRead !== undefined ? Boolean(req.body.isRead) : true;
+    const updated = await notificationService.markAsRead(id, isRead);
 
     res.status(200).json({
       success: true,
-      message: 'Notification marked as read'
+      message: `Notification marked as ${isRead ? 'read' : 'unread'}`,
+      notification: updated,
+      data: updated
     });
   } catch (error) {
     next(error);
@@ -39,11 +42,12 @@ const markAsRead = async (req, res, next) => {
 const markAllAsRead = async (req, res, next) => {
   try {
     const employeeId = req.employee?._id || req.user?._id || req.user?.id;
-    await notificationService.markAllAsRead(employeeId);
+    const isRead = req.body?.isRead !== undefined ? Boolean(req.body.isRead) : true;
+    await notificationService.markAllAsRead(employeeId, { isRead });
 
     res.status(200).json({
       success: true,
-      message: 'All notifications marked as read'
+      message: `All notifications marked as ${isRead ? 'read' : 'unread'}`
     });
   } catch (error) {
     next(error);
