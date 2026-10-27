@@ -7,6 +7,16 @@ const timelineConfig = require('../../config/timeline');
 const config = require('../../config/env');
 const coreApi = require('../../services/core-api.service');
 const Employee = require('../employees/employee.model');
+const Project = require('../projects/project.model');
+const ProjectRequest = require('../project-requests/project-request.model');
+const ProjectMember = require('../project-members/project-member.model');
+const ProjectSchools = require('../project-schools/project-schools.model');
+const School = require('../schools/school.model');
+const Hardware = require('../hardware/hardware.model');
+const Solution = require('../solutions/solution.model');
+const Requirements = require('../requirements/requirements.model');
+const Training = require('../training/training.model');
+const notificationService = require('../notifications/notifications.service');
 const { NODE_STATUSES, NODE_TYPES, GLOBAL_ROLES, DESIGNATIONS } = require('../../core/constants');
 const { AppError } = require('../../core/errors');
 
@@ -48,33 +58,18 @@ class TimelineService {
       }
     } catch (_) {}
 
-    // 3. Lookup in Tracker ProjectRequest model (for approved / synthetic requests)
+    // 3. If an approved ProjectRequest ID was passed, resolve strictly to its underlying Core Project
     try {
       const ProjectRequest = require('../project-requests/project-request.model');
       const reqDoc = await ProjectRequest.findOne(
         isObjectId
-          ? { $or: [{ _id: idStr }, { projectId: idStr }, { requestId: idStr }, { requestId: idStr.toUpperCase() }] }
-          : { $or: [{ requestId: idStr }, { requestId: idStr.toUpperCase() }, { title: idStr }] }
-      ).populate('projectManager', 'name email employeeCode globalRole designation').lean();
+          ? { $or: [{ _id: idStr }, { requestId: idStr }, { requestId: idStr.toUpperCase() }] }
+          : { $or: [{ requestId: idStr }, { requestId: idStr.toUpperCase() }] }
+      ).lean();
 
-      if (reqDoc) {
-        return {
-          _id: reqDoc.projectId || reqDoc._id,
-          projectId: (reqDoc.requestId || reqDoc.title || idStr).toUpperCase(),
-          projectName: reqDoc.title || reqDoc.projectName || 'Project Request',
-          title: reqDoc.title || reqDoc.projectName || 'Project Request',
-          organization: reqDoc.organization || reqDoc.projectName || reqDoc.title || 'Direct Organization',
-          email: reqDoc.email || '',
-          phone: reqDoc.phone || '',
-          address: reqDoc.address || '',
-          numberOfSchools: 0,
-          numberOfLicenses: 0,
-          country: reqDoc.country || '',
-          status: 'ACTIVE',
-          isActive: true,
-          projectManager: reqDoc.projectManager || null,
-          source: 'PROJECT_REQUEST'
-        };
+      if (reqDoc && reqDoc.projectId) {
+        // Resolve directly to the underlying master Core Backend project
+        return await this._findProject(reqDoc.projectId);
       }
     } catch (_) {}
 
@@ -164,7 +159,7 @@ class TimelineService {
     if (project.source === 'CORE_BACKEND' || project.source === 'CORE_BACKEND_WITH_LOCAL_MERGE') {
       isCoreProject = true;
     } else {
-      const lookupCode = project.projectId || project._id;
+      const lookupCode = project._id ? String(project._id) : (project.projectId || '');
       try {
         const verifiedCoreP = await coreApi.getProjectById(lookupCode);
         if (verifiedCoreP) {
@@ -270,7 +265,7 @@ class TimelineService {
 
       if (stageDef.substages) {
         for (const subDef of stageDef.substages) {
-          const subAssignedTo = effectivePmId || null;
+          const subAssignedTo = null;
           const subTaskNodeArr = await TimelineNode.create([{
             timeline: createdTimeline._id,
             parentNode: createdStage._id,
@@ -288,7 +283,7 @@ class TimelineService {
 
           if (subDef.nested) {
             for (const nestedDef of subDef.nested) {
-              const nestedAssignedTo = effectivePmId || null;
+              const nestedAssignedTo = null;
               await TimelineNode.create([{
                 timeline: createdTimeline._id,
                 parentNode: createdSub._id,
@@ -387,6 +382,17 @@ class TimelineService {
     }).populate('projectManager', 'name email employeeCode globalRole designation');
 
     if (!timeline) {
+      try {
+        timeline = await this.createTimelineForProject(project, effectivePmId);
+        if (timeline) {
+          timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole designation');
+        }
+      } catch (initErr) {
+        console.error('[TimelineService] Auto-initialize timeline failed:', initErr);
+      }
+    }
+
+    if (!timeline) {
       return {
         timeline: null,
         project: {
@@ -408,14 +414,20 @@ class TimelineService {
       .populate('assignedTo', 'name email employeeCode')
       .sort({ order: 1 });
 
-    // Ensure all stages and substage nodes are assigned to PM by default if not yet assigned
+    // Ensure all STAGES (parent stage nodes) are assigned to PM, while tasks remain unassigned unless explicitly assigned by PM
     if (effectivePmId) {
       let pmAssignedUpdated = false;
       for (const node of nodes) {
-        if (!node.assignedTo) {
-          node.assignedTo = effectivePmId;
-          await node.save();
-          pmAssignedUpdated = true;
+        const isStageNode = node.type === NODE_TYPES.STAGE || !node.parentNode;
+        if (isStageNode) {
+          const currentAssignee = node.assignedTo?._id
+            ? node.assignedTo._id.toString()
+            : (node.assignedTo ? node.assignedTo.toString() : null);
+          if (!currentAssignee || currentAssignee !== effectivePmId.toString()) {
+            node.assignedTo = effectivePmId;
+            await node.save();
+            pmAssignedUpdated = true;
+          }
         }
       }
       if (pmAssignedUpdated) {
@@ -499,7 +511,7 @@ class TimelineService {
           type: 'TASK',
           order: 4,
           status: 'PENDING',
-          assignedTo: effectivePmId || null
+          assignedTo: null
         });
         nodes.push(contentConfigNode);
       }
@@ -638,7 +650,7 @@ class TimelineService {
               type: 'TASK',
               order: t.order,
               status: 'PENDING',
-              assignedTo: effectivePmId || null
+              assignedTo: null
             });
           } else {
             nodeFound.parentNode = installStageNode._id;
@@ -792,6 +804,10 @@ class TimelineService {
     const nodeMap = {};
     nodes.forEach(node => {
       const obj = node.toObject();
+      if (!obj.assignedTo || (typeof obj.assignedTo === 'object' && !obj.assignedTo._id && !obj.assignedTo.name)) {
+        obj.assignedTo = null;
+      }
+      obj.assignedEmployee = obj.assignedTo || null;
       obj.formData = obj.formData || {};
       if (schemaMap[node.key]) {
         obj.formSchema = schemaMap[node.key];
@@ -3064,7 +3080,7 @@ class TimelineService {
     }
 
     // STRICT CHECK: Ensure project strictly exists in Core Backend
-    const lookupCode = project.projectId || project._id;
+    const lookupCode = project._id ? String(project._id) : (project.projectId || '');
     let isCore = project.source === 'CORE_BACKEND' || project.source === 'CORE_BACKEND_WITH_LOCAL_MERGE';
     if (!isCore) {
       try {

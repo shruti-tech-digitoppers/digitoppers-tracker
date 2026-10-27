@@ -1962,7 +1962,7 @@ export function MultiSchoolSection({
               {/* 6.4 First Generation Learner */}
               <div className="space-y-2 p-3 bg-slate-50/70 rounded-xl border border-slate-200/70">
                 <label className="text-xs font-bold text-slate-800">
-                  6.4 Are Children's first-generation learner?
+                  6.4 Are Children&apos;s first-generation learner?
                 </label>
                 <div className="space-y-2">
                   {FIRST_GEN_OPTIONS.map((opt) => (

@@ -43,16 +43,16 @@ export function ParallelStreamColumn({
 }: ParallelStreamColumnProps) {
   const [isPdfModalOpen, setIsPdfModalOpen] = React.useState(false);
 
+  const stage3Data = React.useMemo(() => {
+    return extractStage3OrderRequirementData(allNodes, project);
+  }, [allNodes, project]);
+
   if (!streamNode) return null;
   const isExpanded = isNodeExpanded(streamNode._id);
   const subtasks = (streamNode.children || [])
     .filter(c => c.key !== 'PI_REQUEST')
     .filter(matchesFilter);
   const streamTheme = getStreamTheme(streamType);
-
-  const stage3Data = React.useMemo(() => {
-    return extractStage3OrderRequirementData(allNodes, project);
-  }, [allNodes, project]);
 
   return (
     <div className="flex flex-col items-center">

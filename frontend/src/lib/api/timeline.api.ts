@@ -54,14 +54,27 @@ function normalizeNode(n: any): ITimelineNode {
     };
   }
 
-  return {
-    _id: n._id || n.id || '',
-    timeline: n.timeline || '',
-    key: n.key || '',
-    name: n.name || n.title || n.label || 'Stage / Task',
-    type: n.type || 'STAGE',
-    status: (n.status || 'PENDING') as TimelineNodeStatus,
-    assignedEmployee: n.assignedTo || n.assignedEmployee || null,
+    let rawAssignee = n.assignedTo || n.assignedEmployee || null;
+    if (rawAssignee && typeof rawAssignee === 'object') {
+      if (!rawAssignee._id && !rawAssignee.id && !rawAssignee.name) {
+        rawAssignee = null;
+      }
+    } else if (typeof rawAssignee === 'string') {
+      const trimmed = rawAssignee.trim();
+      if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === '[object Object]') {
+        rawAssignee = null;
+      }
+    }
+
+    return {
+      _id: n._id || n.id || '',
+      timeline: n.timeline || '',
+      key: n.key || '',
+      name: n.name || n.title || n.label || 'Stage / Task',
+      type: n.type || 'STAGE',
+      status: (n.status || 'PENDING') as TimelineNodeStatus,
+      assignedEmployee: rawAssignee,
+      assignedTo: rawAssignee,
     dependencies: Array.isArray(n.dependencies) ? n.dependencies : [],
     formSchema: n.formSchema || null,
     formData: n.formData || {},

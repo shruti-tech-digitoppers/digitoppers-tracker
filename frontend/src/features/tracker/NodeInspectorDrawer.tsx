@@ -61,11 +61,32 @@ interface NodeInspectorDrawerProps {
   allNodes?: ITimelineNode[];
 }
 
-export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
+const findNodeRecursive = (list: ITimelineNode[] | undefined, targetKey: string): ITimelineNode | null => {
+  if (!Array.isArray(list)) return null;
+  for (const item of list) {
+    const k = (item.key || '').toUpperCase();
+    const target = targetKey.toUpperCase();
+    if (k === target || k.includes(target) || (target === 'SCHOOL_ONBOARDING_INFORMATION' && (k.includes('SCHOOL') || (item.name || '').toLowerCase().includes('school')))) {
+      return item;
+    }
+    if (item.children && item.children.length > 0) {
+      const found = findNodeRecursive(item.children, targetKey);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
+const NodeInspectorContent: React.FC<
+  Omit<NodeInspectorDrawerProps, 'node' | 'currentUser'> & {
+    node: ITimelineNode;
+    currentUser: IUser;
+  }
+> = ({
   node,
   employees = [],
   availableEmployees = [],
-  currentUser = null,
+  currentUser,
   project = null,
   isOpen = true,
   formSchema,
@@ -245,9 +266,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [prevNode, nextNode, handleNavigate, isFormDirty]);
 
-  if (!node || !currentUser) return null;
-
-  const stageTheme = getStageTheme(node.order || node.key);
+  const stageTheme = getStageTheme(node?.order || node?.key || 1);
   const empList = employees.length > 0 ? employees : availableEmployees;
   const isCurrentlyMutating = mutating || isMutating;
   const currentError = mutationError || error;
@@ -303,7 +322,8 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
     })
   );
 
-  const isStage1 = node.key === 'PROJECT_REVIEWER' || node.key === 'PROJECT_CREATED' || node.order === 1;
+  const isStage = node.type === 'STAGE' || !node.parent || node.key === 'PROJECT_REVIEWER' || node.key === 'PROJECT_CREATED';
+  const isStage1 = isStage;
 
   const statusOptions: { value: TimelineNodeStatus; label: string; icon: any; activeClass: string; inactiveClass: string }[] = [
     {
@@ -364,22 +384,33 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
         ? (node.assignedTo as any)
         : null);
 
+  // Check if current user is an Admin / Super Admin
+  const isUserAdmin = Boolean(
+    currentUser && (
+      (currentUser.globalRole || '').toUpperCase() === 'ADMIN' ||
+      (currentUser.role || '').toUpperCase() === 'ADMIN' ||
+      (currentUser.globalRole || '').toUpperCase() === 'SUPER_ADMIN' ||
+      (currentUser.role || '').toUpperCase() === 'SUPER_ADMIN'
+    )
+  );
+
+  const currentUserId = currentUser?._id ? String(currentUser._id) : '';
+  const isAssignedToThisTask = Boolean(
+    currentUserId &&
+    currentAssigneeId &&
+    String(currentAssigneeId) === currentUserId
+  );
+
+  // If user is not Admin and not assigned to this particular task, they are unassigned
+  const isNotAssigned = !isUserAdmin && !isAssignedToThisTask;
+
+  // Only Admin or the employee specifically assigned to this task can edit the form
+  const canEditForm = isUserAdmin || isAssignedToThisTask;
+
+  // Only Admins (or PM) can assign or modify employees
+  const canAssignEmployees = isUserAdmin && allowAssignEdit && !isReadOnly;
+
   // Extract stage 03 and stage 04 context for seamless cross-stage data flow
-  const findNodeRecursive = (list: ITimelineNode[], targetKey: string): ITimelineNode | null => {
-    if (!Array.isArray(list)) return null;
-    for (const item of list) {
-      const k = (item.key || '').toUpperCase();
-      const target = targetKey.toUpperCase();
-      if (k === target || k.includes(target) || (target === 'SCHOOL_ONBOARDING_INFORMATION' && (k.includes('SCHOOL') || (item.name || '').toLowerCase().includes('school')))) {
-        return item;
-      }
-      if (item.children && item.children.length > 0) {
-        const found = findNodeRecursive(item.children, targetKey);
-        if (found) return found;
-      }
-    }
-    return null;
-  };
 
   const stage3SchoolNode = useMemo(() => findNodeRecursive(allNodes, 'SCHOOL_ONBOARDING_INFORMATION'), [allNodes]);
   const stage3SolNode = useMemo(() => findNodeRecursive(allNodes, 'SOLUTION_SELECTION'), [allNodes]);
@@ -455,7 +486,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
   ]);
 
   const memoizedInitialData = React.useMemo(() => {
-    return formData || (node.formData as any) || {};
+    return formData || (node?.formData as any) || {};
   }, [formData, node?._id, node?.formData]);
 
   const [justSaved, setJustSaved] = React.useState<boolean>(false);
@@ -542,12 +573,23 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   return (
                     <button
                       key={opt.value}
-                      disabled={isCurrentlyMutating || !allowStatusEdit}
-                      onClick={() => onStatusChange(opt.value)}
-                      title={`Set status to ${opt.label}`}
+                      type="button"
+                      disabled={isCurrentlyMutating}
+                      onClick={() => {
+                        if (isNotAssigned) {
+                          showReadOnlyToast('🔒 Read-only access — you are not assigned to this task. Status cannot be modified.');
+                          return;
+                        }
+                        if (!allowStatusEdit) {
+                          showReadOnlyToast('🔒 Read-only access — you do not have permission to modify status.');
+                          return;
+                        }
+                        onStatusChange(opt.value);
+                      }}
+                      title={isNotAssigned ? 'Read-only access — not assigned to this task' : `Set status to ${opt.label}`}
                       className={`inline-flex items-center justify-center gap-1 py-1 px-2.5 rounded-lg text-[10.5px] font-bold transition-all cursor-pointer select-none border ${
                         isSelected ? opt.activeClass : opt.inactiveClass
-                      } ${!allowStatusEdit ? 'opacity-60 cursor-not-allowed' : ''}`}
+                      } ${(!allowStatusEdit || isNotAssigned) ? 'opacity-60 cursor-not-allowed' : ''}`}
                     >
                       <Icon className="w-3 h-3 flex-shrink-0" />
                       <span>{opt.label}</span>
@@ -566,13 +608,13 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
               </button>
             </div>
 
-                      {/* Bottom Row: Shifted Assign / Project Manager Component directly under Status */}
+            {/* Bottom Row: Shifted Assign / Project Manager Component directly under Status */}
             <div className="flex items-center gap-2 justify-end">
               <span className="text-[11px] font-bold text-[#556987] flex items-center gap-1.5 shrink-0">
                 <User className="w-3.5 h-3.5 text-[#51a8b1]" />
                 {isStage1 ? 'Project Manager:' : 'Assigned To:'}
               </span>
-              {(allowAssignEdit && !isReadOnly) ? (
+              {canAssignEmployees ? (
                 <select
                   disabled={isCurrentlyMutating || isSaving}
                   value={currentSelectedAssigneeId}
@@ -593,14 +635,20 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                   ))}
                 </select>
               ) : (
-                /* Read-only pill — click triggers animated banner */
+                /* Read-only pill — click triggers read-only toast */
                 <button
                   type="button"
-                  onClick={isReadOnly ? triggerReadOnlyBanner : undefined}
-                  className="border border-[#b6e0e4] bg-[#f0f8f9] rounded-xl px-2.5 py-1 text-xs text-[#3a7d84] flex items-center gap-1 font-bold shadow-2xs truncate max-w-[220px] cursor-default select-none"
-                  title={isReadOnly ? 'You have read-only access' : `${isStage1 ? 'Project Manager' : 'Assigned to'}: ${currentAssigneeObj?.name || 'Unassigned'}`}
+                  onClick={() => {
+                    showReadOnlyToast(
+                      isNotAssigned
+                        ? '🔒 Read-only access — you are not assigned to this task.'
+                        : '🔒 Read-only access — contact an Admin to assign or change employees.'
+                    );
+                  }}
+                  className="border border-[#b6e0e4] bg-[#f0f8f9] hover:bg-[#e2f3f5] rounded-xl px-2.5 py-1 text-xs text-[#3a7d84] flex items-center gap-1 font-bold shadow-2xs truncate max-w-[220px] cursor-pointer select-none transition"
+                  title="Click to view assignment permissions"
                 >
-                  {currentAssigneeObj ? (
+                  {currentAssigneeObj && (currentAssigneeObj.name || '').trim() && (currentAssigneeObj.name || '').toLowerCase() !== 'unassigned' ? (
                     <>
                       <span className="truncate">{currentAssigneeObj.name}</span>
                       {currentAssigneeObj.employeeCode && (
@@ -760,7 +808,7 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                         </div>
 
                         <div className="w-full sm:w-64 shrink-0">
-                          {(allowAssignEdit && !isReadOnly) ? (
+                          {canAssignEmployees ? (
                             <div className="flex items-center gap-1.5">
                               <User className={`w-3.5 h-3.5 shrink-0 ${childSelectedAssigneeId ? 'text-[#3a7d84]' : 'text-[#b9c0cb]'}`} />
                               <select
@@ -785,21 +833,29 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
                               </select>
                             </div>
                           ) : (
-                            /* Read-only: clickable pill that triggers the banner */
+                            /* Read-only: clickable pill that triggers read-only toast */
                             <button
                               type="button"
-                              onClick={isReadOnly ? triggerReadOnlyBanner : undefined}
-                              className="flex items-center gap-1.5 w-full text-xs bg-[#f0f8f9] border border-[#b6e0e4] px-3 py-1.5 rounded-xl text-[#3a7d84] font-bold justify-between shadow-2xs cursor-default select-none"
-                              title={isReadOnly ? '🔒 Read-only — contact Admin to assign' : 'Assigned employee'}
+                              onClick={() => {
+                                showReadOnlyToast('🔒 Read-only access — contact an Admin to assign employees for this task.');
+                              }}
+                              className="flex items-center gap-1.5 w-full text-xs bg-[#f0f8f9] border border-[#b6e0e4] hover:bg-[#e2f3f5] px-3 py-1.5 rounded-xl text-[#3a7d84] font-bold justify-between shadow-2xs cursor-pointer select-none transition"
+                              title="Click to view assignment permissions"
                             >
-                              <span className="flex items-center gap-1.5 truncate">
-                                <User className={`w-3.5 h-3.5 shrink-0 ${assignedEmp || childAssigneeObj ? 'text-[#3a7d84]' : 'text-[#94a3b8]'}`} />
-                                {assignedEmp || childAssigneeObj ? (
-                                  <span className="truncate">Assigned to: <strong className="text-[#3a7d84]">{(assignedEmp || childAssigneeObj).name}</strong></span>
-                                ) : (
-                                  <span className="text-[#94a3b8] font-medium">Unassigned</span>
-                                )}
-                              </span>
+                              {(() => {
+                                const childAssigneeName = ((assignedEmp?.name || childAssigneeObj?.name || '') as string).trim();
+                                const hasChildAssignee = Boolean(childAssigneeName && childAssigneeName.toLowerCase() !== 'unassigned');
+                                return (
+                                  <span className="flex items-center gap-1.5 truncate">
+                                    <User className={`w-3.5 h-3.5 shrink-0 ${hasChildAssignee ? 'text-[#3a7d84]' : 'text-[#94a3b8]'}`} />
+                                    {hasChildAssignee ? (
+                                      <span className="truncate">Assigned to: <strong className="text-[#3a7d84]">{childAssigneeName}</strong></span>
+                                    ) : (
+                                      <span className="text-[#94a3b8] font-medium">Unassigned</span>
+                                    )}
+                                  </span>
+                                );
+                              })()}
                             </button>
                           )}
                         </div>
@@ -812,12 +868,19 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
           })()}
 
           {/* Dynamic Stage / Task Form */}
-          <div className="space-y-3">
+          <div
+            className="space-y-3 relative"
+            onClickCapture={() => {
+              if (isNotAssigned) {
+                showReadOnlyToast('🔒 Read-only access — you are not assigned to this task. Forms are view-only.');
+              }
+            }}
+          >
             <DynamicFormRenderer
               schema={formSchema || (node.formSchema as any)}
               initialData={memoizedInitialData}
               onSubmit={onFormSubmit}
-              disabled={isCurrentlyMutating}
+              disabled={isCurrentlyMutating || isNotAssigned}
               employees={empList}
               allFormData={combinedAllFormData}
               project={project}
@@ -862,17 +925,31 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
             {/* Save Button */}
             <button
               type="button"
-              disabled={isSaving || isCurrentlyMutating || (!isDirty && !justSaved)}
-              onClick={handleFooterSave}
+              disabled={isSaving || isCurrentlyMutating || (!isDirty && !justSaved && !isNotAssigned)}
+              onClick={() => {
+                if (isNotAssigned) {
+                  showReadOnlyToast('🔒 Read-only access — you are not assigned to this task. Edits cannot be saved.');
+                  return;
+                }
+                handleFooterSave();
+              }}
               className={`h-[42px] inline-flex items-center gap-2 px-4 rounded-xl text-xs font-bold transition-all border ${
-                justSaved
-                  ? 'bg-[#10b981] text-white border-[#10b981] shadow-xs cursor-default'
-                  : isDirty
-                    ? 'bg-[#51a8b1] hover:bg-[#3a7d84] text-white border-[#51a8b1] shadow-xs hover:shadow-md cursor-pointer active:scale-95'
-                    : 'bg-white border-[#cbd5e1]/80 text-[#64748b] cursor-default shadow-2xs'
+                isNotAssigned
+                  ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed shadow-none'
+                  : justSaved
+                    ? 'bg-[#10b981] text-white border-[#10b981] shadow-xs cursor-default'
+                    : isDirty
+                      ? 'bg-[#51a8b1] hover:bg-[#3a7d84] text-white border-[#51a8b1] shadow-xs hover:shadow-md cursor-pointer active:scale-95'
+                      : 'bg-white border-[#cbd5e1]/80 text-[#64748b] cursor-default shadow-2xs'
               }`}
+              title={isNotAssigned ? 'Read-only access — not assigned to this task' : undefined}
             >
-              {isSaving || isCurrentlyMutating ? (
+              {isNotAssigned ? (
+                <>
+                  <Lock className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-slate-400 font-bold">Read-Only</span>
+                </>
+              ) : isSaving || isCurrentlyMutating ? (
                 <>
                   <Loader2 className="w-3.5 h-3.5 animate-spin !text-white" style={{ color: '#ffffff' }} />
                   <span className="!text-white font-bold" style={{ color: '#ffffff' }}>Saving...</span>
@@ -1022,4 +1099,9 @@ export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = ({
       )}
     </div>
   );
+};
+
+export const NodeInspectorDrawer: React.FC<NodeInspectorDrawerProps> = (props) => {
+  if (!props.node || !props.currentUser) return null;
+  return <NodeInspectorContent {...props} node={props.node} currentUser={props.currentUser} />;
 };

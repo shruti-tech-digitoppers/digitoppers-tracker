@@ -1,8 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef, useEffect } from 'react';
 import { Permissions } from '../hooks/usePermissions';
 import { ShieldAlert, X } from 'lucide-react';
+import { SHOW_READ_ONLY_TOAST_EVENT } from '../components/shell/ReadOnlyToast';
 
 interface PermissionContextValue {
   permissions: Permissions;
@@ -69,6 +70,18 @@ export const PermissionProvider = ({
       }, 400);
     }, 5000);
   }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handleToastEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message?: string }>;
+      showReadOnlyToast(customEvent.detail?.message);
+    };
+    window.addEventListener(SHOW_READ_ONLY_TOAST_EVENT, handleToastEvent);
+    return () => {
+      window.removeEventListener(SHOW_READ_ONLY_TOAST_EVENT, handleToastEvent);
+    };
+  }, [showReadOnlyToast]);
 
   return (
     <PermissionContext.Provider value={{ permissions, isReadOnly, showReadOnlyToast }}>

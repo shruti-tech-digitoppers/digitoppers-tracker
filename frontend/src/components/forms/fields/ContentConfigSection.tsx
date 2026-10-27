@@ -315,7 +315,7 @@ function MediumMultiSelectDropdown({
           <div className="max-h-56 overflow-y-auto p-2 divide-y divide-gray-50 space-y-0.5">
             {filteredOptions.length === 0 ? (
               <div className="p-4 text-center text-xs text-[#8c96a5]">
-                No mediums matching "{search}"
+                No mediums matching &quot;{search}&quot;
               </div>
             ) : (
               filteredOptions.map((med) => {
@@ -552,7 +552,7 @@ function ClassMultiSelectDropdown({
           >
             {filteredClasses.length === 0 ? (
               <div className="p-4 text-center text-xs text-[#8c96a5]">
-                No classes matching "{search}"
+                No classes matching &quot;{search}&quot;
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-1.5">
@@ -1192,7 +1192,7 @@ export function ContentConfigSection({
                           className="flex items-center gap-1 text-[10.5px] font-bold px-2.5 py-1 rounded-lg bg-[#eef7f8] text-[#3a7d84] border border-[#b6e0e4] hover:bg-[#51a8b1] hover:text-white transition cursor-pointer shadow-2xs"
                         >
                           <Copy className="w-3 h-3" />
-                          <span>Copy "{med}" to All</span>
+                          <span>Copy &quot;{med}&quot; to All</span>
                         </button>
                       ))}
                     </div>

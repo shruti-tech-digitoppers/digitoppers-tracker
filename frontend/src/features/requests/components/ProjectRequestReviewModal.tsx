@@ -98,10 +98,27 @@ export function ProjectRequestReviewModal({
   const selectedProjectObj = useMemo(() => {
     if (!selectedProjectId) return null;
     return dbProjects.find((p) => {
-      const code = p.projectId || p._id;
-      return code === selectedProjectId;
+      const pIdStr = String(p._id || '');
+      const pCode = String(p.projectId || '').toUpperCase();
+      const selStr = String(selectedProjectId).toUpperCase();
+      return pIdStr === selectedProjectId || pCode === selStr;
     }) || null;
   }, [dbProjects, selectedProjectId]);
+
+  // Resolve human-readable project name and code for confirmed requests
+  const confirmedProjectObj = useMemo(() => {
+    if (!request || request.status !== 'APPROVED') return null;
+    const reqMongoId = typeof request.projectId === 'object' && request.projectId !== null
+      ? String(request.projectId._id || request.projectId)
+      : String(request.projectId || '');
+    const reqCode = String(request.dashboardProjectId || '').toUpperCase();
+
+    return dbProjects.find((p) => {
+      const pId = String(p._id || '');
+      const pCode = String(p.projectId || '').toUpperCase();
+      return (reqMongoId && pId === reqMongoId) || (reqCode && pCode === reqCode);
+    }) || null;
+  }, [request, dbProjects]);
 
   if (!isOpen || !request) return null;
 
@@ -121,6 +138,20 @@ export function ProjectRequestReviewModal({
   const isApproved = request.status === 'APPROVED';
   const canApprove = isApprover && isPending;
 
+  const confirmedDisplayName =
+    confirmedProjectObj?.projectName ||
+    confirmedProjectObj?.title ||
+    request.projectName ||
+    request.title ||
+    confirmedProjectObj?.projectId ||
+    request.dashboardProjectId ||
+    'Confirmed Project';
+
+  const confirmedDisplayCode =
+    confirmedProjectObj?.projectId ||
+    request.dashboardProjectId ||
+    '';
+
   const handleApprove = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId.trim()) {
@@ -138,8 +169,8 @@ export function ProjectRequestReviewModal({
       setError(null);
 
       await requestsApi.approveRequest(request._id, {
-        projectId: selectedProjectId.trim().toUpperCase(),
-        dashboardProjectId: selectedProjectId.trim().toUpperCase(),
+        projectId: String(selectedProjectObj?._id || selectedProjectId).trim(),
+        dashboardProjectId: String(selectedProjectObj?.projectId || selectedProjectId).trim().toUpperCase(),
         reviewNotes: reviewNotes.trim(),
       });
 
@@ -237,7 +268,7 @@ export function ProjectRequestReviewModal({
               <span>Project Confirmed &amp; Active</span>
             </div>
             <p className="text-[11.5px] text-emerald-800 leading-relaxed">
-              This request was confirmed with Project ID: <strong>{typeof request.projectId === 'object' && request.projectId !== null ? (request.projectId.projectId || request.projectId._id) : (request.projectId || request.dashboardProjectId || 'Linked')}</strong>.
+              This request was confirmed with Project: <strong>{confirmedDisplayName}</strong>{confirmedDisplayCode && confirmedDisplayCode !== confirmedDisplayName ? ` (${confirmedDisplayCode})` : ''}.
             </p>
           </div>
         )}
@@ -490,14 +521,15 @@ export function ProjectRequestReviewModal({
                         </div>
                       ) : (
                         filteredProjects.map((p) => {
+                          const mongoId = String(p._id || '');
                           const code = (p.projectId || p._id || '').toString();
                           const name = p.projectName || p.title || 'Untitled';
-                          const isSel = selectedProjectId === code;
+                          const isSel = selectedProjectId === mongoId || selectedProjectId === code;
                           return (
                             <div
-                              key={p._id || code}
+                              key={mongoId || code}
                               onClick={() => {
-                                setSelectedProjectId(code);
+                                setSelectedProjectId(mongoId || code);
                                 setIsDropdownOpen(false);
                               }}
                               className={`p-3 text-xs flex items-center justify-between gap-2.5 hover:bg-[#f0f8f9] transition cursor-pointer ${

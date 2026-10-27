@@ -5,6 +5,7 @@ import { ITimelineNode, TimelineNodeStatus, FormSchemaType } from '../../types/t
 import { IProject } from '../../types/project';
 import { IUser } from '../../types/auth';
 import { canUpdateNodeStatus, canAssignNode } from '../../lib/permissions';
+import { showReadOnlyToast } from '../../components/shell/ReadOnlyToast';
 import { HorizontalRoadmapCanvas } from '../tracker/HorizontalRoadmapCanvas';
 import { NodeInspectorDrawer } from '../tracker/NodeInspectorDrawer';
 import { getStageTheme } from '../tracker/utils/stageColorThemes';
@@ -186,7 +187,20 @@ export function ProjectRoadmapCard({
     });
   };
 
+  const isUserAdmin = Boolean(
+    currentUser && (
+      (currentUser.globalRole || '').toUpperCase() === 'ADMIN' ||
+      (currentUser.role || '').toUpperCase() === 'ADMIN' ||
+      (currentUser.globalRole || '').toUpperCase() === 'SUPER_ADMIN' ||
+      (currentUser.role || '').toUpperCase() === 'SUPER_ADMIN'
+    )
+  );
+
   const handleAssignmentChange = async (empId: string, targetNodeId?: string) => {
+    if (!isUserAdmin) {
+      showReadOnlyToast('🔒 Read-only access — contact an Admin to assign employees.');
+      return;
+    }
     const nodeIdToAssign = targetNodeId || selectedNode?._id;
     if (!nodeIdToAssign) return;
 
@@ -251,13 +265,16 @@ export function ProjectRoadmapCard({
       setMutationError(null);
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save form data.';
+      if (err.response?.status === 403 || msg.toLowerCase().includes('assigned') || msg.toLowerCase().includes('viewer')) {
+        showReadOnlyToast('🔒 Read-only access — you are not assigned to this task.');
+      }
       setMutationError(msg);
       throw err;
     }
   };
 
   const canModifyStatus = selectedNode ? canUpdateNodeStatus(currentUser, 'PROJECT_MANAGER', selectedNode) : true;
-  const canModifyAssignment = canAssignNode(currentUser, 'PROJECT_MANAGER');
+  const canModifyAssignment = isUserAdmin;
   const statusCfg = STATUS_CONFIG[project.status] || STATUS_CONFIG.ARCHIVED;
 
   // Top-level stages sorted by order
@@ -408,18 +425,18 @@ export function ProjectRoadmapCard({
         </div>
       ) : (
         <div
-          className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 px-3.5 sm:px-4 py-2.5 sm:py-3 cursor-pointer select-none group"
+          className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 lg:gap-4 px-3.5 sm:px-4 py-2.5 sm:py-3 cursor-pointer select-none group"
           onClick={onToggle}
         >
-          {/* Left: Project Meta Details */}
-          <div className="flex items-center gap-2.5 min-w-0 max-w-full lg:max-w-[260px] xl:max-w-[300px] flex-shrink-0">
+          {/* Invisible Div 1: Project Name & Identity Block (Fixed allocated width across all cards) */}
+          <div className="w-full lg:w-[250px] xl:w-[280px] 2xl:w-[310px] shrink-0 flex items-center gap-2.5 min-w-0">
             <div
               className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center bg-[#f0f8f9] border border-[#b6e0e4] ${statusCfg.icon} shadow-2xs`}
             >
               <Building2 className="w-4.5 h-4.5 text-[#51a8b1]" />
             </div>
 
-            <div className="min-w-0 space-y-0.5">
+            <div className="min-w-0 flex-1 space-y-0.5">
               <div className="flex items-center gap-1.5 flex-wrap">
                 <span className="font-mono text-[9.5px] font-black text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4] px-2 py-0.2 rounded-md">
                   {project.projectId}
@@ -433,16 +450,24 @@ export function ProjectRoadmapCard({
               </div>
 
               <div>
-                <h3 className="font-heading text-xs sm:text-[13px] font-bold text-[#1e293b] leading-tight truncate max-w-[240px] sm:max-w-[280px]">
+                <h3
+                  className="font-heading text-xs sm:text-[13px] font-bold text-[#1e293b] leading-tight truncate"
+                  title={project.projectName || project.title}
+                >
                   {project.projectName || project.title}
                 </h3>
-                <p className="text-[10.5px] text-[#556987] truncate">{project.organization || 'Direct Organization'}</p>
+                <p
+                  className="text-[10.5px] text-[#556987] truncate"
+                  title={project.organization || 'Direct Organization'}
+                >
+                  {project.organization || 'Direct Organization'}
+                </p>
               </div>
             </div>
           </div>
 
-          {/* Center: Full 8-Stage Stepper in Full Width Mode */}
-          <div className="w-full lg:flex-1 max-w-full lg:max-w-[560px] xl:max-w-[660px] mx-0 lg:mx-4 px-1 sm:px-2 py-1 flex flex-col justify-center">
+          {/* Invisible Div 2: Center 8-Stage Stepper & Timeline Progress (Fills space evenly across all cards) */}
+          <div className="w-full lg:flex-1 min-w-0 lg:px-2 xl:px-4 py-1 flex flex-col justify-center">
             {/* Horizontal Stepper Track */}
             <div className="adaptive-stepper-track">
               {/* Background connecting track line */}
@@ -470,9 +495,6 @@ export function ProjectRoadmapCard({
                 // Parallel workstreams active check (e.g. Stage 04 Execution having multiple parallel streams running)
                 const parallelRunningCount = stageNode?.children
                   ? stageNode.children.filter((c) => c.status === 'IN_PROGRESS').length
-                  : 0;
-                const parallelHoldCount = stageNode?.children
-                  ? stageNode.children.filter((c) => c.status === 'ON_HOLD').length
                   : 0;
                 const isParallelActive = parallelRunningCount > 1;
 
@@ -513,6 +535,7 @@ export function ProjectRoadmapCard({
                               ? 'text-[#3a7d84] font-black'
                               : 'text-[#556987] font-semibold'
                       }`}
+                      title={shortLabel}
                     >
                       {shortLabel}
                       {isOnHold && (
@@ -533,7 +556,7 @@ export function ProjectRoadmapCard({
 
             {/* Project Manager & Stage Count Subtext */}
             <div className="flex items-center justify-between w-full mt-1.5 px-1 text-[10.5px]">
-              <div className="flex items-center gap-1 text-[#556987] font-medium truncate max-w-[280px] sm:max-w-[340px]">
+              <div className="flex items-center gap-1 text-[#556987] font-medium truncate max-w-[200px] sm:max-w-[280px]">
                 <User className="w-3 h-3 text-[#51a8b1] flex-shrink-0" />
                 <span>PM:</span>
                 <strong className="text-[#3a7d84] font-bold truncate">
@@ -551,8 +574,8 @@ export function ProjectRoadmapCard({
             </div>
           </div>
 
-          {/* Right: Status Badge + Open Tracker button + Refresh + Chevron */}
-          <div className="flex items-center gap-2 sm:gap-2.5 flex-shrink-0 self-end lg:self-center">
+          {/* Invisible Div 3: Right Status Badge + Open Tracker button + Refresh + Chevron */}
+          <div className="w-full lg:w-[200px] xl:w-[215px] 2xl:w-[230px] shrink-0 flex items-center justify-end gap-2 sm:gap-2.5 self-end lg:self-center">
             <span
               className={`hidden lg:inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full border ${statusCfg.cls}`}
             >

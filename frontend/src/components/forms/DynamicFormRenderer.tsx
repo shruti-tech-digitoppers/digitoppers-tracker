@@ -12,11 +12,9 @@ import { FormFieldUpload } from './fields/FormFieldUpload';
 import { SolutionsConfigTable } from './fields/SolutionsConfigTable';
 import { HardwareRequirementsInput } from './fields/HardwareRequirementsInput';
 import { HardwareStockCheck } from './fields/HardwareStockCheck';
-import { HardwarePurchaseView } from './fields/HardwarePurchaseView';
 import { HardwarePurchaseSection } from './fields/HardwarePurchaseSection';
 import { HardwareConsignmentSection } from './fields/HardwareConsignmentSection';
 import { HardwareReadySection } from './fields/HardwareReadySection';
-import { HardwareReadyView } from './fields/HardwareReadyView';
 import { ContentConfigSection } from './fields/ContentConfigSection';
 import { SheetReadinessSection } from './fields/SheetReadinessSection';
 import { AppFileDownloadSection } from './fields/AppFileDownloadSection';
@@ -32,6 +30,7 @@ import { InstallationPlanningSection, TrainingPlanningSection } from './fields/I
 import { SchoolLicenseListSection } from './fields/SchoolLicenseListSection';
 import { AppBuildUploadSection } from './fields/AppBuildUploadSection';
 import { FileText, Save, Check, AlertCircle, Loader2, User, Building2 } from 'lucide-react';
+import { showReadOnlyToast } from '../shell/ReadOnlyToast';
 
 interface DynamicFormRendererProps {
   schema: FormSchemaType;
@@ -271,6 +270,10 @@ export function DynamicFormRenderer({
   }, [formRef, formData, lastSavedSnapshot, onSubmit, onDirtyChange]);
 
   const handleChange = (fieldName: string, value: any) => {
+    if (disabled) {
+      showReadOnlyToast('🔒 Read-only access — you are not assigned to this task. Forms cannot be edited.');
+      return;
+    }
     setFormData((prev) => ({ ...prev, [fieldName]: value }));
     setSuccessMsg(null);
     setError(null);
@@ -278,6 +281,10 @@ export function DynamicFormRenderer({
 
   const handleSubmit = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (disabled) {
+      showReadOnlyToast('🔒 Read-only access — you are not assigned to this task. Forms cannot be saved.');
+      return;
+    }
     if (submitting) return;
 
     const currentSnapshot = JSON.stringify(formData);

@@ -37,7 +37,7 @@ class CoreApiService {
         try {
           const errJson = await response.json();
           if (errJson && errJson.message) errorMsg = errJson.message;
-        } catch (_) {}
+        } catch (_) { }
         const err = new Error(errorMsg);
         err.status = response.status;
         throw err;
@@ -79,7 +79,7 @@ class CoreApiService {
         const jsonAlt = await this.request(`/projects${queryPart}`);
         const listAlt = jsonAlt.projects || jsonAlt.data?.projects || (Array.isArray(jsonAlt.data) ? jsonAlt.data : (Array.isArray(jsonAlt) ? jsonAlt : []));
         if (Array.isArray(listAlt) && listAlt.length > 0) return listAlt;
-      } catch (_) {}
+      } catch (_) { }
       console.warn('[CoreApiService] getProjects error:', err.message);
     }
     return [];
@@ -93,7 +93,7 @@ class CoreApiService {
    */
   async getProjectById(projectIdOrCode) {
     if (!projectIdOrCode) return null;
-    const cleanId = String(projectIdOrCode).trim();
+    const cleanId = String(projectIdOrCode.toLowerCase()).trim();
     if (!cleanId || cleanId === 'undefined' || cleanId === 'null') return null;
 
     // 1. Primary direct endpoint: /api/projects/:id
@@ -111,7 +111,7 @@ class CoreApiService {
         if (jsonAlt && jsonAlt.data?.project) return jsonAlt.data.project;
         if (jsonAlt && jsonAlt.data && !Array.isArray(jsonAlt.data)) return jsonAlt.data;
         if (jsonAlt && !jsonAlt.data && !Array.isArray(jsonAlt) && (jsonAlt.projectName || jsonAlt.projectId)) return jsonAlt;
-      } catch (_) {}
+      } catch (_) { }
 
       if (singleErr.status !== 404) {
         console.warn(`[CoreApiService] getProjectById(${cleanId}) warning:`, singleErr.message);

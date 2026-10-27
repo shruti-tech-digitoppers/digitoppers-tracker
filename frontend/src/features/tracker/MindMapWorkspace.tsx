@@ -238,6 +238,10 @@ export function MindMapWorkspace() {
   };
 
   const handleAssignmentChange = async (empId: string, targetNodeId?: string) => {
+    if (!isAdmin) {
+      showReadOnlyToast('🔒 Read-only access — contact an Admin to assign employees.');
+      return;
+    }
     const nodeIdToAssign = targetNodeId || selectedNode?._id;
     if (!selectedProjectId || !nodeIdToAssign) return;
 
@@ -300,6 +304,9 @@ export function MindMapWorkspace() {
       setMutationError(null);
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save form data.';
+      if (err.response?.status === 403 || msg.toLowerCase().includes('assigned') || msg.toLowerCase().includes('viewer')) {
+        showReadOnlyToast('🔒 Read-only access — you are not assigned to this task.');
+      }
       setMutationError(msg);
       throw err;
     }
@@ -307,7 +314,7 @@ export function MindMapWorkspace() {
 
   const selectedProject = projects.find((p) => p._id === selectedProjectId);
   const canModifyStatus = selectedNode ? canUpdateNodeStatus(currentUser, 'PROJECT_MANAGER', selectedNode) : false;
-  const canModifyAssignment = canAssignNode(currentUser, 'PROJECT_MANAGER');
+  const canModifyAssignment = isAdmin;
 
   return (
     <div className="p-6 max-w-[1700px] mx-auto space-y-4">

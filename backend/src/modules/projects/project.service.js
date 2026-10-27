@@ -44,53 +44,7 @@ class ProjectService {
       .sort({ createdAt: -1 })
       .lean();
 
-    // 2. Fetch approved Project Requests to include any confirmed projects
-    const approvedRequests = await ProjectRequest.find({
-      status: 'APPROVED',
-      isActive: true
-    }).populate('projectManager', 'name email employeeCode globalRole designation').lean().catch(() => []);
-
-    const existingProjectIds = new Set(
-      localProjects.map(p => (p.projectId || '').toUpperCase())
-    );
-    const existingMongoIds = new Set(
-      localProjects.map(p => String(p._id))
-    );
-
-    const syntheticProjectsFromRequests = [];
-    for (const req of approvedRequests) {
-      const code = (req.dashboardProjectId || req.requestId || '').toUpperCase();
-      if (code && !existingProjectIds.has(code)) {
-        // Guarantee unique Mongo/Document ID for each synthetic project
-        let chosenId = String(req._id);
-        if (existingMongoIds.has(chosenId)) {
-          chosenId = new mongoose.Types.ObjectId().toString();
-        }
-        existingMongoIds.add(chosenId);
-
-        syntheticProjectsFromRequests.push({
-          _id: chosenId,
-          projectId: code,
-          projectName: req.projectName || req.title,
-          title: req.projectName || req.title,
-          organization: req.projectName || req.title,
-          email: req.email || '',
-          phone: req.phone || '',
-          address: req.address || '',
-          numberOfSchools: 0,
-          numberOfLicenses: 0,
-          status: 'ACTIVE',
-          projectManager: req.projectManager || null,
-          isActive: true,
-          createdAt: req.createdAt,
-          updatedAt: req.updatedAt,
-          source: 'PROJECT_REQUEST'
-        });
-        existingProjectIds.add(code);
-      }
-    }
-
-    // 3. Fetch live projects directly from Core Backend API
+    // 2. Fetch live projects directly from Core Backend API
     let coreProjects = [];
     try {
       const rawList = await coreApi.getProjects();
@@ -101,15 +55,30 @@ class ProjectService {
       console.warn('[ProjectService] coreApi.getProjects warning:', e.message);
     }
 
+    const existingProjectIds = new Set(
+      localProjects.map(p => (p.projectId || '').toUpperCase()).filter(Boolean)
+    );
+    const existingMongoIds = new Set(
+      localProjects.map(p => String(p._id)).filter(Boolean)
+    );
+    const existingProjectNames = new Set(
+      localProjects.map(p => (p.projectName || p.title || '').trim().toLowerCase()).filter(Boolean)
+    );
+
     const coreProjectsMapped = [];
     for (const cp of coreProjects) {
       const code = (cp.projectId || String(cp._id)).toUpperCase();
-      if (code && !existingProjectIds.has(code)) {
-        let chosenCpId = String(cp._id);
+      const cpIdStr = String(cp._id);
+      const cpName = (cp.projectName || cp.title || '').trim().toLowerCase();
+
+      if (!existingProjectIds.has(code) && !existingMongoIds.has(cpIdStr)) {
+        let chosenCpId = cpIdStr;
         if (existingMongoIds.has(chosenCpId)) {
           chosenCpId = new mongoose.Types.ObjectId().toString();
         }
         existingMongoIds.add(chosenCpId);
+        existingProjectIds.add(code);
+        if (cpName) existingProjectNames.add(cpName);
 
         coreProjectsMapped.push({
           _id: chosenCpId,
@@ -130,7 +99,6 @@ class ProjectService {
           updatedAt: cp.updatedAt || new Date(),
           source: 'CORE_BACKEND'
         });
-        existingProjectIds.add(code);
       }
     }
 
@@ -142,7 +110,8 @@ class ProjectService {
       });
     }
 
-    const allProjectsList = [...localProjects, ...syntheticProjectsFromRequests, ...coreProjectsMapped];
+    // Projects come from Core Backend & local DB
+    const allProjectsList = [...localProjects, ...coreProjectsMapped];
 
     const allProjectMongoIds = allProjectsList
       .map(p => p._id)
@@ -468,6 +437,10 @@ class ProjectService {
           ? { $or: [{ _id: idStr }, { requestId: idStr }, { requestId: idStr.toUpperCase() }, { dashboardProjectId: idStr.toUpperCase() }] }
           : { $or: [{ requestId: idStr }, { requestId: idStr.toUpperCase() }, { dashboardProjectId: idStr.toUpperCase() }] }
       ).populate('projectManager', 'name email employeeCode globalRole designation').lean().catch(() => null);
+
+      if (reqDoc && reqDoc.projectId) {
+        return await this.findProjectByIdOrCode(reqDoc.projectId);
+      }
 
       if (reqDoc) {
         return {

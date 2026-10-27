@@ -369,6 +369,7 @@ class RequestService {
       request.reviewedAt = new Date();
       request.reviewNotes = payload.reviewNotes || '';
       request.projectId = finalCoreMongoId;
+      request.dashboardProjectId = finalCoreProjectId;
       request.isManualDashboardCreated = true;
       await request.save({ session });
 
@@ -460,6 +461,15 @@ class RequestService {
             console.warn('[ProjectRequestService] Slack notify PM warning:', err.message);
           });
         } catch (_) { }
+      }
+
+      // ── Initialize Timeline for confirmed project (stages & tasks unassigned by default) ──
+      try {
+        const timelineService = require('../timeline/timeline.service');
+        coreProject.source = 'CORE_BACKEND';
+        await timelineService.createTimelineForProject(coreProject, request.projectManager);
+      } catch (timelineErr) {
+        console.warn('[ProjectRequestService] Timeline init after approval warning:', timelineErr.message);
       }
 
       return {

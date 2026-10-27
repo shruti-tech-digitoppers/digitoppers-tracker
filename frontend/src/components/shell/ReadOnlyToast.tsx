@@ -3,32 +3,81 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { ShieldOff, Eye, X, ChevronDown, ChevronUp } from 'lucide-react';
 
+export const SHOW_READ_ONLY_TOAST_EVENT = 'digitoppers:show-read-only-toast';
+
+/**
+ * Global helper to trigger the read-only toast from anywhere in the application.
+ */
+export function showReadOnlyToast(message?: string) {
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(
+      new CustomEvent(SHOW_READ_ONLY_TOAST_EVENT, {
+        detail: { message: message || '🔒 Read-only access — contact an Admin to make changes.' },
+      })
+    );
+  }
+}
+
+export const triggerReadOnlyToast = showReadOnlyToast;
+
 interface ReadOnlyToastProps {
   userName?: string;
+  defaultMessage?: string;
 }
 
 /**
  * Floating bottom-left toast shown to read-only (non-admin) users.
- * Auto-shows on mount with a gentle slide-up, can be collapsed/dismissed.
+ * Auto-shows on mount or when triggered via showReadOnlyToast().
  */
-export const ReadOnlyToast: React.FC<ReadOnlyToastProps> = ({ userName }) => {
+export const ReadOnlyToast: React.FC<ReadOnlyToastProps> = ({ userName, defaultMessage }) => {
   const [visible, setVisible] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [dismissed, setDismissed] = useState(false);
+  const [currentMessage, setCurrentMessage] = useState<string>(defaultMessage || '');
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const autoHideRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    // Slight delay so it appears after page loads
-    timerRef.current = setTimeout(() => setVisible(true), 800);
+    // Listen for global showReadOnlyToast events
+    const handleToastEvent = (e: Event) => {
+      const customEvent = e as CustomEvent<{ message?: string }>;
+      const msg = customEvent.detail?.message;
+      if (msg) setCurrentMessage(msg);
+      setDismissed(false);
+      setVisible(true);
+      setCollapsed(false);
+
+      if (autoHideRef.current) clearTimeout(autoHideRef.current);
+      autoHideRef.current = setTimeout(() => {
+        setVisible(false);
+      }, 5500);
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener(SHOW_READ_ONLY_TOAST_EVENT, handleToastEvent);
+    }
+    return () => {
+      if (typeof window !== 'undefined') {
+        window.removeEventListener(SHOW_READ_ONLY_TOAST_EVENT, handleToastEvent);
+      }
+      if (autoHideRef.current) clearTimeout(autoHideRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    // If not triggered by event, show initial helper after slight delay only if userName was supplied
+    if (userName && !currentMessage) {
+      timerRef.current = setTimeout(() => setVisible(true), 800);
+    }
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [userName, currentMessage]);
 
   if (dismissed) return null;
 
   const tips = [
-    'You can browse all projects and timelines.',
+    currentMessage ? currentMessage.replace('🔒 ', '') : 'You can browse all projects and timelines.',
     'Forms are view-only — edits are disabled.',
     'Contact an Admin to request changes.',
   ];

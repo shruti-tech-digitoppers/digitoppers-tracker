@@ -191,10 +191,11 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
       )
     : null;
 
+  const rawAssigneeName = assigneeObj?.name || matchedEmp?.name || null;
   const currentAssigneeName =
-    assigneeObj?.name ||
-    matchedEmp?.name ||
-    null;
+    typeof rawAssigneeName === 'string' && rawAssigneeName.trim() !== '' && rawAssigneeName.toLowerCase() !== 'unassigned'
+      ? rawAssigneeName.trim()
+      : null;
 
   // Avatar initial for the assignee badge
   const avatarInitial = currentAssigneeName

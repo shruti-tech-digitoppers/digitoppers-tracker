@@ -235,7 +235,7 @@ export function ProjectActivityWorkspace({
               <Clock className="w-5 h-5" />
             </div>
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[#4a5462]">Today's Events</p>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#4a5462]">Today&apos;s Events</p>
               <p className="text-xl font-heading font-bold text-[#333333]">{stats.todayActivities.toLocaleString()}</p>
             </div>
           </div>
