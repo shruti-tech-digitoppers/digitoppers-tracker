@@ -407,7 +407,7 @@ const schoolClosureSchema = new mongoose.Schema(
 const schoolSchema = new mongoose.Schema(
   {
     projectId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       required: [true, 'School must belong to a project'],
       index: true
     },

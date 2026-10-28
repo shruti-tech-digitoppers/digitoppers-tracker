@@ -158,7 +158,7 @@ export function ProjectsTable({
                           </span>
                         </div>
                         <Link 
-                          href={`/tracker?projectId=${project._id}`}
+                          href={`/tracker?projectId=${project.projectId || project._id}`}
                           className="font-heading font-bold text-xs sm:text-[13px] text-[#333333] hover:text-[#51a8b1] transition-colors line-clamp-1 block"
                         >
                           {project.projectName || project.title}
@@ -253,7 +253,7 @@ export function ProjectsTable({
                       )}
 
                       <Link
-                        href={`/tracker?projectId=${project._id}`}
+                        href={`/tracker?projectId=${project.projectId || project._id}`}
                         className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl text-xs font-bold bg-[#51a8b1] text-white hover:bg-[#3a7d84] active:scale-95 transition-all shadow-2xs"
                       >
                         <span>Open Tracker</span>

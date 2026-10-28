@@ -1,4 +1,3 @@
-const Project = require('./project.model');
 const ProjectMember = require('../project-members/project-member.model');
 const Timeline = require('../timeline/timeline.model');
 const TimelineNode = require('../timeline/timeline-node.model');
@@ -15,38 +14,11 @@ const initializedProjectTimelines = new Set();
 
 class ProjectService {
   /**
-   * getProjects: Fetches Tracker master projects from local database
+   * getProjects: Fetches projects strictly from Core Backend API (Single Source of Truth)
    * Enriches each project with Tracker metadata (PM, members, schools, timeline)
    */
   async getProjects(employee, query = {}) {
-    const filter = {};
-
-    if (query.status && query.status !== 'ALL') {
-      filter.status = query.status;
-    } else {
-      filter.isActive = { $ne: false };
-    }
-
-    if (query.search) {
-      const searchRegex = new RegExp(query.search, 'i');
-      filter.$or = [
-        { projectId: searchRegex },
-        { projectCode: searchRegex },
-        { projectName: searchRegex },
-        { organization: searchRegex },
-        { email: searchRegex },
-        { state: searchRegex },
-        { district: searchRegex }
-      ];
-    }
-
-    // 1. Fetch projects from Tracker's database
-    const localProjects = await Project.find(filter)
-      .populate('projectManager', 'name email employeeCode globalRole designation')
-      .sort({ createdAt: -1 })
-      .lean();
-
-    // 2. Fetch live projects directly from Core Backend API (cached)
+    // 1. Fetch live projects strictly from Core Backend API
     let coreProjects = [];
     try {
       const rawList = await coreApi.getProjects();
@@ -57,56 +29,42 @@ class ProjectService {
       console.warn('[ProjectService] coreApi.getProjects warning:', e.message);
     }
 
-    const existingProjectIds = new Set(
-      localProjects.map(p => (p.projectId || '').toUpperCase()).filter(Boolean)
-    );
-    const existingMongoIds = new Set(
-      localProjects.map(p => String(p._id)).filter(Boolean)
-    );
-    const existingProjectNames = new Set(
-      localProjects.map(p => (p.projectName || p.title || '').trim().toLowerCase()).filter(Boolean)
-    );
-
-    const coreProjectsMapped = [];
-    for (const cp of coreProjects) {
-      const code = (cp.projectId || String(cp._id)).toUpperCase();
-      const cpIdStr = String(cp._id);
-      const cpName = (cp.projectName || cp.title || '').trim().toLowerCase();
-
-      if (!existingProjectIds.has(code) && !existingMongoIds.has(cpIdStr)) {
-        let chosenCpId = cpIdStr;
-        if (existingMongoIds.has(chosenCpId)) {
-          chosenCpId = new mongoose.Types.ObjectId().toString();
-        }
-        existingMongoIds.add(chosenCpId);
-        existingProjectIds.add(code);
-        if (cpName) existingProjectNames.add(cpName);
-
-        coreProjectsMapped.push({
-          _id: chosenCpId,
-          projectId: code,
-          projectName: cp.projectName || cp.title || 'Core Project',
-          title: cp.projectName || cp.title || 'Core Project',
-          organization: cp.projectName || cp.client || 'Direct Organization',
-          email: cp.email || '',
-          phone: cp.phone || '',
-          address: cp.address || '',
-          numberOfSchools: cp.numberOfSchools || 0,
-          numberOfLicenses: cp.numberOfLicenses || 0,
-          country: typeof cp.country === 'object' && cp.country ? cp.country.name : (cp.country || ''),
-          status: 'ACTIVE',
-          projectManager: null,
-          isActive: true,
-          createdAt: cp.createdAt || new Date(),
-          updatedAt: cp.updatedAt || new Date(),
-          source: 'CORE_BACKEND'
-        });
-      }
+    if (!coreProjects || coreProjects.length === 0) {
+      return [];
     }
 
-    // Automatically ensure timeline is created for newly discovered projects from Core Backend
+    // Map Core Backend projects into canonical Tracker format
+    const allProjectsList = coreProjects.map(cp => {
+      const code = (cp.projectId || String(cp._id)).toUpperCase();
+      const cpIdStr = String(cp._id);
+
+      return {
+        _id: cpIdStr,
+        coreMongoId: cpIdStr,
+        projectId: code,
+        projectName: cp.projectName || cp.title || 'Core Project',
+        title: cp.projectName || cp.title || 'Core Project',
+        organization: cp.organization || cp.projectName || cp.client || 'Direct Organization',
+        email: cp.email || '',
+        phone: cp.phone || '',
+        address: cp.address || '',
+        numberOfSchools: cp.numberOfSchools || 0,
+        numberOfLicenses: cp.numberOfLicenses || 0,
+        budget: cp.budget || 0,
+        country: typeof cp.country === 'object' && cp.country ? cp.country.name : (cp.country || ''),
+        status: cp.status || 'ACTIVE',
+        projectManager: null,
+        isActive: cp.isActive !== false,
+        clientPoAndPi: cp.clientPoAndPi || { purchaseOrders: [], proformaInvoices: [] },
+        createdAt: cp.createdAt || new Date(),
+        updatedAt: cp.updatedAt || new Date(),
+        source: 'CORE_BACKEND'
+      };
+    });
+
+    // Automatically ensure timeline is created for newly discovered projects
     const timelineService = require('../timeline/timeline.service');
-    for (const cp of coreProjectsMapped) {
+    for (const cp of allProjectsList) {
       if (!initializedProjectTimelines.has(cp.projectId)) {
         initializedProjectTimelines.add(cp.projectId);
         timelineService.createTimelineForProject(cp).catch((e) => {
@@ -116,62 +74,62 @@ class ProjectService {
       }
     }
 
-    // Projects come from Core Backend & local DB
-    const allProjectsList = [...localProjects, ...coreProjectsMapped];
-
+    // Fetch members for all projects in bulk using both projectId codes and Mongo IDs
+    const allProjectCodes = allProjectsList.map(p => p.projectId).filter(Boolean);
     const allProjectMongoIds = allProjectsList
       .map(p => p._id)
       .filter(id => mongoose.isValidObjectId(id))
       .map(id => new mongoose.Types.ObjectId(id));
 
-    // 4. Fetch project members in bulk
     const allMembers = await ProjectMember.find({
-      project: { $in: allProjectMongoIds },
+      $or: [
+        { projectId: { $in: allProjectCodes } },
+        { project: { $in: [...allProjectMongoIds, ...allProjectCodes] } }
+      ],
       isActive: true
-    }).populate('employee', 'name email employeeCode globalRole designation phone department departmentCode').lean();
+    }).populate('employee', 'name email employeeCode globalRole designation phone department departmentCode').lean().catch(() => []);
 
     const membersMap = new Map();
     allMembers.forEach(m => {
-      const pid = String(m.project);
-      if (!membersMap.has(pid)) membersMap.set(pid, []);
-      if (m.employee) {
-        membersMap.get(pid).push({
-          ...m.employee,
-          projectRole: m.designation
-        });
+      const pCode = (m.projectId || String(m.project || '')).toUpperCase();
+      const pId = String(m.project || '');
+
+      const keys = [pCode, pId].filter(Boolean);
+      for (const k of keys) {
+        if (!membersMap.has(k)) membersMap.set(k, []);
+        if (m.employee) {
+          membersMap.get(k).push({
+            ...m.employee,
+            projectRole: m.designation
+          });
+        }
       }
     });
 
-    // 4. Merge PM and members into each project
+    // Merge PM and members into each project
     let mergedProjects = allProjectsList.map(p => {
       const pIdStr = String(p._id);
-      const members = membersMap.get(pIdStr) || [];
+      const pCode = (p.projectId || '').toUpperCase();
+      const members = membersMap.get(pCode) || membersMap.get(pIdStr) || [];
       const assignedPm = p.projectManager || members.find(m => m.projectRole === DESIGNATIONS.PROJECT_MANAGER) || null;
 
       return {
-        _id: pIdStr,
-        coreMongoId: pIdStr,
-        projectId: (p.projectId || p.projectCode || pIdStr).toUpperCase(),
-        projectName: p.projectName || p.title || 'Untitled Project',
-        title: p.projectName || p.title || 'Untitled Project',
-        organization: p.organization || p.projectName || p.title || '',
-        email: p.email || '',
-        phone: p.phone || '',
-        address: p.address || '',
-        numberOfSchools: p.numberOfSchools || 0,
-        numberOfLicenses: p.numberOfLicenses || 0,
-        budget: p.budget || 0,
-        country: typeof p.country === 'object' && p.country ? p.country.name : (p.country || ''),
-        status: p.status || 'ACTIVE',
+        ...p,
         projectManager: assignedPm,
-        members,
-        clientPoAndPi: p.clientPoAndPi || { purchaseOrders: [], proformaInvoices: [] },
-        isActive: p.isActive !== false,
-        createdAt: p.createdAt || new Date(),
-        updatedAt: p.updatedAt || new Date(),
-        source: p.source || 'TRACKER_LOCAL_DB'
+        members
       };
     });
+
+    // Filter by search query if provided
+    if (query.search) {
+      const s = String(query.search).trim().toLowerCase();
+      mergedProjects = mergedProjects.filter(p =>
+        (p.projectId && p.projectId.toLowerCase().includes(s)) ||
+        (p.projectName && p.projectName.toLowerCase().includes(s)) ||
+        (p.organization && p.organization.toLowerCase().includes(s)) ||
+        (p.email && p.email.toLowerCase().includes(s))
+      );
+    }
 
     // Filter by status if requested
     if (query.status && query.status !== 'ALL') {
@@ -190,21 +148,7 @@ class ProjectService {
       }
     }
 
-    // Final safety deduplication pass to ensure strictly 100% unique _id across all items
-    const seenFinalIds = new Set();
-    const finalUniqueProjects = [];
-    for (const p of mergedProjects) {
-      let pIdStr = String(p._id);
-      if (seenFinalIds.has(pIdStr)) {
-        pIdStr = `${pIdStr}-${p.projectId || Math.random().toString(36).substring(2, 7)}`;
-        p._id = pIdStr;
-        p.coreMongoId = pIdStr;
-      }
-      seenFinalIds.add(pIdStr);
-      finalUniqueProjects.push(p);
-    }
-
-    return finalUniqueProjects;
+    return mergedProjects;
   }
 
   /**
@@ -214,14 +158,20 @@ class ProjectService {
     return this.getProjects(employee, query);
   }
 
-
   async getProjectById(projectId) {
     const projectDoc = await this._findProject(projectId);
     if (!projectDoc) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
     const project = projectDoc.toObject ? projectDoc.toObject() : { ...projectDoc };
 
+    const code = (project.projectId || '').toUpperCase();
+    const rawId = project._id;
+
     const pmMember = await ProjectMember.findOne({
-      project: project._id,
+      $or: [
+        { projectId: code },
+        { project: rawId },
+        { project: project._id }
+      ].filter(Boolean),
       designation: DESIGNATIONS.PROJECT_MANAGER,
       isActive: true
     }).populate('employee', 'name email employeeCode globalRole designation');
@@ -230,7 +180,11 @@ class ProjectService {
     if (!pm) {
       const ProjectRequest = require('../project-requests/project-request.model');
       const reqDoc = await ProjectRequest.findOne({
-        $or: [{ projectId: project._id }, { title: project.projectName }]
+        $or: [
+          { dashboardProjectId: code },
+          { projectId: rawId },
+          { title: project.projectName }
+        ].filter(Boolean)
       }).populate('projectManager', 'name email employeeCode globalRole designation');
       if (reqDoc && reqDoc.projectManager) {
         pm = reqDoc.projectManager;
@@ -244,12 +198,25 @@ class ProjectService {
       const School = require('../schools/school.model');
       const ProjectSchools = require('../project-schools/project-schools.model');
       const [dbSchools, psDoc] = await Promise.all([
-        School.find({ projectId: project._id, isActive: true })
+        School.find({
+          $or: [
+            { projectId: code },
+            { projectId: String(rawId) },
+            { projectId: rawId }
+          ].filter(Boolean),
+          isActive: true
+        })
           .populate('installation.assignedEngineerId', 'name email phone')
           .populate('training.assignedTrainerId', 'name email phone')
           .lean()
           .catch(() => []),
-        ProjectSchools.findOne({ project: project._id }).lean().catch(() => null)
+        ProjectSchools.findOne({
+          $or: [
+            { projectId: code },
+            { projectId: String(rawId) },
+            { project: rawId }
+          ].filter(Boolean)
+        }).lean().catch(() => null)
       ]);
 
       let formattedSchools = [];
@@ -325,13 +292,16 @@ class ProjectService {
     if (data.projectId) data.projectId = data.projectId.toUpperCase();
 
     const project = { ...projectDoc, ...data };
+    const code = (project.projectId || '').toUpperCase();
+    const rawId = project._id;
 
     await Activity.create({
-      project: project._id,
+      projectId: code,
+      project: rawId,
       actor: actorId,
       action: 'PROJECT_UPDATED',
       resourceType: 'Project',
-      resourceId: project._id,
+      resourceId: rawId,
       metadata: data
     });
 
@@ -339,7 +309,7 @@ class ProjectService {
       try {
         const notificationService = require('../notifications/notifications.service');
         await notificationService.notifyWithAdminsAndPMs({
-          projectId: project._id,
+          projectId: code,
           title: `Project Status Changed: ${data.status}`,
           message: `Project ${project.projectId} (${project.projectName || project.title}) status was updated to ${data.status}.`,
           type: 'STATUS_UPDATE',
@@ -363,13 +333,16 @@ class ProjectService {
     if (!projectDoc) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
 
     const project = { ...projectDoc, isActive: false, status: PROJECT_STATUSES.ARCHIVED };
+    const code = (project.projectId || '').toUpperCase();
+    const rawId = project._id;
 
     await Activity.create({
-      project: project._id,
+      projectId: code,
+      project: rawId,
       actor: actorId,
       action: 'PROJECT_ARCHIVED',
       resourceType: 'Project',
-      resourceId: project._id
+      resourceId: rawId
     });
 
     return project;
@@ -379,7 +352,7 @@ class ProjectService {
     if (!projectId) return null;
     const idStr = String(projectId).trim();
 
-    // 1. Fetch live project strictly by ID from Core Backend API
+    // 1. Fetch live project strictly by ID or Code from Core Backend API
     let coreP = null;
     try {
       coreP = await coreApi.getProjectById(idStr);
@@ -387,33 +360,28 @@ class ProjectService {
       console.warn('[ProjectService] _findProject Core API check error:', e.message);
     }
 
-    // 2. Lookup in Tracker local MongoDB
-    const isObjectId = mongoose.isValidObjectId(idStr) && idStr.length === 24;
-    const localP = await Project.findOne(
-      isObjectId
-        ? { $or: [{ _id: idStr }, { projectId: idStr }, { projectId: idStr.toUpperCase() }] }
-        : { $or: [{ projectId: idStr }, { projectId: idStr.toUpperCase() }] }
-    ).populate('projectManager', 'name email employeeCode globalRole designation').lean().catch(() => null);
-
     if (coreP) {
+      const code = String(coreP.projectId || idStr).toUpperCase();
+      const rawId = String(coreP._id || idStr);
+
       const resolvedP = {
-        _id: String(coreP._id || (localP ? localP._id : idStr)),
-        projectId: String(coreP.projectId || (localP ? localP.projectId : idStr)).toUpperCase(),
-        projectName: coreP.projectName || coreP.title || (localP ? localP.projectName : 'Core Project'),
-        title: coreP.projectName || coreP.title || (localP ? localP.title : 'Core Project'),
-        organization: coreP.projectName || coreP.client || (localP ? localP.organization : 'Direct Organization'),
-        email: coreP.email || (localP ? localP.email : ''),
-        phone: coreP.phone || (localP ? localP.phone : ''),
-        address: coreP.address || (localP ? localP.address : ''),
-        numberOfSchools: coreP.numberOfSchools || (localP ? localP.numberOfSchools : 0),
-        numberOfLicenses: coreP.numberOfLicenses || (localP ? localP.numberOfLicenses : 0),
-        country: typeof coreP.country === 'object' && coreP.country ? coreP.country.name : (coreP.country || (localP ? localP.country : '')),
-        status: localP?.status || 'ACTIVE',
-        isActive: coreP.isActive !== false && (localP?.isActive !== false),
-        budget: localP?.budget || 0,
-        clientPoAndPi: localP?.clientPoAndPi || { purchaseOrders: [], proformaInvoices: [] },
-        projectManager: localP?.projectManager || null,
-        source: 'CORE_BACKEND_WITH_LOCAL_MERGE'
+        _id: rawId,
+        coreMongoId: rawId,
+        projectId: code,
+        projectName: coreP.projectName || coreP.title || 'Core Project',
+        title: coreP.projectName || coreP.title || 'Core Project',
+        organization: coreP.organization || coreP.projectName || coreP.client || 'Direct Organization',
+        email: coreP.email || '',
+        phone: coreP.phone || '',
+        address: coreP.address || '',
+        numberOfSchools: coreP.numberOfSchools || 0,
+        numberOfLicenses: coreP.numberOfLicenses || 0,
+        country: typeof coreP.country === 'object' && coreP.country ? coreP.country.name : (coreP.country || ''),
+        status: coreP.status || 'ACTIVE',
+        isActive: coreP.isActive !== false,
+        budget: coreP.budget || 0,
+        clientPoAndPi: coreP.clientPoAndPi || { purchaseOrders: [], proformaInvoices: [] },
+        source: 'CORE_BACKEND'
       };
 
       try {
@@ -424,20 +392,10 @@ class ProjectService {
       return resolvedP;
     }
 
-    if (localP) {
-      return {
-        ...localP,
-        _id: String(localP._id),
-        projectId: (localP.projectId || idStr).toUpperCase(),
-        projectName: localP.projectName || localP.title,
-        title: localP.projectName || localP.title,
-        source: 'TRACKER_LOCAL_DB'
-      };
-    }
-
-    // 3. Lookup in ProjectRequest
+    // 2. If a pending/approved ProjectRequest ID was passed, resolve strictly via its Core Project reference
     try {
       const ProjectRequest = require('../project-requests/project-request.model');
+      const isObjectId = mongoose.isValidObjectId(idStr) && idStr.length === 24;
       const reqDoc = await ProjectRequest.findOne(
         isObjectId
           ? { $or: [{ _id: idStr }, { requestId: idStr }, { requestId: idStr.toUpperCase() }, { dashboardProjectId: idStr.toUpperCase() }] }
@@ -445,26 +403,10 @@ class ProjectService {
       ).populate('projectManager', 'name email employeeCode globalRole designation').lean().catch(() => null);
 
       if (reqDoc && reqDoc.projectId) {
-        return await this.findProjectByIdOrCode(reqDoc.projectId);
+        return await this._findProject(reqDoc.projectId);
       }
-
-      if (reqDoc) {
-        return {
-          _id: String(reqDoc._id),
-          projectId: (reqDoc.dashboardProjectId || reqDoc.requestId || idStr).toUpperCase(),
-          projectName: reqDoc.projectName || reqDoc.title || 'Project Request',
-          title: reqDoc.projectName || reqDoc.title || 'Project Request',
-          organization: reqDoc.projectName || reqDoc.title || 'Direct Organization',
-          email: reqDoc.email || '',
-          phone: reqDoc.phone || '',
-          address: reqDoc.address || '',
-          numberOfSchools: 0,
-          numberOfLicenses: 0,
-          status: 'ACTIVE',
-          projectManager: reqDoc.projectManager || null,
-          isActive: true,
-          source: 'PROJECT_REQUEST'
-        };
+      if (reqDoc && reqDoc.dashboardProjectId) {
+        return await this._findProject(reqDoc.dashboardProjectId);
       }
     } catch (_) {}
 
@@ -473,17 +415,34 @@ class ProjectService {
 
   async getMembers(projectId) {
     const project = await this._findProject(projectId);
-    const pId = project ? project._id : projectId;
-    return await ProjectMember.find({ project: pId, isActive: true })
+    const code = project ? (project.projectId || String(project._id)).toUpperCase() : String(projectId).toUpperCase();
+    const rawId = project ? project._id : projectId;
+
+    return await ProjectMember.find({
+      $or: [
+        { projectId: code },
+        { project: rawId },
+        { project: projectId }
+      ].filter(Boolean),
+      isActive: true
+    })
       .populate('employee', 'name email employeeCode globalRole designation department departmentCode phone')
       .populate('department', 'code name description');
   }
 
   async getMembersGroupedByDepartment(projectId) {
     const project = await this._findProject(projectId);
-    const pId = project ? project._id : projectId;
+    const code = project ? (project.projectId || String(project._id)).toUpperCase() : String(projectId).toUpperCase();
+    const rawId = project ? project._id : projectId;
 
-    const members = await ProjectMember.find({ project: pId, isActive: true })
+    const members = await ProjectMember.find({
+      $or: [
+        { projectId: code },
+        { project: rawId },
+        { project: projectId }
+      ].filter(Boolean),
+      isActive: true
+    })
       .populate('employee', 'name email employeeCode phone designation globalRole department departmentCode')
       .populate('department', 'code name description')
       .lean();
@@ -499,14 +458,29 @@ class ProjectService {
   }
 
   async addOrUpdateMember(projectId, employeeId, designation, actorId) {
-    let member = await ProjectMember.findOne({ project: projectId, employee: employeeId });
+    const project = await this._findProject(projectId);
+    const code = project ? (project.projectId || String(project._id)).toUpperCase() : String(projectId).toUpperCase();
+    const rawId = project ? project._id : projectId;
+
+    let member = await ProjectMember.findOne({
+      $or: [
+        { projectId: code },
+        { project: rawId },
+        { project: projectId }
+      ].filter(Boolean),
+      employee: employeeId
+    });
+
     if (member) {
+      member.projectId = code;
+      member.project = rawId;
       member.designation = designation;
       member.isActive = true;
       await member.save();
     } else {
       member = await ProjectMember.create({
-        project: projectId,
+        projectId: code,
+        project: rawId,
         employee: employeeId,
         designation,
         assignedBy: actorId
@@ -514,7 +488,8 @@ class ProjectService {
     }
 
     await Activity.create({
-      project: projectId,
+      projectId: code,
+      project: rawId,
       actor: actorId,
       action: 'CONTRIBUTOR_ASSIGNED',
       resourceType: 'ProjectMember',
@@ -524,12 +499,12 @@ class ProjectService {
 
     try {
       const Notification = require('../notifications/notifications.model');
-      const prj = await this._findProject(projectId);
       await Notification.create({
         recipient: employeeId,
-        project: projectId,
+        projectId: code,
+        project: rawId,
         title: `Project Assignment: ${designation}`,
-        message: `You have been added to project ${prj ? prj.projectId : ''} (${prj ? prj.projectName : ''}) as ${designation}.`,
+        message: `You have been added to project ${code} (${project ? project.projectName : ''}) as ${designation}.`,
         type: 'ASSIGNMENT'
       });
     } catch { }
@@ -538,11 +513,27 @@ class ProjectService {
   }
 
   async removeMember(projectId, employeeId, actorId) {
-    const member = await ProjectMember.findOneAndUpdate({ project: projectId, employee: employeeId }, { isActive: false }, { new: true });
+    const project = await this._findProject(projectId);
+    const code = project ? (project.projectId || String(project._id)).toUpperCase() : String(projectId).toUpperCase();
+    const rawId = project ? project._id : projectId;
+
+    const member = await ProjectMember.findOneAndUpdate(
+      {
+        $or: [
+          { projectId: code },
+          { project: rawId },
+          { project: projectId }
+        ].filter(Boolean),
+        employee: employeeId
+      },
+      { isActive: false },
+      { new: true }
+    );
     if (!member) throw new AppError('Project member not found.', 404, 'MEMBER_NOT_FOUND');
 
     await Activity.create({
-      project: projectId,
+      projectId: code,
+      project: rawId,
       actor: actorId,
       action: 'CONTRIBUTOR_REMOVED',
       resourceType: 'ProjectMember',

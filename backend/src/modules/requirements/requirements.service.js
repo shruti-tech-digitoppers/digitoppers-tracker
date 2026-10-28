@@ -36,19 +36,38 @@ async function resolveProject(projectId) {
 
 async function getProjectRequirements(projectId) {
   const project = await resolveProject(projectId);
-  const pId = project ? project._id : projectId;
-  const requirement = await Requirement.findOne({ project: pId }).populate('updatedBy', 'name email');
+  const code = (project?.projectId || projectId || '').toString().trim().toUpperCase();
+  const rawId = project ? project._id : projectId;
+
+  const requirement = await Requirement.findOne({
+    $or: [
+      { projectId: code },
+      { projectId: String(rawId) },
+      { project: rawId },
+      { project: projectId }
+    ].filter(Boolean)
+  }).populate('updatedBy', 'name email');
   return requirement;
 }
 
 async function upsertRequirements(projectId, updateData, employeeId) {
   const project = await resolveProject(projectId);
-  const pId = project ? project._id : projectId;
-  let requirement = await Requirement.findOne({ project: pId });
+  const code = (project?.projectId || projectId || '').toString().trim().toUpperCase();
+  const rawId = project ? project._id : projectId;
+
+  let requirement = await Requirement.findOne({
+    $or: [
+      { projectId: code },
+      { projectId: String(rawId) },
+      { project: rawId },
+      { project: projectId }
+    ].filter(Boolean)
+  });
 
   if (!requirement) {
     requirement = await Requirement.create({
-      project: pId,
+      projectId: code || String(rawId),
+      project: rawId,
       ...updateData,
       updatedBy: employeeId
     });

@@ -81,13 +81,13 @@ export function MindMapWorkspace() {
         setProjects(list);
         if (list.length > 0) {
           if (urlProjectId) {
-            const matched = list.find((p) => p._id === urlProjectId || p.projectId === urlProjectId);
+            const matched = list.find((p) => p.projectId === urlProjectId || p._id === urlProjectId);
             if (matched) {
-              setSelectedProjectId(matched._id);
+              setSelectedProjectId(matched.projectId || matched._id);
               return;
             }
           }
-          setSelectedProjectId(list[0]._id);
+          setSelectedProjectId(list[0].projectId || list[0]._id);
         }
       })
       .catch(() => { });
@@ -149,11 +149,11 @@ export function MindMapWorkspace() {
   // Sync URL param → selectedProjectId when URL changes externally
   useEffect(() => {
     if (urlProjectId && urlProjectId !== '[object Object]' && urlProjectId !== selectedProjectId) {
-      const matched = projects.find((p) => p._id === urlProjectId || p.projectId === urlProjectId);
+      const matched = projects.find((p) => p.projectId === urlProjectId || p._id === urlProjectId);
       if (matched) {
-        setSelectedProjectId(matched._id);
+        setSelectedProjectId(matched.projectId || matched._id);
       } else if (projects.length > 0 && !selectedProjectId) {
-        setSelectedProjectId(projects[0]._id);
+        setSelectedProjectId(projects[0].projectId || projects[0]._id);
       }
     }
   }, [urlProjectId, projects, selectedProjectId]);
@@ -366,7 +366,7 @@ export function MindMapWorkspace() {
               className="bg-transparent text-xs font-semibold text-slate-800 focus:outline-none w-full md:w-72 cursor-pointer"
             >
               {projects.map((p) => (
-                <option key={p._id} value={p._id} className="bg-white text-slate-800">
+                <option key={p.projectId || p._id} value={p.projectId || p._id} className="bg-white text-slate-800">
                   {p.projectId} — {p.projectName || p.title}
                 </option>
               ))}

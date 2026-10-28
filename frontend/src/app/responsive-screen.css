@@ -270,6 +270,29 @@ html {
   background: #51a8b1;
 }
 
+/* Small Horizontal Micro-Scrollbar for Tab Bars */
+.sleek-tabs-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  -webkit-overflow-scrolling: touch;
+}
+.sleek-tabs-scroll::-webkit-scrollbar {
+  height: 4px;
+}
+.sleek-tabs-scroll::-webkit-scrollbar-track {
+  background: rgba(241, 245, 249, 0.6);
+  border-radius: 4px;
+}
+.sleek-tabs-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 4px;
+}
+.sleek-tabs-scroll::-webkit-scrollbar-thumb:hover {
+  background: #51a8b1;
+}
+
 /* Hide scrollbar utility */
 .no-scrollbar::-webkit-scrollbar {
   display: none;

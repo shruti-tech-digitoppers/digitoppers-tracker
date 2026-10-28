@@ -144,9 +144,14 @@ class EmployeeService {
     const employee = await Employee.findById(employeeId);
     if (!employee) throw new AppError('Employee not found.', 404, 'EMPLOYEE_NOT_FOUND');
 
-    // Fetch all active projects from Tracker database
-    const Project = require('../projects/project.model');
-    const allProjects = await Project.find({ isActive: { $ne: false } }).lean();
+    // Fetch live projects strictly from Core Backend API
+    const coreApi = require('../../services/core-api.service');
+    let rawProjects = [];
+    try {
+      const list = await coreApi.getProjects();
+      if (Array.isArray(list)) rawProjects = list.filter(p => p.isActive !== false);
+    } catch (_) {}
+    const allProjects = rawProjects;
 
     // Fetch explicit project memberships for this employee
     const explicitMemberships = await ProjectMember.find({ employee: employeeId, isActive: true }).lean();

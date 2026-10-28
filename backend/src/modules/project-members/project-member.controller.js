@@ -47,13 +47,18 @@ exports.getAllProjectMembers = async (req, res, next) => {
 exports.getProjectMembersByProject = async (req, res, next) => {
   try {
     const { projectId } = req.params;
-    const pId = await resolveProjectId(projectId);
+    const project = await coreApi.getProjectById(projectId);
+    const code = project ? (project.projectId || String(project._id)).toUpperCase() : String(projectId).toUpperCase();
+    const rawId = project ? project._id : projectId;
 
-    if (!pId) {
-      return next(new AppError('Project not found', 404, 'NOT_FOUND'));
-    }
-
-    const members = await ProjectMember.find({ project: pId, isActive: true })
+    const members = await ProjectMember.find({
+      $or: [
+        { projectId: code },
+        { project: rawId },
+        { project: projectId }
+      ].filter(Boolean),
+      isActive: true
+    })
       .populate('employee', 'name email phone designation avatar employeeId department')
       .populate('department', 'name code')
       .populate('assignedBy', 'name email')
@@ -95,9 +100,11 @@ exports.getProjectMemberById = async (req, res, next) => {
 exports.addProjectMember = async (req, res, next) => {
   try {
     let projectId = req.params.projectId || req.body.project || req.body.projectId;
-    const pId = await resolveProjectId(projectId);
+    const targetProject = await coreApi.getProjectById(projectId);
+    const pId = targetProject ? targetProject._id : (mongoose.Types.ObjectId.isValid(projectId) ? projectId : null);
+    const code = targetProject ? (targetProject.projectId || String(targetProject._id)).toUpperCase() : String(projectId).toUpperCase();
 
-    if (!pId) {
+    if (!pId && !targetProject) {
       return next(new AppError('Target project not found', 404, 'NOT_FOUND'));
     }
 
@@ -112,10 +119,19 @@ exports.addProjectMember = async (req, res, next) => {
     }
 
     // Check duplicate
-    const existing = await ProjectMember.findOne({ project: pId, employee: employeeId });
+    const existing = await ProjectMember.findOne({
+      $or: [
+        { projectId: code },
+        { project: pId },
+        { project: projectId }
+      ].filter(Boolean),
+      employee: employeeId
+    });
     if (existing) {
       if (!existing.isActive) {
         existing.isActive = true;
+        existing.projectId = code;
+        existing.project = pId || code;
         existing.designation = req.body.designation || employee.designation;
         existing.projectRole = req.body.projectRole || existing.projectRole;
         existing.isDepartmentLead = req.body.isDepartmentLead ?? existing.isDepartmentLead;
@@ -132,7 +148,8 @@ exports.addProjectMember = async (req, res, next) => {
     const currentUserId = req.employee?._id || req.employee?.id || req.user?.id || employeeId;
 
     const newMember = await ProjectMember.create({
-      project: pId,
+      projectId: code,
+      project: pId || code,
       employee: employeeId,
       department: req.body.department || employee.department || null,
       departmentCode: req.body.departmentCode || null,

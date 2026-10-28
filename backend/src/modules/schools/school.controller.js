@@ -15,11 +15,14 @@ exports.getSchools = async (req, res, next) => {
 
     if (projectId) {
       const proj = await resolveProject(projectId);
-      if (proj) {
-        filter.projectId = proj._id;
-      } else {
-        return res.status(200).json({ success: true, count: 0, data: [] });
-      }
+      const code = proj ? (proj.projectId || String(proj._id)).toUpperCase() : String(projectId).toUpperCase();
+      const rawId = proj ? proj._id : projectId;
+
+      filter.$or = [
+        { projectId: code },
+        { projectId: String(rawId) },
+        { projectId: rawId }
+      ].filter(Boolean);
     }
     if (req.query.installationStatus) filter['installation.status'] = req.query.installationStatus;
     if (req.query.trainingStatus) filter['training.status'] = req.query.trainingStatus;
@@ -54,7 +57,7 @@ exports.getSchools = async (req, res, next) => {
 exports.getSchoolById = async (req, res, next) => {
   try {
     const school = await School.findById(req.params.id)
-      .populate('projectId', 'projectName projectId')
+      
       .populate('solutions.solutionId', 'label name icon key')
       .populate('hardware.hardwareId', 'label name category unit modelNumber')
       .populate('installation.assignedEngineerId', 'name email phone designation')

@@ -49,7 +49,7 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
 
         {/* Direct execution roadmap action */}
         <Link
-          href={`/tracker?projectId=${project._id}`}
+          href={`/tracker?projectId=${project.projectId || project._id}`}
           className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-blue-50 to-indigo-50 hover:from-blue-100 hover:to-indigo-100 text-blue-700 text-xs font-bold transition border border-blue-200/80 shadow-2xs"
         >
           <Compass className="w-3.5 h-3.5 text-blue-600" />

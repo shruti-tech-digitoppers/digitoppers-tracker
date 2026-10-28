@@ -1,7 +1,8 @@
 const mongoose = require('mongoose');
 
 const activitySchema = new mongoose.Schema({
-  project: { type: mongoose.Schema.Types.ObjectId, required: false, index: true },
+  projectId: { type: String, required: false, index: true, uppercase: true, trim: true },
+  project: { type: mongoose.Schema.Types.Mixed, required: false, index: true },
   actor: { type: mongoose.Schema.Types.ObjectId, ref: 'Employee', required: false, index: true },
   actorName: { type: String },
   actorEmail: { type: String },
@@ -12,6 +13,7 @@ const activitySchema = new mongoose.Schema({
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: { createdAt: true, updatedAt: false } });
 
+activitySchema.index({ projectId: 1, createdAt: -1 });
 activitySchema.index({ project: 1, createdAt: -1 });
 activitySchema.index({ createdAt: -1 });
 activitySchema.index({ action: 1, createdAt: -1 });

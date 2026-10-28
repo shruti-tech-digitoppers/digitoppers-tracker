@@ -8,11 +8,25 @@ const mongoose = require('mongoose');
 const checkProjectAccess = async (employeeId, projectId) => {
   if (!projectId) return null;
   let targetId = projectId;
-  if (!mongoose.Types.ObjectId.isValid(projectId) || String(projectId).length !== 24) {
+  let projectCode = String(projectId).trim().toUpperCase();
+  try {
     const proj = await coreApi.getProjectById(projectId);
-    if (proj) targetId = proj._id;
-  }
-  return await ProjectMember.findOne({ project: targetId, employee: employeeId, isActive: true });
+    if (proj) {
+      if (proj._id) targetId = proj._id;
+      if (proj.projectId) projectCode = proj.projectId.toUpperCase();
+    }
+  } catch (_) { }
+
+  return await ProjectMember.findOne({
+    $or: [
+      { projectId: projectCode },
+      { projectId: String(projectId).trim().toUpperCase() },
+      { project: targetId },
+      { project: projectId }
+    ].filter(Boolean),
+    employee: employeeId,
+    isActive: true
+  });
 };
 
 const { restrictTo } = require('./auth');

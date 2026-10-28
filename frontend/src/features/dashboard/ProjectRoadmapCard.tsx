@@ -83,7 +83,7 @@ export function ProjectRoadmapCard({
     try {
       if (showLoader) setLoading(true);
       setError(null);
-      const res = await timelineApi.getTimelineByProjectId(project._id);
+      const res = await timelineApi.getTimelineByProjectId(project.projectId || project._id);
       setNodes(res.timeline?.nodes || []);
       setLoaded(true);
     } catch (err: any) {
@@ -359,7 +359,7 @@ export function ProjectRoadmapCard({
             {/* Right: Open Tracker + Chevron */}
             <div className="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
               <Link
-                href={`/tracker?projectId=${project._id}`}
+                href={`/tracker?projectId=${project.projectId || project._id}`}
                 onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-[#f0f8f9] border border-[#b6e0e4] text-[11px] font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
                 title="Open in Tracker workspace"
@@ -599,7 +599,7 @@ export function ProjectRoadmapCard({
             </span>
 
             <Link
-              href={`/tracker?projectId=${project._id}`}
+              href={`/tracker?projectId=${project.projectId || project._id}`}
               onClick={(e) => e.stopPropagation()}
               className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[#f0f8f9] border border-[#b6e0e4] text-[11px] font-bold text-[#3a7d84] hover:bg-[#51a8b1] hover:text-white hover:border-[#51a8b1] transition shadow-2xs cursor-pointer"
               title="Open in Tracker workspace"

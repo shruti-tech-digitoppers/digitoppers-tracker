@@ -7,7 +7,6 @@ const timelineConfig = require('../../config/timeline');
 const config = require('../../config/env');
 const coreApi = require('../../services/core-api.service');
 const Employee = require('../employees/employee.model');
-const Project = require('../projects/project.model');
 const ProjectRequest = require('../project-requests/project-request.model');
 const ProjectMember = require('../project-members/project-member.model');
 const ProjectSchools = require('../project-schools/project-schools.model');
@@ -35,30 +34,31 @@ class TimelineService {
       return null;
     }
 
-    // 2. Lookup in Tracker local MongoDB Project model
-    const isObjectId = mongoose.isValidObjectId(idStr) && idStr.length === 24;
+    // 2. Fetch directly from Core Backend API (Single Source of Truth)
     try {
-      const Project = require('../projects/project.model');
-      const localP = await Project.findOne(
-        isObjectId
-          ? { $or: [{ _id: idStr }, { projectId: idStr }, { projectId: idStr.toUpperCase() }] }
-          : { $or: [{ projectId: idStr }, { projectId: idStr.toUpperCase() }] }
-      ).lean();
-
-      if (localP) {
+      const coreP = await coreApi.getProjectById(idStr);
+      if (coreP) {
         return {
-          ...localP,
-          _id: localP._id,
-          projectId: (localP.projectId || idStr).toUpperCase(),
-          projectName: localP.projectName || localP.title || 'Project',
-          title: localP.projectName || localP.title || 'Project',
-          organization: localP.organization || localP.projectName || 'Organization',
-          source: 'TRACKER_LOCAL_DB'
+          _id: String(coreP._id || idStr),
+          projectId: (coreP.projectId || idStr).toUpperCase(),
+          projectName: coreP.projectName || coreP.title || 'Core Project',
+          title: coreP.projectName || coreP.title || 'Core Project',
+          organization: coreP.organization || coreP.projectName || coreP.client || 'Direct Organization',
+          email: coreP.email || '',
+          phone: coreP.phone || '',
+          address: coreP.address || '',
+          numberOfSchools: coreP.numberOfSchools || 0,
+          numberOfLicenses: coreP.numberOfLicenses || 0,
+          country: typeof coreP.country === 'object' && coreP.country ? coreP.country.name : (coreP.country || ''),
+          status: coreP.status || 'ACTIVE',
+          isActive: coreP.isActive !== false,
+          source: 'CORE_BACKEND'
         };
       }
-    } catch (_) {}
+    } catch (_) { }
 
     // 3. If an approved ProjectRequest ID was passed, resolve strictly to its underlying Core Project
+    const isObjectId = mongoose.isValidObjectId(idStr) && idStr.length === 24;
     try {
       const ProjectRequest = require('../project-requests/project-request.model');
       const reqDoc = await ProjectRequest.findOne(
@@ -68,12 +68,14 @@ class TimelineService {
       ).lean();
 
       if (reqDoc && reqDoc.projectId) {
-        // Resolve directly to the underlying master Core Backend project
         return await this._findProject(reqDoc.projectId);
+      }
+      if (reqDoc && reqDoc.dashboardProjectId) {
+        return await this._findProject(reqDoc.dashboardProjectId);
       }
     } catch (_) {}
 
-    // 4. Lookup in Timeline collection (if timeline already exists for this ID/code)
+    // 4. Lookup in Timeline collection (if timeline already exists for this ID/code in Tracker)
     try {
       const Timeline = require('./timeline.model');
       const existingT = await Timeline.findOne(
@@ -103,31 +105,34 @@ class TimelineService {
       }
     } catch (_) {}
 
-    // 5. Fetch directly from Core Backend API
-    try {
-      const coreP = await coreApi.getProjectById(idStr);
-      if (coreP) {
-        return {
-          _id: coreP._id,
-          projectId: (coreP.projectId || idStr).toUpperCase(),
-          projectName: coreP.projectName || coreP.title || 'Core Project',
-          title: coreP.projectName || coreP.title || 'Core Project',
-          organization: coreP.projectName || coreP.client || 'Direct Organization',
-          email: coreP.email || '',
-          phone: coreP.phone || '',
-          address: coreP.address || '',
-          numberOfSchools: coreP.numberOfSchools || 0,
-          numberOfLicenses: coreP.numberOfLicenses || 0,
-          country: typeof coreP.country === 'object' && coreP.country ? coreP.country.name : (coreP.country || ''),
-          status: 'ACTIVE',
-          isActive: true,
-          source: 'CORE_BACKEND'
-        };
-      }
-    } catch (_) { }
-
     return null;
   }
+
+  async _findTimeline(projectIdOrObj) {
+    if (!projectIdOrObj) return null;
+    const project = await this._findProject(projectIdOrObj);
+    const code = (project?.projectId || (typeof projectIdOrObj === 'string' ? projectIdOrObj : '')).trim().toUpperCase();
+    const rawId = project?._id || projectIdOrObj;
+    const isObjectId = mongoose.isValidObjectId(rawId) && String(rawId).length === 24;
+
+    const queries = [];
+    if (code) {
+      queries.push({ projectId: code });
+      queries.push({ projectId: code.toLowerCase() });
+    }
+    if (rawId) {
+      queries.push({ project: rawId });
+      queries.push({ projectId: String(rawId) });
+      queries.push({ projectId: String(rawId).toUpperCase() });
+    }
+    if (isObjectId) {
+      queries.push({ project: new mongoose.Types.ObjectId(String(rawId)) });
+    }
+
+    if (queries.length === 0) return null;
+    return await Timeline.findOne({ $or: queries });
+  }
+
 
   /**
    * ── Single Unified Method to Create Timeline for a Project ───────────────
@@ -1000,8 +1005,7 @@ class TimelineService {
 
   async getNodeDoc(projectId, nodeId) {
     const project = await this._findProject(projectId);
-    const pId = project ? project._id : projectId;
-    const timeline = await Timeline.findOne({ project: pId });
+    const timeline = await this._findTimeline(projectId);
     if (!timeline) throw new AppError('Timeline not found.', 404, 'TIMELINE_NOT_FOUND');
 
     const node = await TimelineNode.findOne({ _id: nodeId, timeline: timeline._id })
@@ -1017,8 +1021,7 @@ class TimelineService {
 
   async getNodeById(projectId, nodeId) {
     const project = await this._findProject(projectId);
-    const pId = project ? project._id : projectId;
-    const timeline = await Timeline.findOne({ project: pId });
+    const timeline = await this._findTimeline(projectId);
     if (!timeline) throw new AppError('Timeline not found.', 404, 'TIMELINE_NOT_FOUND');
 
     const node = await TimelineNode.findOne({ _id: nodeId, timeline: timeline._id })
@@ -1034,7 +1037,14 @@ class TimelineService {
     // Auto-fill node formData from Project & Requirements if empty
     try {
       const Requirements = require('../requirements/requirements.model');
-      const reqDoc = await Requirements.findOne({ project: pId }).lean();
+      const reqCode = (project?.projectId || (typeof pId === 'string' ? pId : '')).trim().toUpperCase();
+      const reqDoc = await Requirements.findOne({
+        $or: [
+          { projectId: reqCode },
+          { projectId: String(pId) },
+          { project: pId }
+        ].filter(Boolean)
+      }).lean();
       const projDoc = project ? (project.toObject ? project.toObject() : project) : null;
 
       if (!nodeObj.formData || Object.keys(nodeObj.formData).length === 0) {
@@ -1413,8 +1423,7 @@ class TimelineService {
 
   async getChildren(projectId, nodeId) {
     const project = await this._findProject(projectId);
-    const pId = project ? project._id : projectId;
-    const timeline = await Timeline.findOne({ project: pId });
+    const timeline = await this._findTimeline(projectId);
     if (!timeline) throw new AppError('Timeline not found.', 404, 'TIMELINE_NOT_FOUND');
 
     return await TimelineNode.find({ timeline: timeline._id, parentNode: nodeId })
@@ -1510,7 +1519,7 @@ class TimelineService {
       'CONTENT_READY'
     ];
     if (execKeys.includes(node.key) && (newStatus === NODE_STATUSES.IN_PROGRESS || newStatus === NODE_STATUSES.COMPLETED)) {
-      const timeline = await Timeline.findOne({ project: pId });
+      const timeline = await this._findTimeline(projectId);
       if (timeline) {
         const orderReq = await TimelineNode.findOne({ timeline: timeline._id, key: 'ORDER_REQUIREMENT' });
         if (orderReq && orderReq.status !== NODE_STATUSES.COMPLETED) {
@@ -1521,7 +1530,7 @@ class TimelineService {
 
     // Check Dependency Gate for Stage 05 (TECH + CONTENT TESTING requires Tech Testing/Ready & Content Ready)
     if (node.key === 'TESTING_PREPARATION' && newStatus === NODE_STATUSES.IN_PROGRESS) {
-      const timeline = await Timeline.findOne({ project: pId });
+      const timeline = await this._findTimeline(projectId);
       const techReady = await TimelineNode.findOne({ timeline: timeline._id, key: { $in: ['TECH_TESTING', 'TECH_READY'] } });
       const contentReady = await TimelineNode.findOne({ timeline: timeline._id, key: 'CONTENT_READY' });
 
@@ -1606,7 +1615,7 @@ class TimelineService {
       'CONTENT_READY'
     ];
     if (execKeys.includes(node.key)) {
-      const timeline = await Timeline.findOne({ project: projectId });
+      const timeline = await this._findTimeline(projectId);
       if (timeline) {
         const orderReq = await TimelineNode.findOne({ timeline: timeline._id, key: 'ORDER_REQUIREMENT' });
         if (orderReq && orderReq.status !== NODE_STATUSES.COMPLETED) {
@@ -1622,9 +1631,21 @@ class TimelineService {
     // Also sync to Requirements collection
     try {
       const Requirements = require('../requirements/requirements.model');
-      let reqDoc = await Requirements.findOne({ project: projectId });
+      const reqCode = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toUpperCase();
+      const rawReqId = project?._id || projectId;
+      let reqDoc = await Requirements.findOne({
+        $or: [
+          { projectId: reqCode },
+          { projectId: String(rawReqId) },
+          { project: rawReqId },
+          { project: projectId }
+        ].filter(Boolean)
+      });
       if (!reqDoc) {
-        reqDoc = await Requirements.create({ project: projectId });
+        reqDoc = await Requirements.create({
+          projectId: reqCode || String(rawReqId),
+          project: rawReqId
+        });
       }
 
       const key = node.key.toUpperCase();
@@ -3525,14 +3546,23 @@ class TimelineService {
       const project = await this._findProject(projectId);
       if (!project) return;
 
-      const schools = await School.find({ projectId: project._id, isActive: true });
+      const schoolCode = (project.projectId || '').toUpperCase();
+      const rawSchoolId = project._id;
+      const schools = await School.find({
+        $or: [
+          { projectId: schoolCode },
+          { projectId: String(rawSchoolId) },
+          { projectId: rawSchoolId }
+        ].filter(Boolean),
+        isActive: true
+      });
       if (schools.length === 0) return;
 
       const totalSchools = schools.length;
       const installedSchools = schools.filter(s => s.installation && s.installation.status === 'COMPLETED').length;
       const trainedSchools = schools.filter(s => s.training && s.training.status === 'COMPLETED').length;
 
-      const timeline = await Timeline.findOne({ project: project._id });
+      const timeline = await this._findTimeline(project);
       if (!timeline) return;
 
       if (timeline.stages && Array.isArray(timeline.stages)) {

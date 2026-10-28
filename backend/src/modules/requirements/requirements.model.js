@@ -131,10 +131,16 @@ const schoolHardwareExecutionSchema = new mongoose.Schema(
 
 const requirementSchema = new mongoose.Schema(
   {
-    project: {
-      type: mongoose.Schema.ObjectId,
-      required: [true, 'Requirement must belong to a project'],
+    projectId: {
+      type: String,
+      required: [true, 'Requirement must belong to a project (projectId required)'],
       unique: true,
+      index: true,
+      uppercase: true,
+      trim: true
+    },
+    project: {
+      type: mongoose.Schema.Types.Mixed,
       index: true
     },
 
@@ -483,6 +489,6 @@ const requirementSchema = new mongoose.Schema(
   }
 );
 
-requirementSchema.index({ project: 1, currentStageKey: 1, currentSubstageKey: 1 });
+requirementSchema.index({ projectId: 1, currentStageKey: 1, currentSubstageKey: 1 });
 
 module.exports = mongoose.model('Requirement', requirementSchema);
