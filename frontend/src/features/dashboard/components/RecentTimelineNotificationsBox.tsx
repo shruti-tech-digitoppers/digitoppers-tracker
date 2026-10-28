@@ -50,24 +50,6 @@ export function RecentTimelineNotificationsBox({
   const router = useRouter();
   const [category, setCategory] = useState<MainCategory>('ASSIGNMENT');
   const [assignmentSub, setAssignmentSub] = useState<AssignmentSubCategory>('PROJECT');
-  const [testingSlack, setTestingSlack] = useState<boolean>(false);
-  const [slackStatus, setSlackStatus] = useState<{ message: string; isError: boolean } | null>(null);
-
-  const handleTestSlack = async () => {
-    setTestingSlack(true);
-    setSlackStatus(null);
-    try {
-      const res = await notificationsApi.testSlackNotification();
-      setSlackStatus({ message: res.message || 'Slack test message sent!', isError: false });
-      setTimeout(() => setSlackStatus(null), 5000);
-    } catch (err: any) {
-      const errMsg = err.response?.data?.message || err.message || 'Could not send message to Slack';
-      setSlackStatus({ message: errMsg, isError: true });
-      setTimeout(() => setSlackStatus(null), 7000);
-    } finally {
-      setTestingSlack(false);
-    }
-  };
 
   // ── Helper to determine item classification ─────────────────────────
   const classifyItem = (item: INotificationItem) => {
@@ -351,6 +333,37 @@ export function RecentTimelineNotificationsBox({
 
   return (
     <div className="adaptive-notifications-box bg-white border border-[#b6e0e4]/80 shadow-2xs hover:shadow-xs overflow-hidden font-sans flex flex-col transition-all duration-200">
+      {/* ── Heading Header Bar (Enclosed inside card border) ── */}
+      <div 
+        onClick={onToggleShrink}
+        className="px-3.5 py-2 sm:py-2.5 bg-[#2d6b73] text-white flex items-center justify-between shrink-0 shadow-2xs select-none transition-colors hover:bg-[#286067] cursor-pointer"
+        title="Click to collapse Assignments & Notifications"
+      >
+        <div className="flex items-center gap-2">
+          <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-lg bg-white text-[#2d6b73] flex items-center justify-center shadow-2xs shrink-0">
+            <Bell className="w-3.5 h-3.5" />
+          </div>
+          <span style={{ color: '#ffffff' }} className="font-heading font-extrabold text-xs sm:text-[13px] tracking-tight !text-white">
+            Assignments &amp; Notifications
+          </span>
+          {unreadCount > 0 ? (
+            <span className="font-mono text-xs font-black px-2.5 py-0.5 rounded-full bg-red-600 text-white shadow-sm flex items-center gap-1 animate-pulse">
+              <span className="w-1.5 h-1.5 rounded-full bg-white" />
+              {unreadCount} new
+            </span>
+          ) : (
+            <span className="font-mono text-xs font-bold px-2 py-0.5 rounded-full bg-white text-[#2d6b73] shadow-2xs">
+              0
+            </span>
+          )}
+        </div>
+
+        {onToggleShrink && (
+          <div className="w-5 h-5 rounded-md bg-white text-[#2d6b73] flex items-center justify-center shadow-2xs ml-0.5">
+            <ChevronUp className="w-3 h-3" />
+          </div>
+        )}
+      </div>
       {/* ── Filter Tabs & Action Controls ─────────────────────────────────── */}
       <div className="p-2 sm:p-2.5 border-b border-[#b6e0e4]/50 bg-gradient-to-r from-[#f0f8f9]/90 via-white to-[#f8fafb] space-y-1.5">
         {/* ── Main Filter Tabs (All / Assignments / Requests / Updates) with Sleek Horizontal Scroll ── */}
@@ -369,8 +382,8 @@ export function RecentTimelineNotificationsBox({
               <span>All</span>
               <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
                 unreadCounts.allTotal > 0
-                  ? (category === 'ALL' ? 'bg-teal-50 text-[#2d6b73] border-teal-200 font-black' : 'bg-teal-100/70 text-teal-800 border-teal-300 font-bold')
-                  : 'bg-slate-200/50 text-slate-400 border-slate-300 font-semibold'
+                  ? 'bg-red-600 text-white border-red-600 font-black shadow-2xs'
+                  : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
               }`}>
                 {unreadCounts.allTotal}
               </span>
@@ -389,8 +402,8 @@ export function RecentTimelineNotificationsBox({
               <span>Assignments</span>
               <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
                 unreadCounts.assignmentTotal > 0
-                  ? (category === 'ASSIGNMENT' ? 'bg-indigo-50 text-indigo-700 border-indigo-200 font-black' : 'bg-indigo-100/70 text-indigo-800 border-indigo-300 font-bold')
-                  : 'bg-slate-200/50 text-slate-400 border-slate-300 font-semibold'
+                  ? 'bg-red-600 text-white border-red-600 font-black shadow-2xs'
+                  : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
               }`}>
                 {unreadCounts.assignmentTotal}
               </span>
@@ -409,8 +422,8 @@ export function RecentTimelineNotificationsBox({
               <span>Requests</span>
               <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
                 unreadCounts.requests > 0
-                  ? (category === 'REQUESTS' ? 'bg-purple-50 text-purple-700 border-purple-200 font-black' : 'bg-purple-100/70 text-purple-800 border-purple-300 font-bold')
-                  : 'bg-slate-200/50 text-slate-400 border-slate-300 font-semibold'
+                  ? 'bg-red-600 text-white border-red-600 font-black shadow-2xs'
+                  : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
               }`}>
                 {unreadCounts.requests}
               </span>
@@ -429,8 +442,8 @@ export function RecentTimelineNotificationsBox({
               <span>Updates</span>
               <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
                 unreadCounts.updates > 0
-                  ? (category === 'UPDATES' ? 'bg-amber-50 text-amber-800 border-amber-200 font-black' : 'bg-amber-100/70 text-amber-900 border-amber-300 font-bold')
-                  : 'bg-slate-200/50 text-slate-400 border-slate-300 font-semibold'
+                  ? 'bg-red-600 text-white border-red-600 font-black shadow-2xs'
+                  : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
               }`}>
                 {unreadCounts.updates}
               </span>
@@ -444,7 +457,7 @@ export function RecentTimelineNotificationsBox({
             <button
               type="button"
               onClick={() => setAssignmentSub('PROJECT')}
-              className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 assignmentSub === 'PROJECT'
                   ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 font-black'
                   : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
@@ -457,7 +470,7 @@ export function RecentTimelineNotificationsBox({
             <button
               type="button"
               onClick={() => setAssignmentSub('TASK')}
-              className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+              className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 assignmentSub === 'TASK'
                   ? 'bg-[#0d9488] text-white shadow-md shadow-teal-200 font-black'
                   : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
@@ -471,12 +484,7 @@ export function RecentTimelineNotificationsBox({
 
         <div className="flex items-center justify-between pt-0.5 px-0.5 text-xs">
           <div className="flex items-center">
-            {unreadCount > 0 ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-50 text-rose-600 border border-rose-200 shadow-2xs">
-                <span className="w-2 h-2 rounded-full bg-rose-600 animate-pulse" />
-                <span>{unreadCount} unread update{unreadCount > 1 ? 's' : ''}</span>
-              </span>
-            ) : (
+            {unreadCount === 0 && (
               <span className="text-emerald-700 font-bold flex items-center gap-1 text-xs">
                 <Check className="w-3.5 h-3.5 text-emerald-600 stroke-[2.5]" /> All caught up
               </span>
@@ -484,17 +492,6 @@ export function RecentTimelineNotificationsBox({
           </div>
 
           <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={handleTestSlack}
-              disabled={testingSlack}
-              className="text-[11px] font-semibold text-slate-700 hover:text-slate-900 flex items-center gap-1 px-2 py-0.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-300 shadow-2xs transition-all cursor-pointer active:scale-95 disabled:opacity-50"
-              title="Send a test notification to Slack channel"
-            >
-              <span className="text-[10px]">💬</span>
-              <span>{testingSlack ? 'Sending...' : 'Test Slack'}</span>
-            </button>
-
             {unreadCount > 0 && (
               <button
                 type="button"
@@ -508,24 +505,6 @@ export function RecentTimelineNotificationsBox({
             )}
           </div>
         </div>
-
-        {/* ── Slack Status Feedback Banner ── */}
-        {slackStatus && (
-          <div className={`text-[11px] px-2.5 py-1.5 rounded-lg border flex items-center justify-between transition-all ${
-            slackStatus.isError
-              ? 'bg-amber-50 text-amber-900 border-amber-300'
-              : 'bg-emerald-50 text-emerald-900 border-emerald-300'
-          }`}>
-            <span>{slackStatus.message}</span>
-            <button
-              type="button"
-              onClick={() => setSlackStatus(null)}
-              className="text-xs font-bold opacity-60 hover:opacity-100 ml-2"
-            >
-              ✕
-            </button>
-          </div>
-        )}
       </div>
 
       {/* ── Scrollable Notifications Cards Feed ────────────── */}
@@ -615,12 +594,7 @@ export function RecentTimelineNotificationsBox({
                       <span>{visual.label}</span>
                     </span>
 
-                    {isUnread ? (
-                      <span className="inline-flex items-center gap-1.5 text-[9.5px] font-black text-white bg-red-600 px-2 py-0.5 rounded-md shadow-xs">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                        NEW
-                      </span>
-                    ) : (
+                    {!isUnread && (
                       <span className="inline-flex items-center gap-1 text-[9.5px] font-medium text-slate-400 bg-slate-100/70 border border-slate-200/80 px-1.5 py-0.2 rounded-md">
                         <Check className="w-2.5 h-2.5 text-slate-400 stroke-[2]" />
                         READ
