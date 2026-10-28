@@ -4,6 +4,7 @@ import { IUser } from '../../../types/auth';
 import { requestsApi } from '../../../lib/api/requests.api';
 import { ICreateProjectRequestPayload } from '../../../types/request';
 import { useClickOutside } from '../../../hooks/useClickOutside';
+import { SearchableEmployeeSelect } from '../../../components/common/SearchableEmployeeSelect';
 
 interface CreateProjectRequestModalProps {
   isOpen: boolean;
@@ -346,38 +347,30 @@ export function CreateProjectRequestModal({
                 <label className="block text-xs font-semibold text-[#3a7d84] mb-1">
                   Requested To <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  required
+                <SearchableEmployeeSelect
                   value={requestedTo}
-                  onChange={(e) => setRequestedTo(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#b6e0e4] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#51a8b1] text-[#333333] font-medium transition cursor-pointer"
-                >
-                  <option value="">Select Employee</option>
-                  {employees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({emp.globalRole || 'Employee'})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(empId) => setRequestedTo(empId)}
+                  employees={employees}
+                  placeholder="Select Employee..."
+                  allowClear={false}
+                  align="left"
+                  className="bg-white"
+                />
               </div>
 
               <div>
                 <label className="block text-xs font-semibold text-[#3a7d84] mb-1">
                   Assigned Project Manager <span className="text-rose-500">*</span>
                 </label>
-                <select
-                  required
+                <SearchableEmployeeSelect
                   value={projectManager}
-                  onChange={(e) => setProjectManager(e.target.value)}
-                  className="w-full px-3 py-2 text-xs bg-white border border-[#b6e0e4] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#51a8b1] text-[#333333] font-medium transition cursor-pointer"
-                >
-                  <option value="">Select Project Manager</option>
-                  {employees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({emp.email})
-                    </option>
-                  ))}
-                </select>
+                  onChange={(empId) => setProjectManager(empId)}
+                  employees={employees}
+                  placeholder="Select Project Manager..."
+                  allowClear={false}
+                  align="right"
+                  className="bg-white"
+                />
               </div>
             </div>
           </div>

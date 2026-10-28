@@ -22,26 +22,64 @@ export interface INotificationsListResponse {
   unreadCount?: number;
 }
 
+let activeNotificationsPromise: Promise<INotificationsListResponse> | null = null;
+let cachedNotificationsResponse: INotificationsListResponse | null = null;
+let lastNotifFetchTime = 0;
+const NOTIF_CACHE_TTL = 10000; // 10 seconds
+
 export const notificationsApi = {
   getNotifications: async (params?: { days?: number; category?: string; subCategory?: string }): Promise<INotificationsListResponse> => {
-    const response = await apiClient.get<any>('/notifications', { params });
-    const rawList = response.data?.data || response.data?.notifications || (Array.isArray(response.data) ? response.data : []);
-    return {
-      success: true,
-      notifications: rawList,
-      data: rawList,
-      count: rawList.length,
-      unreadCount: rawList.filter((n: any) => !n.isRead).length
-    };
+    const isDefaultQuery = !params || Object.keys(params).length === 0;
+    const now = Date.now();
+
+    if (isDefaultQuery && cachedNotificationsResponse && (now - lastNotifFetchTime < NOTIF_CACHE_TTL)) {
+      return cachedNotificationsResponse;
+    }
+
+    if (isDefaultQuery && activeNotificationsPromise) {
+      return activeNotificationsPromise;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const response = await apiClient.get<any>('/notifications', { params });
+        const rawList = response.data?.data || response.data?.notifications || (Array.isArray(response.data) ? response.data : []);
+        const result = {
+          success: true,
+          notifications: rawList,
+          data: rawList,
+          count: rawList.length,
+          unreadCount: rawList.filter((n: any) => !n.isRead).length
+        };
+        if (isDefaultQuery) {
+          cachedNotificationsResponse = result;
+          lastNotifFetchTime = Date.now();
+        }
+        return result;
+      } finally {
+        if (isDefaultQuery) {
+          activeNotificationsPromise = null;
+        }
+      }
+    })();
+
+    if (isDefaultQuery) {
+      activeNotificationsPromise = fetchPromise;
+    }
+
+    return fetchPromise;
   },
 
-
   markAsRead: async (id: string, isRead = true): Promise<{ success: boolean; notification?: INotificationItem }> => {
+    cachedNotificationsResponse = null;
+    lastNotifFetchTime = 0;
     const response = await apiClient.patch<{ success: boolean; notification?: INotificationItem }>(`/notifications/${id}/read`, { isRead });
     return response.data;
   },
 
   markAllAsRead: async (isRead = true): Promise<{ success: boolean }> => {
+    cachedNotificationsResponse = null;
+    lastNotifFetchTime = 0;
     const response = await apiClient.patch<{ success: boolean }>('/notifications/read-all', { isRead });
     return response.data;
   },

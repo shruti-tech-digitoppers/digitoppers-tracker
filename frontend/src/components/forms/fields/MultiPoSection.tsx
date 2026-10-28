@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { ConfirmDeleteFileModal } from '../common/ConfirmDeleteFileModal';
 import {
   FileText,
   Plus,
@@ -43,6 +44,7 @@ export function MultiPoSection({
   const today = new Date().toISOString().split('T')[0];
   const [uploadingIndex, setUploadingIndex] = useState<number | null>(null);
   const [errorIndex, setErrorIndex] = useState<{ index: number; msg: string } | null>(null);
+  const [deleteFileConfirm, setDeleteFileConfirm] = useState<{ index: number; fileName: string } | null>(null);
 
   // Common Organization Name
   const organizationName = useMemo(() => {
@@ -406,7 +408,10 @@ export function MultiPoSection({
                       {!disabled && (
                         <button
                           type="button"
-                          onClick={() => handlePoChange(index, 'poDocumentUrl', '')}
+                          onClick={() => setDeleteFileConfirm({
+                            index,
+                            fileName: po.poDocumentUrl || 'PO Document.pdf'
+                          })}
                           className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                           title="Remove PDF"
                         >
@@ -433,6 +438,20 @@ export function MultiPoSection({
           ))}
         </div>
       </div>
+
+      {/* Confirmation Dialog for PDF Deletion */}
+      <ConfirmDeleteFileModal
+        isOpen={!!deleteFileConfirm}
+        onClose={() => setDeleteFileConfirm(null)}
+        onConfirm={() => {
+          if (deleteFileConfirm !== null) {
+            handlePoChange(deleteFileConfirm.index, 'poDocumentUrl', '');
+          }
+        }}
+        title="Delete PO Document?"
+        description="Are you sure you want to delete this attached PO document? This action will remove the attached file reference."
+        fileName={deleteFileConfirm?.fileName}
+      />
     </div>
   );
 }

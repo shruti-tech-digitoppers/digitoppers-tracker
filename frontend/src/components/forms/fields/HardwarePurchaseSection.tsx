@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import { extractEffectiveHardwareItems, DEFAULT_HARDWARE_ITEMS } from '../utils/formHelpers';
+import { ConfirmDeleteFileModal } from '../common/ConfirmDeleteFileModal';
 import {
   ShoppingCart,
   Upload,
@@ -61,6 +62,12 @@ export function HardwarePurchaseSection({
   allFormData = {},
 }: HardwarePurchaseSectionProps) {
   const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const [deleteFileConfirm, setDeleteFileConfirm] = useState<{
+    type: 'po' | 'pi';
+    itemKey: string;
+    idx: number;
+    fileName: string;
+  } | null>(null);
 
   // ── Saved data normalization ───────────────────────────────────────────
   const saved: Record<string, any> = React.useMemo(() => {
@@ -474,7 +481,12 @@ export function HardwarePurchaseSection({
                             {!disabled && (
                               <button
                                 type="button"
-                                onClick={() => updatePO(itemKey, poIdx, { poDocumentUrl: '', poFileName: '' })}
+                                onClick={() => setDeleteFileConfirm({
+                                  type: 'po',
+                                  itemKey,
+                                  idx: poIdx,
+                                  fileName: po.poFileName || po.poDocumentUrl || 'PO_Document.pdf'
+                                })}
                                 className="text-rose-400 hover:text-rose-600 p-0.5 rounded cursor-pointer flex-shrink-0 ml-1"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -607,7 +619,12 @@ export function HardwarePurchaseSection({
                             {!disabled && (
                               <button
                                 type="button"
-                                onClick={() => updatePI(itemKey, piIdx, { piDocumentUrl: '', piFileName: '' })}
+                                onClick={() => setDeleteFileConfirm({
+                                  type: 'pi',
+                                  itemKey,
+                                  idx: piIdx,
+                                  fileName: pi.piFileName || pi.piDocumentUrl || 'PI_Document.pdf'
+                                })}
                                 className="text-rose-400 hover:text-rose-600 p-0.5 rounded cursor-pointer flex-shrink-0 ml-1"
                               >
                                 <X className="w-3.5 h-3.5" />
@@ -716,6 +733,24 @@ export function HardwarePurchaseSection({
           </div>
         );
       })}
+
+      {/* Confirmation Dialog for PDF Deletion */}
+      <ConfirmDeleteFileModal
+        isOpen={!!deleteFileConfirm}
+        onClose={() => setDeleteFileConfirm(null)}
+        onConfirm={() => {
+          if (deleteFileConfirm) {
+            if (deleteFileConfirm.type === 'po') {
+              updatePO(deleteFileConfirm.itemKey, deleteFileConfirm.idx, { poDocumentUrl: '', poFileName: '' });
+            } else {
+              updatePI(deleteFileConfirm.itemKey, deleteFileConfirm.idx, { piDocumentUrl: '', piFileName: '' });
+            }
+          }
+        }}
+        title={deleteFileConfirm?.type === 'po' ? 'Delete PO Document?' : 'Delete PI Document?'}
+        description={`Are you sure you want to delete this attached ${deleteFileConfirm?.type === 'po' ? 'Purchase Order (PO)' : 'Proforma Invoice (PI)'} document?`}
+        fileName={deleteFileConfirm?.fileName}
+      />
     </div>
   );
 }

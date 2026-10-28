@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { ConfirmDeleteFileModal } from '../common/ConfirmDeleteFileModal';
 import {
   FileText,
   Plus,
@@ -57,6 +58,11 @@ export function MultiPiInvoiceSection({
 
   const [uploadingTaxIndex, setUploadingTaxIndex] = useState<number | null>(null);
   const [taxErrorIndex, setTaxErrorIndex] = useState<{ index: number; msg: string } | null>(null);
+  const [deleteFileConfirm, setDeleteFileConfirm] = useState<{
+    type: 'PI' | 'TAX';
+    index: number;
+    fileName: string;
+  } | null>(null);
 
   // Common Organization / School Name
   const organizationName = useMemo(() => {
@@ -689,7 +695,11 @@ export function MultiPiInvoiceSection({
                         {!disabled && (
                           <button
                             type="button"
-                            onClick={() => handlePiChange(index, 'documentUrl', '')}
+                            onClick={() => setDeleteFileConfirm({
+                              type: 'PI',
+                              index,
+                              fileName: pi.documentUrl || 'PI Document.pdf'
+                            })}
                             className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                             title="Remove PDF"
                           >
@@ -967,7 +977,11 @@ export function MultiPiInvoiceSection({
                         {!disabled && (
                           <button
                             type="button"
-                            onClick={() => handleTaxChange(index, 'documentUrl', '')}
+                            onClick={() => setDeleteFileConfirm({
+                              type: 'TAX',
+                              index,
+                              fileName: tax.documentUrl || 'Invoice Document.pdf'
+                            })}
                             className="p-1 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition"
                             title="Remove PDF"
                           >
@@ -995,6 +1009,24 @@ export function MultiPiInvoiceSection({
           </div>
         </div>
       </div>
+
+      {/* Confirmation Dialog for PDF Deletion */}
+      <ConfirmDeleteFileModal
+        isOpen={!!deleteFileConfirm}
+        onClose={() => setDeleteFileConfirm(null)}
+        onConfirm={() => {
+          if (deleteFileConfirm) {
+            if (deleteFileConfirm.type === 'PI') {
+              handlePiChange(deleteFileConfirm.index, 'documentUrl', '');
+            } else {
+              handleTaxChange(deleteFileConfirm.index, 'documentUrl', '');
+            }
+          }
+        }}
+        title={deleteFileConfirm?.type === 'PI' ? 'Delete Proforma Invoice Document?' : 'Delete Tax Invoice Document?'}
+        description={`Are you sure you want to delete this attached ${deleteFileConfirm?.type === 'PI' ? 'Proforma Invoice (PI)' : 'Tax Invoice'} document? This action will remove the attached file reference.`}
+        fileName={deleteFileConfirm?.fileName}
+      />
     </div>
   );
 }

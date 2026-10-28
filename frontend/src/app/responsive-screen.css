@@ -169,7 +169,7 @@ html {
 /* 8-Stage Stepper Track in Compact View */
 .adaptive-stepper-track {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   position: relative;
   width: 100%;

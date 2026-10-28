@@ -414,7 +414,7 @@ export function ProjectRoadmapCard({
               <div className="flex-1 h-1.5 bg-slate-200/90 rounded-full overflow-hidden shadow-inner min-w-[50px]">
                 <div
                   className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] rounded-full transition-all duration-500"
-                  style={{ width: `${Math.max(progressPct, 4)}%` }}
+                  style={{ width: `${progressPct > 0 ? Math.max(progressPct, 4) : 0}%` }}
                 />
               </div>
               <span className="font-mono font-black text-[9.5px] text-[#3a7d84] bg-white border border-[#b6e0e4] px-1 py-0.2 rounded shadow-2xs shrink-0">
@@ -469,16 +469,16 @@ export function ProjectRoadmapCard({
           {/* Invisible Div 2: Center 8-Stage Stepper & Timeline Progress (Fills space evenly across all cards) */}
           <div className="w-full lg:flex-1 min-w-0 lg:px-2 xl:px-4 py-1 flex flex-col justify-center">
             {/* Horizontal Stepper Track */}
-            <div className="adaptive-stepper-track">
-              {/* Background connecting track line */}
-              <div className="absolute top-3 sm:top-3.5 left-3 right-3 -translate-y-1/2 h-1.5 bg-slate-100 border border-slate-200/90 rounded-full z-0 overflow-hidden shadow-inner">
+            <div className="relative w-full flex items-start">
+              {/* Background connecting track line (Starts at Circle 1 exact center, ends at Circle 8 exact center) */}
+              <div className="absolute top-[14px] left-[6.25%] right-[6.25%] -translate-y-1/2 h-1.5 bg-slate-100 border border-slate-200/90 rounded-full z-0 overflow-hidden shadow-inner pointer-events-none">
                 <div
                   className="h-full bg-gradient-to-r from-[#a8cf45] via-[#51a8b1] to-[#3a7d84] transition-all duration-700 rounded-full"
-                  style={{ width: `${Math.max(progressPct, 4)}%` }}
+                  style={{ width: `${completedStages > 0 ? Math.min(100, (completedStages / 7) * 100) : 0}%` }}
                 />
               </div>
 
-              {/* 8 Stage Milestone Circles & Phase Names */}
+              {/* 8 Stage Milestone Columns (Each strictly flex-1, guaranteeing identical width & perfectly locked circle positions) */}
               {Array.from({ length: 8 }).map((_, idx) => {
                 const stageNode = stageNodes[idx];
                 const isCompleted = stageNode ? stageNode.status === 'COMPLETED' : idx < completedStages;
@@ -501,18 +501,18 @@ export function ProjectRoadmapCard({
                 return (
                   <div
                     key={idx}
-                    className="relative z-10 flex flex-col items-center max-w-[50px] sm:max-w-[62px]"
+                    className="flex-1 min-w-0 flex flex-col items-center relative z-10 px-0.5"
                   >
-                    {/* Step Bubble showing clear progress status */}
+                    {/* Step Bubble - strictly 28px x 28px with uniform border-2, vertical center always at y=14px on the line */}
                     <div
-                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] sm:text-[11px] font-extrabold transition-all duration-200 shadow-2xs relative ${
+                      className={`w-7 h-7 rounded-full flex items-center justify-center text-[10.5px] font-extrabold transition-all duration-200 shadow-2xs relative shrink-0 ${
                         isCompleted
-                          ? 'bg-[#a8cf45] text-white border border-white ring-2 ring-[#a8cf45]/60 shadow-xs'
+                          ? 'bg-[#a8cf45] text-white border-2 border-white ring-2 ring-[#a8cf45]/60 shadow-xs'
                           : isOnHold
-                            ? 'bg-orange-500 text-white border-2 border-white ring-3 ring-orange-400/50 shadow-xs animate-pulse'
+                            ? 'bg-orange-500 text-white border-2 border-white ring-2 ring-orange-400/50 shadow-xs'
                             : isCurrent
-                              ? 'bg-[#51a8b1] text-white border-2 border-white ring-3 ring-[#51a8b1]/40 shadow-xs animate-pulse'
-                              : 'bg-white border border-slate-300 text-slate-500'
+                              ? 'bg-[#51a8b1] text-white border-2 border-white ring-2 ring-[#51a8b1]/40 shadow-xs'
+                              : 'bg-white border-2 border-slate-300 text-slate-500'
                       }`}
                     >
                       {isCompleted ? (
@@ -524,20 +524,22 @@ export function ProjectRoadmapCard({
                       )}
                     </div>
 
-                    {/* Phase Name under bubble */}
-                    <span
-                      className={`text-[9px] sm:text-[9.5px] tracking-tight mt-1 text-center truncate w-full leading-tight select-none ${
-                        isCompleted
-                          ? 'text-[#465b1c] font-black'
-                          : isOnHold
-                            ? 'text-orange-600 font-black'
-                            : isCurrent
-                              ? 'text-[#3a7d84] font-black'
-                              : 'text-[#556987] font-semibold'
-                      }`}
-                      title={shortLabel}
-                    >
-                      {shortLabel}
+                    {/* Phase Name under bubble - Fixed min-height ensures labels & badges expand downward without shifting the bubble */}
+                    <div className="mt-1 text-center truncate w-full min-h-[30px] flex flex-col items-center justify-start select-none">
+                      <span
+                        className={`text-[9px] sm:text-[9.5px] tracking-tight text-center truncate w-full leading-tight ${
+                          isCompleted
+                            ? 'text-[#465b1c] font-black'
+                            : isOnHold
+                              ? 'text-orange-600 font-black'
+                              : isCurrent
+                                ? 'text-[#3a7d84] font-black'
+                                : 'text-[#556987] font-semibold'
+                        }`}
+                        title={shortLabel}
+                      >
+                        {shortLabel}
+                      </span>
                       {isOnHold && (
                         <span className="block text-[8px] text-orange-600 font-black uppercase tracking-tight mt-0.5">
                           HOLD
@@ -548,7 +550,7 @@ export function ProjectRoadmapCard({
                           {isParallelActive ? 'PARALLEL' : 'ACTIVE'}
                         </span>
                       )}
-                    </span>
+                    </div>
                   </div>
                 );
               })}

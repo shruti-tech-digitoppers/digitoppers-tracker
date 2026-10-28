@@ -35,8 +35,15 @@ function formatUser(rawEmp: any, fallbackEmail = ''): IUser {
   };
 }
 
+let activeGetMePromise: Promise<IMeResponse> | null = null;
+let cachedMeResponse: IMeResponse | null = null;
+let lastGetMeTime = 0;
+const ME_CACHE_TTL = 30000; // 30 seconds
+
 export const authApi = {
   login: async (credentials: ILoginCredentials): Promise<IAuthResponse> => {
+    cachedMeResponse = null;
+    lastGetMeTime = 0;
     const response = await apiClient.post<any>('/auth/login', credentials);
     const data = response.data?.data || response.data;
     const token = data?.token || response.data?.token || '';
@@ -51,18 +58,39 @@ export const authApi = {
   },
 
   logout: async (): Promise<{ success: boolean }> => {
+    cachedMeResponse = null;
+    lastGetMeTime = 0;
     const response = await apiClient.post<{ success: boolean }>('/auth/logout').catch(() => ({ data: { success: true } }));
     return response.data;
   },
 
   getMe: async (): Promise<IMeResponse> => {
-    const response = await apiClient.get<any>('/auth/me');
-    const rawEmp = response.data?.data || response.data?.employee || response.data?.user || response.data;
-    const user = formatUser(rawEmp);
+    const now = Date.now();
+    if (cachedMeResponse && (now - lastGetMeTime < ME_CACHE_TTL)) {
+      return cachedMeResponse;
+    }
 
-    return {
-      success: true,
-      user,
-    };
+    if (activeGetMePromise) {
+      return activeGetMePromise;
+    }
+
+    activeGetMePromise = (async () => {
+      try {
+        const response = await apiClient.get<any>('/auth/me');
+        const rawEmp = response.data?.data || response.data?.employee || response.data?.user || response.data;
+        const user = formatUser(rawEmp);
+        const result = {
+          success: true,
+          user,
+        };
+        cachedMeResponse = result;
+        lastGetMeTime = Date.now();
+        return result;
+      } finally {
+        activeGetMePromise = null;
+      }
+    })();
+
+    return activeGetMePromise;
   },
 };

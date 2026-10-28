@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { IFormFieldSchema } from '../../../types/timeline';
 import { Upload, FileCheck, Loader2, X } from 'lucide-react';
+import { ConfirmDeleteFileModal } from '../common/ConfirmDeleteFileModal';
 
 interface FormFieldUploadProps {
   field: IFormFieldSchema;
@@ -24,6 +25,7 @@ export function FormFieldUpload({
   onErrorMsg,
 }: FormFieldUploadProps) {
   const [uploading, setUploading] = useState(false);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
 
   const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
 
@@ -120,7 +122,7 @@ export function FormFieldUpload({
         {value && !disabled && (
           <button
             type="button"
-            onClick={() => onChange('')}
+            onClick={() => setShowConfirmDelete(true)}
             className="p-2 text-[#4a5462] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
             title="Remove file"
           >
@@ -128,6 +130,15 @@ export function FormFieldUpload({
           </button>
         )}
       </div>
+
+      <ConfirmDeleteFileModal
+        isOpen={showConfirmDelete}
+        onClose={() => setShowConfirmDelete(false)}
+        onConfirm={() => onChange('')}
+        title={`Delete ${field.label || 'Attached File'}?`}
+        description="Are you sure you want to delete this attached file? This action will remove the document reference from this form."
+        fileName={typeof value === 'string' ? value : ''}
+      />
     </div>
   );
 }

@@ -27,6 +27,7 @@ import { InstitutionalSchoolSelector } from '../common/InstitutionalSchoolSelect
 import { extractEffectiveSchools, EffectiveSchoolItem } from '../utils/formHelpers';
 import { employeesApi } from '../../../lib/api/employees.api';
 import { notificationsApi } from '../../../lib/api/notifications.api';
+import { SearchableEmployeeSelect } from '../../common/SearchableEmployeeSelect';
 
 export interface ISchoolTrainer {
   id?: string;
@@ -869,30 +870,15 @@ export function InstallationPlanningSection({
                 <span>Technical Person</span>
                 <span className="text-rose-500">*</span>
               </label>
-              <select
+              <SearchableEmployeeSelect
                 disabled={disabled}
                 value={currentSchoolPlan.technicalPersonId || ''}
-                onChange={(e) => handleSelectTechnicalPerson(e.target.value)}
-                className="w-full text-xs font-semibold py-2 px-3 bg-white border border-slate-300 hover:border-[#51a8b1] rounded-xl text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#51a8b1] cursor-pointer transition shadow-2xs"
-              >
-                <option value="">Select Technical Person...</option>
-                {installationEmployees.length > 0 && (
-                  <optgroup label="Installation & Technical Team">
-                    {installationEmployees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} — {emp.designation || 'Field Engineer'}
-                      </option>
-                    ))}
-                  </optgroup>
-                )}
-                <optgroup label="All Staff">
-                  {otherEmployees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} — {emp.designation || 'Staff'}
-                    </option>
-                  ))}
-                </optgroup>
-              </select>
+                onChange={(empId) => handleSelectTechnicalPerson(empId)}
+                employees={allEmployeesList}
+                placeholder="Select Technical Person..."
+                align="left"
+                className="bg-white"
+              />
               <span className="text-[10.5px] text-slate-500 mt-1 block">
                 Assigned technical person responsible for on-site installation
               </span>
@@ -1048,42 +1034,15 @@ export function InstallationPlanningSection({
                               </button>
                             </div>
                           ) : (
-                            <select
+                            <SearchableEmployeeSelect
                               disabled={disabled}
                               value={selectedEmpId}
-                              onChange={(e) => {
-                                if (e.target.value === '__CUSTOM__') {
-                                  setCustomTrainerRows((prev) => ({ ...prev, [rowKey]: true }));
-                                } else {
-                                  handleSelectEmployeeForTrainer(tIdx, e.target.value);
-                                }
-                              }}
-                              className="w-full text-xs font-semibold py-1.5 px-3 bg-white border border-slate-300 hover:border-[#51a8b1] rounded-lg text-slate-900 focus:outline-hidden focus:ring-2 focus:ring-[#51a8b1] cursor-pointer transition truncate"
-                            >
-                              <option value="">{isTrainingContext ? 'Select Trainer...' : 'Select Employee or Trainee...'}</option>
-                              <option value="__CUSTOM__">+ Type Custom Trainer Name...</option>
-                              {trainer.name && !matchedEmp && (
-                                <option value={trainer.trainerId || trainer.name}>
-                                  {trainer.name} (Assigned)
-                                </option>
-                              )}
-                              {installationEmployees.length > 0 && (
-                                <optgroup label={isTrainingContext ? 'Training & Field Team' : 'Installation & Field Team'}>
-                                  {installationEmployees.map((emp) => (
-                                    <option key={emp._id} value={emp._id}>
-                                      {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} — {emp.designation || (isTrainingContext ? 'Trainer' : 'Field Engineer')}
-                                    </option>
-                                  ))}
-                                </optgroup>
-                              )}
-                              <optgroup label="All Staff">
-                                {otherEmployees.map((emp) => (
-                                  <option key={emp._id} value={emp._id}>
-                                    {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} — {emp.designation || 'Staff'}
-                                  </option>
-                                ))}
-                              </optgroup>
-                            </select>
+                              onChange={(empId) => handleSelectEmployeeForTrainer(tIdx, empId)}
+                              employees={allEmployeesList}
+                              placeholder={isTrainingContext ? 'Select Trainer...' : 'Select Employee or Trainee...'}
+                              align="right"
+                              className="bg-white !py-1"
+                            />
                           )}
                         </div>
                       </div>

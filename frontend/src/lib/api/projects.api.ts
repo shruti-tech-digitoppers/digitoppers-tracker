@@ -49,15 +49,55 @@ function normalizeProject(p: any): IProject {
   };
 }
 
+let cachedProjectsResponse: IProjectsListResponse | null = null;
+let lastProjectsFetchTime = 0;
+let activeProjectsPromise: Promise<IProjectsListResponse> | null = null;
+const CLIENT_CACHE_TTL = 15000; // 15 seconds
+
 export const projectsApi = {
+  clearCache: () => {
+    cachedProjectsResponse = null;
+    lastProjectsFetchTime = 0;
+  },
+
   getProjects: async (params?: { status?: string }): Promise<IProjectsListResponse> => {
-    const response = await apiClient.get<any>('/projects', { params });
-    const rawList = response.data?.data || response.data?.projects || (Array.isArray(response.data) ? response.data : []);
-    const projects = rawList.map(normalizeProject);
-    return {
-      success: true,
-      projects,
-    };
+    const isDefaultQuery = !params || Object.keys(params).length === 0;
+    const now = Date.now();
+
+    if (isDefaultQuery && cachedProjectsResponse && (now - lastProjectsFetchTime < CLIENT_CACHE_TTL)) {
+      return cachedProjectsResponse;
+    }
+
+    if (isDefaultQuery && activeProjectsPromise) {
+      return activeProjectsPromise;
+    }
+
+    const fetchPromise = (async () => {
+      try {
+        const response = await apiClient.get<any>('/projects', { params });
+        const rawList = response.data?.data || response.data?.projects || (Array.isArray(response.data) ? response.data : []);
+        const projects = rawList.map(normalizeProject);
+        const result = {
+          success: true,
+          projects,
+        };
+        if (isDefaultQuery) {
+          cachedProjectsResponse = result;
+          lastProjectsFetchTime = Date.now();
+        }
+        return result;
+      } finally {
+        if (isDefaultQuery) {
+          activeProjectsPromise = null;
+        }
+      }
+    })();
+
+    if (isDefaultQuery) {
+      activeProjectsPromise = fetchPromise;
+    }
+
+    return fetchPromise;
   },
 
   getProjectById: async (id: string): Promise<IProjectDetailResponse> => {
@@ -71,6 +111,8 @@ export const projectsApi = {
 
 
   updateProject: async (id: string, payload: IUpdateProjectPayload): Promise<IProjectDetailResponse> => {
+    cachedProjectsResponse = null;
+    lastProjectsFetchTime = 0;
     const code = payload.projectId;
     const name = payload.projectName || payload.title;
     const body: any = { ...payload };
@@ -90,6 +132,8 @@ export const projectsApi = {
   },
 
   deleteProject: async (id: string): Promise<{ success: boolean }> => {
+    cachedProjectsResponse = null;
+    lastProjectsFetchTime = 0;
     const response = await apiClient.patch<any>(`/projects/${id}/archive`, { archived: true }).catch(() => apiClient.delete<any>(`/projects/${id}`));
     return { success: true };
   },

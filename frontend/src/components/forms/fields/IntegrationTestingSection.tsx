@@ -16,6 +16,7 @@ import {
   FileSpreadsheet
 } from 'lucide-react';
 import { IUser } from '../../../types/auth';
+import { SearchableEmployeeSelect } from '../../common/SearchableEmployeeSelect';
 
 interface StreamTestResult {
   status: 'PASS' | 'NEEDS_IMPROVEMENT' | 'PENDING';
@@ -274,19 +275,15 @@ export function IntegrationTestingSection({
                       </span>
                     )}
                   </label>
-                  <select
+                  <SearchableEmployeeSelect
                     disabled={disabled}
                     value={currentData.assignedTo || ''}
-                    onChange={(e) => updateStream(stream.key, { assignedTo: e.target.value })}
-                    className="w-full py-2 px-3 text-xs bg-white border border-[#b9c0cb]/60 rounded-xl text-[#333333] font-medium focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:border-[#51a8b1] cursor-pointer"
-                  >
-                    <option value="">👤 Select Team Member to Assign...</option>
-                    {employees.map((emp) => (
-                      <option key={emp._id} value={emp._id}>
-                        {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({(emp as any).globalRole || 'Contributor'})
-                      </option>
-                    ))}
-                  </select>
+                    onChange={(empId) => updateStream(stream.key, { assignedTo: empId })}
+                    employees={employees}
+                    placeholder="Select Team Member to Assign..."
+                    align="right"
+                    className="bg-white"
+                  />
                 </div>
               </div>
 

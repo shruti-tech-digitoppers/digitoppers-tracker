@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { extractEffectiveHardwareItems, extractEffectiveSchools, DEFAULT_HARDWARE_ITEMS } from '../utils/formHelpers';
 import { IUser } from '../../../types/auth';
+import { SearchableEmployeeSelect } from '../../common/SearchableEmployeeSelect';
 import {
   PackageCheck,
   ShoppingCart,
@@ -856,21 +857,17 @@ export function HardwareStockCheck({
                           </div>
 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <select
+                            <SearchableEmployeeSelect
                               disabled={disabled}
                               value={split.assignedTo || ''}
-                              onChange={(e) =>
-                                updateSplitField(itemKey, splitIdx, 'assignedTo', e.target.value, totalQty, itemData)
+                              onChange={(empId) =>
+                                updateSplitField(itemKey, splitIdx, 'assignedTo', empId, totalQty, itemData)
                               }
-                              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] cursor-pointer"
-                            >
-                              <option value="">👤 Select Member to Assign</option>
-                              {employees.map((emp) => (
-                                <option key={emp._id} value={emp._id}>
-                                  {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''}
-                                </option>
-                              ))}
-                            </select>
+                              employees={employees}
+                              placeholder="Select Member to Assign..."
+                              align="left"
+                              className="bg-white"
+                            />
 
                             <input
                               type="text"

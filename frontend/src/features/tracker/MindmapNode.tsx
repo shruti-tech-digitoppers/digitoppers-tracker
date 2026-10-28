@@ -23,6 +23,7 @@ import {
   UserCheck
 } from 'lucide-react';
 import { formatTimeAgo, formatTimelineDate } from './utils/timeFormat';
+import { SearchableEmployeeSelect } from './components/SearchableEmployeeSelect';
 
 interface MindmapNodeProps {
   node: ITimelineNode;
@@ -304,19 +305,14 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
                   <UserCheck className="w-2.5 h-2.5" />
                   Assign Stream
                 </div>
-                <select
+                <SearchableEmployeeSelect
                   value={currentAssigneeId}
-                  onChange={(e) => onAssign(node._id, e.target.value)}
-                  className="w-full text-[10px] border border-[#b9c0cb]/60 rounded-lg px-1.5 py-1 bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] cursor-pointer leading-tight"
-                  title="Assign this stream to a team member"
-                >
-                  <option value="">👤 Unassigned</option>
-                  {employees.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.name}{emp.employeeCode ? ` [${emp.employeeCode}]` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(empId) => onAssign(node._id, empId)}
+                  employees={employees}
+                  placeholder="Unassigned"
+                  align="left"
+                  className="!text-[10px] !py-1 !px-2"
+                />
               </div>
             ) : (
               /* ── STAGE / SUB-TASK: read-only assignee display + updated timestamp ── */

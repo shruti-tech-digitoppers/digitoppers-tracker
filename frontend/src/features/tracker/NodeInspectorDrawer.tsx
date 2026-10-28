@@ -33,6 +33,7 @@ import {
   Loader2
 } from 'lucide-react';
 import { formatTimelineDate, formatTimeAgo } from './utils/timeFormat';
+import { SearchableEmployeeSelect } from './components/SearchableEmployeeSelect';
 
 interface NodeInspectorDrawerProps {
   node: ITimelineNode | null;
@@ -615,25 +616,22 @@ const NodeInspectorContent: React.FC<
                 {isStage1 ? 'Project Manager:' : 'Assigned To:'}
               </span>
               {canAssignEmployees ? (
-                <select
-                  disabled={isCurrentlyMutating || isSaving}
-                  value={currentSelectedAssigneeId}
-                  onChange={(e) => {
-                    const newEmpId = e.target.value;
-                    setAssignedEmployeeMap((prev) => ({
-                      ...prev,
-                      [node._id]: newEmpId,
-                    }));
-                  }}
-                  className="border border-[#b6e0e4] bg-[#f0f8f9] text-[#3a7d84] rounded-xl px-2.5 py-1 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer max-w-[220px] truncate shadow-2xs hover:border-[#51a8b1]"
-                >
-                  <option value="">{isStage1 ? 'Select Project Manager' : 'Unassigned'}</option>
-                  {empList.map((emp) => (
-                    <option key={emp._id} value={emp._id}>
-                      {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''}
-                    </option>
-                  ))}
-                </select>
+                <div className="w-52 sm:w-60 shrink-0">
+                  <SearchableEmployeeSelect
+                    disabled={isCurrentlyMutating || isSaving}
+                    value={currentSelectedAssigneeId}
+                    onChange={(newEmpId) => {
+                      setAssignedEmployeeMap((prev) => ({
+                        ...prev,
+                        [node._id]: newEmpId,
+                      }));
+                    }}
+                    employees={empList}
+                    currentUser={currentUser}
+                    placeholder={isStage1 ? 'Select Project Manager' : 'Unassigned'}
+                    align="right"
+                  />
+                </div>
               ) : (
                 /* Read-only pill — click triggers read-only toast */
                 <button
@@ -809,29 +807,20 @@ const NodeInspectorContent: React.FC<
 
                         <div className="w-full sm:w-64 shrink-0">
                           {canAssignEmployees ? (
-                            <div className="flex items-center gap-1.5">
-                              <User className={`w-3.5 h-3.5 shrink-0 ${childSelectedAssigneeId ? 'text-[#3a7d84]' : 'text-[#b9c0cb]'}`} />
-                              <select
-                                disabled={isCurrentlyMutating || isSaving}
-                                value={childSelectedAssigneeId}
-                                onChange={(e) => {
-                                  const newEmpId = e.target.value;
-                                  setAssignedEmployeeMap((prev) => ({
-                                    ...prev,
-                                    [child._id]: newEmpId,
-                                  }));
-                                }}
-                                className="w-full border border-[#b6e0e4] bg-[#f0f8f9] text-[#3a7d84] rounded-xl px-2.5 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 cursor-pointer shadow-2xs hover:border-[#51a8b1]"
-                                title="Assign employee for this task"
-                              >
-                                <option value="">👤 Unassigned</option>
-                                {empList.map((emp) => (
-                                  <option key={emp._id} value={emp._id}>
-                                    {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''}
-                                  </option>
-                                ))}
-                              </select>
-                            </div>
+                            <SearchableEmployeeSelect
+                              disabled={isCurrentlyMutating || isSaving}
+                              value={childSelectedAssigneeId}
+                              onChange={(newEmpId) => {
+                                setAssignedEmployeeMap((prev) => ({
+                                  ...prev,
+                                  [child._id]: newEmpId,
+                                }));
+                              }}
+                              employees={empList}
+                              currentUser={currentUser}
+                              placeholder="Unassigned"
+                              align="right"
+                            />
                           ) : (
                             /* Read-only: clickable pill that triggers read-only toast */
                             <button

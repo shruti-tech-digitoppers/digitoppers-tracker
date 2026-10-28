@@ -1,17 +1,17 @@
 'use client';
 
 import React, { useState, useMemo, useCallback, useEffect } from 'react';
-import { 
-  Building2, 
-  Camera, 
-  CheckCircle2, 
-  Plus, 
-  Trash2, 
-  Upload, 
-  Image as ImageIcon, 
-  Loader2, 
-  Eye, 
-  X, 
+import {
+  Building2,
+  Camera,
+  CheckCircle2,
+  Plus,
+  Trash2,
+  Upload,
+  Image as ImageIcon,
+  Loader2,
+  Eye,
+  X,
   RefreshCw,
   Cpu,
   Hash,
@@ -27,6 +27,7 @@ import {
 import { IUser } from '../../../types/auth';
 import { DEFAULT_HARDWARE_ITEMS, extractEffectiveSchools, EffectiveSchoolItem } from '../utils/formHelpers';
 import { apiClient } from '../../../lib/api/client';
+import { ConfirmDeleteFileModal } from '../common/ConfirmDeleteFileModal';
 
 export interface IHardwareUnitLicense {
   unitIndex: number;
@@ -183,9 +184,9 @@ function resolveOrderHardwareForSchool(
   const list: IHardwareInstalledItem[] = [];
 
   // 1. Check schoolWiseHardware (from Stage 03 or Project Order Requirement)
-  const schoolWiseHw = 
-    allFormData?.stage3SchoolWiseHardware || 
-    allFormData?.schoolWiseHardware || 
+  const schoolWiseHw =
+    allFormData?.stage3SchoolWiseHardware ||
+    allFormData?.schoolWiseHardware ||
     project?.orderRequirement?.hardwareRequirement?.schoolWiseHardware ||
     project?.orderRequirement?.schoolWiseHardware ||
     {};
@@ -228,16 +229,16 @@ function resolveOrderHardwareForSchool(
   }
 
   // 2. Check activeHardwareKeys with Stage 03 items or project order requirement items
-  const activeKeys: string[] = 
-    allFormData?.stage3HardwareKeys || 
-    allFormData?.activeHardwareKeys || 
+  const activeKeys: string[] =
+    allFormData?.stage3HardwareKeys ||
+    allFormData?.activeHardwareKeys ||
     project?.orderRequirement?.hardwareRequirement?.activeHardwareKeys ||
     [];
 
-  const stage3Items = 
-    allFormData?.stage3HardwareItems || 
-    allFormData?.hardwareRequirements?.items || 
-    allFormData?.items || 
+  const stage3Items =
+    allFormData?.stage3HardwareItems ||
+    allFormData?.hardwareRequirements?.items ||
+    allFormData?.items ||
     project?.orderRequirement?.hardwareRequirement?.items ||
     project?.orderRequirement?.hardware?.items ||
     {};
@@ -323,6 +324,11 @@ export function InstallationSection({
   const [activeSchoolIndex, setActiveSchoolIndex] = useState(0);
   const [uploadingSlot, setUploadingSlot] = useState<string | null>(null);
   const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
+  const [deleteFileConfirm, setDeleteFileConfirm] = useState<{
+    imageKey: 'image1Url' | 'image2Url' | 'image3Url';
+    title: string;
+    fileName: string;
+  } | null>(null);
 
   // License Allocations from backend collection
   const [allocations, setAllocations] = useState<any[]>([]);
@@ -561,9 +567,9 @@ export function InstallationSection({
     }
 
     const orderHw = resolveOrderHardwareForSchool(
-      allFormData, 
-      currentSchool.schoolId, 
-      activeSchoolIndex, 
+      allFormData,
+      currentSchool.schoolId,
+      activeSchoolIndex,
       currentSchool.schoolName,
       project
     );
@@ -589,14 +595,14 @@ export function InstallationSection({
   const handleUpdateUnitSerial = async (hIndex: number, unitIndex: number, serialValue: string) => {
     if (disabled || !currentSchool) return;
     const baseHw = activeHardwareItems.length > 0 ? activeHardwareItems : (currentSchool.hardwareItems || []);
-    
+
     const nextHw = baseHw.map((item, idx) => {
       if (idx !== hIndex) return item;
       const qty = Number(item.quantity) || 1;
       const nextSerials = [...(item.individualSerials || Array.from({ length: qty }, () => ''))];
       nextSerials[unitIndex] = serialValue;
 
-      const nextLicenses = (item.unitLicenses || []).map((lic, lIdx) => 
+      const nextLicenses = (item.unitLicenses || []).map((lic, lIdx) =>
         lIdx === unitIndex ? { ...lic, serialNumber: serialValue } : lic
       );
 
@@ -734,7 +740,7 @@ export function InstallationSection({
 
   return (
     <div className="space-y-6 font-sans">
-      
+
       {/* ── SCHOOL BRANCH SELECTOR ───────────────────────────────────── */}
       {schoolsList.length > 0 && (
         <div className="bg-[#f0f9fa] border border-[#b6e0e4] rounded-2xl p-4 space-y-2.5 shadow-2xs">
@@ -773,38 +779,35 @@ export function InstallationSection({
               const sUnits = (s.hardwareItems || []).reduce((acc, h) => acc + (Number(h.quantity) || 1), 0) || totalSchLicenses;
               const sFilled = (s.hardwareItems || []).reduce((acc, h) => acc + (h.individualSerials || []).filter(v => (v || '').trim().length > 0).length, 0);
               const sComplete = sUnits > 0 && sFilled === sUnits;
-              
+
               return (
                 <div
                   key={idx}
                   onClick={() => setActiveSchoolIndex(idx)}
-                  className={`group flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all select-none cursor-pointer shrink-0 border shadow-2xs ${
-                    isActive
-                      ? 'bg-[#3a7d84] text-white border-[#2d6b73] shadow-xs scale-[1.01]'
-                      : 'bg-white text-[#334155] border-slate-200/90 hover:bg-[#f8fafb] hover:border-[#b6e0e4]'
-                  }`}
+                  className={`group flex items-center gap-2.5 px-4 py-2.5 rounded-xl text-xs font-bold transition-all select-none cursor-pointer shrink-0 border shadow-2xs ${isActive
+                    ? 'bg-[#3a7d84] text-white border-[#2d6b73] shadow-xs scale-[1.01]'
+                    : 'bg-white text-[#334155] border-slate-200/90 hover:bg-[#f8fafb] hover:border-[#b6e0e4]'
+                    }`}
                 >
                   <span className="truncate max-w-[200px] sm:max-w-[260px]">
                     {idx + 1}. {s.schoolName || `School #${idx + 1}`}
                   </span>
 
                   {totalSchLicenses > 0 && (
-                    <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 ${
-                      isActive 
-                        ? 'bg-white/20 text-white border border-white/30' 
-                        : 'bg-[#f0f9fa] text-[#2d6b73] border border-[#b6e0e4]'
-                    }`}>
+                    <span className={`text-[9.5px] px-2 py-0.5 rounded-full font-mono font-bold flex items-center gap-1 ${isActive
+                      ? 'bg-white/20 text-white border border-white/30'
+                      : 'bg-[#f0f9fa] text-[#2d6b73] border border-[#b6e0e4]'
+                      }`}>
                       <KeyRound className="w-2.5 h-2.5" />
                       {totalSchLicenses} Lic
                     </span>
                   )}
 
                   {sUnits > 0 && (
-                    <span className={`text-[9.5px] px-1.5 py-0.5 rounded-full font-bold ${
-                      isActive 
-                        ? (sComplete ? 'bg-emerald-500 text-white' : 'bg-white/20 text-white') 
-                        : (sComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700')
-                    }`}>
+                    <span className={`text-[9.5px] px-1.5 py-0.5 rounded-full font-bold ${isActive
+                      ? (sComplete ? 'bg-emerald-500 text-white' : 'bg-white/20 text-white')
+                      : (sComplete ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700')
+                      }`}>
                       {sFilled}/{sUnits} Serials
                     </span>
                   )}
@@ -835,15 +838,14 @@ export function InstallationSection({
                 <Cpu className="w-4 h-4" />
               </div>
               <h4 className="text-sm font-bold text-slate-900 font-heading">
-                {isTrainingContext 
+                {isTrainingContext
                   ? 'Hardware Verification, Licenses & Serial Numbers'
                   : 'Hardware Serial Numbers & License Provisioning'}
               </h4>
-              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${
-                isAllFilled
-                  ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                  : 'bg-[#f0f9fa] text-[#2d6b73] border-[#b6e0e4]'
-              }`}>
+              <span className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full border ${isAllFilled
+                ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                : 'bg-[#f0f9fa] text-[#2d6b73] border-[#b6e0e4]'
+                }`}>
                 {totalSerialsFilled} of {totalUnits} Serials Recorded {isAllFilled && '✓'}
               </span>
 
@@ -855,8 +857,8 @@ export function InstallationSection({
               )}
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {isTrainingContext 
-                ? 'School ke sabhi allocated hardware units verify karein, license keys se software activate karein, aur serial numbers darj karein.' 
+              {isTrainingContext
+                ? 'School ke sabhi allocated hardware units verify karein, license keys se software activate karein, aur serial numbers darj karein.'
                 : 'Select hue sabhi hardware units ke serial number darj karein aur unke mapped active licenses copy karein.'}
             </p>
           </div>
@@ -936,8 +938,8 @@ export function InstallationSection({
                       const isCopied = lic?.licenseKey && copiedKey === lic.licenseKey;
 
                       return (
-                        <tr 
-                          key={`${hIdx}_${unitIdx}`} 
+                        <tr
+                          key={`${hIdx}_${unitIdx}`}
                           className={`transition-colors hover:bg-[#f0f9fa]/40 ${hasVal ? 'bg-emerald-50/10' : ''}`}
                         >
                           {/* 1. Row Index */}
@@ -987,20 +989,18 @@ export function InstallationSection({
                                   <button
                                     type="button"
                                     onClick={() => handleCopyLicense(lic.licenseKey!)}
-                                    className={`p-1 rounded-md border transition cursor-pointer active:scale-95 ${
-                                      isCopied
-                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                                        : 'bg-white text-slate-600 border-slate-200 hover:text-[#2d6b73] hover:border-[#b6e0e4]'
-                                    }`}
+                                    className={`p-1 rounded-md border transition cursor-pointer active:scale-95 ${isCopied
+                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                      : 'bg-white text-slate-600 border-slate-200 hover:text-[#2d6b73] hover:border-[#b6e0e4]'
+                                      }`}
                                     title="Copy license key to clipboard"
                                   >
                                     {isCopied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
                                   </button>
-                                  <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${
-                                    lic.status === 'REGISTERED' || lic.isRegistered
-                                      ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
-                                      : 'bg-white text-[#2d6b73] border-[#b6e0e4]'
-                                  }`}>
+                                  <span className={`text-[9.5px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${lic.status === 'REGISTERED' || lic.isRegistered
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                                    : 'bg-white text-[#2d6b73] border-[#b6e0e4]'
+                                    }`}>
                                     {lic.status || (lic.isRegistered ? 'REGISTERED' : 'ALLOCATED')}
                                   </span>
                                 </div>
@@ -1082,8 +1082,8 @@ export function InstallationSection({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              {isTrainingContext 
-                ? 'Teacher training workshop, interactive screen hands-on demo, and signed attendance report upload (Max 2MB each).' 
+              {isTrainingContext
+                ? 'Teacher training workshop, interactive screen hands-on demo, and signed attendance report upload (Max 2MB each).'
                 : 'Upload 3 installation site photos (PNG, JPG, WebP • Max 2MB each).'}
             </p>
           </div>
@@ -1091,7 +1091,7 @@ export function InstallationSection({
 
         {/* 3 Photo Upload Boxes */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          
+
           {/* Photo 1 */}
           <div className="border border-slate-200 rounded-2xl p-3 bg-slate-50/50 flex flex-col justify-between space-y-2.5">
             <div className="flex items-center justify-between">
@@ -1125,7 +1125,11 @@ export function InstallationSection({
                   {!disabled && (
                     <button
                       type="button"
-                      onClick={() => updateCurrentSchool({ image1Url: '' })}
+                      onClick={() => setDeleteFileConfirm({
+                        imageKey: 'image1Url',
+                        title: isTrainingContext ? 'Delete Photo 1 (Lab Overview)?' : 'Delete Photo 1 (Installation Area)?',
+                        fileName: currentSchool.image1Url || 'Photo_1.jpg'
+                      })}
                       className="p-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
                       title="Remove"
                     >
@@ -1200,7 +1204,11 @@ export function InstallationSection({
                   {!disabled && (
                     <button
                       type="button"
-                      onClick={() => updateCurrentSchool({ image2Url: '' })}
+                      onClick={() => setDeleteFileConfirm({
+                        imageKey: 'image2Url',
+                        title: isTrainingContext ? 'Delete Photo 2 (Hardware Hands-on)?' : 'Delete Photo 2 (Classroom Interior)?',
+                        fileName: currentSchool.image2Url || 'Photo_2.jpg'
+                      })}
                       className="p-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
                       title="Remove"
                     >
@@ -1275,7 +1283,11 @@ export function InstallationSection({
                   {!disabled && (
                     <button
                       type="button"
-                      onClick={() => updateCurrentSchool({ image3Url: '' })}
+                      onClick={() => setDeleteFileConfirm({
+                        imageKey: 'image3Url',
+                        title: isTrainingContext ? 'Delete Photo 3 (Attendance/Feedback)?' : 'Delete Photo 3 (Teacher Handover)?',
+                        fileName: currentSchool.image3Url || 'Photo_3.jpg'
+                      })}
                       className="p-1.5 rounded-lg bg-rose-600 text-white hover:bg-rose-700 transition cursor-pointer"
                       title="Remove"
                     >
@@ -1352,6 +1364,20 @@ export function InstallationSection({
           </div>
         </div>
       )}
+
+      {/* Confirmation Dialog for Photo Deletion */}
+      <ConfirmDeleteFileModal
+        isOpen={!!deleteFileConfirm}
+        onClose={() => setDeleteFileConfirm(null)}
+        onConfirm={() => {
+          if (deleteFileConfirm) {
+            updateCurrentSchool({ [deleteFileConfirm.imageKey]: '' });
+          }
+        }}
+        title={deleteFileConfirm?.title || 'Delete Photo?'}
+        description="Are you sure you want to delete this attached photo? This action will remove the image reference."
+        fileName={deleteFileConfirm?.fileName}
+      />
     </div>
   );
 }

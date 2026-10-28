@@ -11,6 +11,8 @@ const config = require('../../config/env');
 const coreApi = require('../../services/core-api.service');
 const mongoose = require('mongoose');
 
+const initializedProjectTimelines = new Set();
+
 class ProjectService {
   /**
    * getProjects: Fetches Tracker master projects from local database
@@ -44,7 +46,7 @@ class ProjectService {
       .sort({ createdAt: -1 })
       .lean();
 
-    // 2. Fetch live projects directly from Core Backend API
+    // 2. Fetch live projects directly from Core Backend API (cached)
     let coreProjects = [];
     try {
       const rawList = await coreApi.getProjects();
@@ -102,12 +104,16 @@ class ProjectService {
       }
     }
 
-    // Automatically ensure timeline is created for projects from Core Backend
+    // Automatically ensure timeline is created for newly discovered projects from Core Backend
     const timelineService = require('../timeline/timeline.service');
     for (const cp of coreProjectsMapped) {
-      timelineService.createTimelineForProject(cp).catch((e) => {
-        console.warn(`[ProjectService] Auto-init timeline for ${cp.projectId}:`, e.message);
-      });
+      if (!initializedProjectTimelines.has(cp.projectId)) {
+        initializedProjectTimelines.add(cp.projectId);
+        timelineService.createTimelineForProject(cp).catch((e) => {
+          initializedProjectTimelines.delete(cp.projectId);
+          console.warn(`[ProjectService] Auto-init timeline for ${cp.projectId}:`, e.message);
+        });
+      }
     }
 
     // Projects come from Core Backend & local DB
