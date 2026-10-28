@@ -90,7 +90,7 @@ export function AppHeader({
 
         <div className="min-w-0">
           <h1 className="font-heading text-sm sm:text-lg md:text-xl font-bold text-[#2d6b73] tracking-tight truncate">
-            {!currentUser ? 'DigiToppers Tracker' : getPageTitle()}
+            {!mounted || !currentUser ? 'DigiToppers Tracker' : getPageTitle()}
           </h1>
         </div>
       </div>
@@ -125,7 +125,7 @@ export function AppHeader({
         </span>
 
         {/* Notification Bell (Only for logged-in users) */}
-        {currentUser && (
+        {mounted && currentUser && (
           <NotificationDropdown
             notifications={notifications}
             isOpen={isNotifOpen}
@@ -137,7 +137,7 @@ export function AppHeader({
         )}
 
         {/* User Profile & Logout (When logged in) */}
-        {currentUser && (
+        {mounted && currentUser ? (
           <div className="flex items-center gap-2 pl-2 border-l border-slate-200">
             <div className="flex items-center gap-2">
               <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#3a7d84] to-[#51a8b1] text-white flex items-center justify-center font-bold text-xs shadow-xs">
@@ -165,10 +165,7 @@ export function AppHeader({
               <LogOut className="w-4 h-4" />
             </button>
           </div>
-        )}
-
-        {/* Login Button for unauthenticated view */}
-        {!currentUser && (
+        ) : mounted ? (
           <Link
             href="/login"
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#51a8b1] text-white text-xs font-bold hover:bg-[#3a7d84] shadow-xs transition active:scale-95 cursor-pointer shrink-0"
@@ -176,7 +173,7 @@ export function AppHeader({
             <LogIn className="w-3.5 h-3.5" />
             <span>Log In</span>
           </Link>
-        )}
+        ) : null}
       </div>
     </header>
   );

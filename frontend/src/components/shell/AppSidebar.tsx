@@ -38,6 +38,11 @@ export const AppSidebar = React.memo(function AppSidebar({
   onCloseMobile,
 }: AppSidebarProps) {
   const pathname = usePathname();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const isAdmin = 
     currentUser?.globalRole === 'ADMIN' || 
@@ -47,7 +52,7 @@ export const AppSidebar = React.memo(function AppSidebar({
     { label: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
     { label: 'Projects', href: '/projects', icon: FolderKanban },
     { label: 'Tracker', href: '/tracker', icon: Compass },
-    ...(currentUser ? [
+    ...(mounted && currentUser ? [
       { label: 'Assign & Requests', href: '/requests', icon: UserCheck },
       { label: 'Activity Logs', href: '/activity', icon: History },
       ...(isAdmin ? [{ label: 'Employees', href: '/employees', icon: Users, badge: 'Admin' }] : []),
@@ -146,7 +151,7 @@ export const AppSidebar = React.memo(function AppSidebar({
           </div>
 
           {/* Bottom: User Profile / Auth Area */}
-          {currentUser && (
+          {mounted && currentUser && (
             <div className={`border-t border-[#f1f3f6] ${collapsed ? 'p-2' : 'p-2.5'}`}>
               <div className={collapsed ? 'flex flex-col items-center gap-1.5' : 'space-y-2'}>
                 {!collapsed ? (
@@ -270,7 +275,7 @@ export const AppSidebar = React.memo(function AppSidebar({
 
           {/* User Profile / Logout or Sign In */}
           <div className="border-t border-[#f1f3f6] p-3">
-            {currentUser ? (
+            {mounted && currentUser ? (
               <div className="flex items-center justify-between p-2 rounded-xl bg-[#f8fafb] border border-[#b9c0cb]/30">
                 <div className="flex items-center gap-2 min-w-0">
                   <div className="w-8 h-8 rounded-lg bg-[#2f4154] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs">

@@ -40,6 +40,11 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
   const { searchQuery, clearSearch } = useSearch();
   const { showLoading, hideLoading } = useLoading();
   const [currentUser, setCurrentUser] = useState<IUser | null>(null);
+  const [mounted, setMounted] = useState<boolean>(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const [projects, setProjects] = useState<IProject[]>([]);
   const [employees, setEmployees] = useState<IUser[]>([]);
@@ -349,7 +354,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       <div className="adaptive-welcome-bar">
         <div className="space-y-0.5">
           <h2 suppressHydrationWarning className="font-heading text-base sm:text-xl font-extrabold text-[#2d6b73] tracking-tight">
-            Hello{currentUser?.name ? `, ${currentUser.name}` : ''}
+            Hello{mounted && currentUser?.name ? `, ${currentUser.name}` : ''}
           </h2>
           <p className="text-[11px] sm:text-xs font-medium text-[#556987]">
             Welcome to <span className="font-semibold text-[#3a7d84]">DigiToppers Project Tracker</span>
@@ -357,7 +362,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
         </div>
 
         <div className="flex items-center gap-2 self-end sm:self-auto flex-wrap">
-          {canRequestProject && (
+          {mounted && canRequestProject && (
             <button
               type="button"
               onClick={() => setIsModalOpen(true)}
@@ -437,7 +442,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
             </button>
 
             {/* Assignments & Notifications Toggle Button (Only when logged in) */}
-            {currentUser && (
+            {mounted && currentUser && (
               <button
                 type="button"
                 onClick={() => setIsNotificationsOpen((prev) => !prev)}
@@ -602,8 +607,8 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           />
         );
 
-        // For unauthenticated users (without login): only show the full-width Timeline Card
-        if (!currentUser) {
+        // For unauthenticated users (without login) or during initial SSR mount: only show full-width Timeline Card
+        if (!mounted || !currentUser) {
           if (isTimelineOpen) {
             return (
               <div className="w-full min-w-0 transition-all duration-300">
@@ -651,7 +656,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       })()}
 
       {/* ── Project Creation Request Modal ────────────── */}
-      {currentUser && (
+      {mounted && currentUser && (
         <CreateProjectRequestModal
           isOpen={isModalOpen}
           onClose={() => setIsModalOpen(false)}
@@ -661,7 +666,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       )}
 
       {/* ── Notification & Request Full Details / Confirmation Modal ── */}
-      {currentUser && (
+      {mounted && currentUser && (
         <NotificationDetailModal
           notification={selectedNotification}
           isOpen={Boolean(selectedNotification)}
