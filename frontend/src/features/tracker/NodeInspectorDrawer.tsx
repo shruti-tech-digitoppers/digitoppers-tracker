@@ -498,12 +498,16 @@ const NodeInspectorContent: React.FC<
     try {
       setIsSaving(true);
 
-      // 1. Save any pending employee assignments
+      // 1. Save any pending employee assignments in parallel
       if (isAssignDirty) {
+        const assignUpdates: Promise<void>[] = [];
         for (const [id, empId] of Object.entries(assignedEmployeeMap)) {
           if ((initialAssignedEmployeeMap[id] || '') !== (empId || '')) {
-            await handleAssign(empId, id === node._id ? undefined : id);
+            assignUpdates.push(handleAssign(empId, id === node._id ? undefined : id));
           }
+        }
+        if (assignUpdates.length > 0) {
+          await Promise.all(assignUpdates);
         }
         setInitialAssignedEmployeeMap({ ...assignedEmployeeMap });
       }

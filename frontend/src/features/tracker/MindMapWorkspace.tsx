@@ -294,13 +294,19 @@ export function MindMapWorkspace() {
             children: res.node.children && res.node.children.length > 0 ? res.node.children : prev.children,
           };
         });
+        if (res.node.formSchema) {
+          setFormSchema(res.node.formSchema);
+        }
+        if (res.node.formData) {
+          setFormData(res.node.formData);
+        }
       }
-      const formRes = await timelineApi.getNodeForm(selectedProjectId, selectedNode._id);
-      if (formRes) {
-        setFormSchema(formRes.formSchema || null);
-        setFormData(formRes.formData || {});
-      }
-      await fetchTimeline(selectedProjectId, false);
+
+      // Sync mindmap timeline tree in the background without freezing the UI save state
+      fetchTimeline(selectedProjectId, false).catch((syncErr) => {
+        console.warn('Background timeline sync note:', syncErr);
+      });
+
       setMutationError(null);
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save form data.';

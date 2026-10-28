@@ -228,12 +228,15 @@ export function ProjectRoadmapCard({
     try {
       setMutationError(null);
       await timelineApi.assignNode(project._id, nodeIdToAssign, empId || null);
-      await fetchTimeline(false);
-      if (onProjectUpdated) onProjectUpdated();
+      fetchTimeline(false).then(() => {
+        if (onProjectUpdated) onProjectUpdated();
+      }).catch((syncErr) => {
+        console.warn('Background timeline sync note:', syncErr);
+      });
     } catch (err: any) {
       setMutationError(err.response?.data?.message || 'Failed to assign.');
       // Quietly sync on failure
-      await fetchTimeline(false);
+      fetchTimeline(false).catch(() => {});
     }
   };
 
@@ -254,14 +257,24 @@ export function ProjectRoadmapCard({
             children: res.node.children && res.node.children.length > 0 ? res.node.children : prev.children,
           };
         });
+        if (res.node.formSchema) {
+          setFormSchema(res.node.formSchema);
+        }
+        if (res.node.formData) {
+          setFormData(res.node.formData);
+        }
       }
-      const formRes = await timelineApi.getNodeForm(project._id, selectedNode._id);
-      if (formRes) {
-        setFormSchema(formRes.formSchema || null);
-        setFormData(formRes.formData || {});
-      }
-      await fetchTimeline(false);
-      if (onProjectUpdated) onProjectUpdated();
+
+      // Sync full project timeline & dashboard cards non-blockingly in background
+      // This eliminates the 2-3s UI freeze and keeps Save instant while preserving full data consistency
+      fetchTimeline(false)
+        .then(() => {
+          if (onProjectUpdated) onProjectUpdated();
+        })
+        .catch((syncErr) => {
+          console.warn('Background timeline sync note:', syncErr);
+        });
+
       setMutationError(null);
     } catch (err: any) {
       const msg = err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save form data.';
