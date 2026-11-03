@@ -19,6 +19,7 @@ const connectDB = async () => {
         });
         console.log(`✅ MongoDB Connected to Remote/Primary: ${conn.connection.host}`);
         connected = true;
+        return conn;
       } catch (remoteErr) {
         // If auth failed and authSource wasn't specified, try with authSource=admin
         if (mongoUri.startsWith('mongodb+srv://') && !mongoUri.includes('authSource=')) {
@@ -33,6 +34,7 @@ const connectDB = async () => {
             });
             console.log(`✅ MongoDB Connected to Remote/Primary with authSource=admin: ${conn.connection.host}`);
             connected = true;
+            return conn;
           } catch (retryErr) {
             console.warn(`⚠️ authSource=admin retry failed: ${retryErr.message}`);
           }
