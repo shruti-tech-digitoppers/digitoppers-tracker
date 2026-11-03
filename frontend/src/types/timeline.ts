@@ -33,6 +33,8 @@ export interface ITimelineNode {
   status: TimelineNodeStatus;
   assignedTo?: string | { _id: string; name: string; email: string; employeeCode?: string } | null;
   assignedEmployee?: string | { _id: string; name: string; email: string; employeeCode?: string } | null;
+  completionDate?: string | null;
+  remarks?: string;
   dependencies: string[];
   formSchema?: FormSchemaType;
   formData?: Record<string, any>;

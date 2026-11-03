@@ -30,6 +30,8 @@ scratch/
 src/utils/seed*.js
 !src/utils/seedRealEmployees.js
 !src/utils/seedMasterDatabase.js
+!src/utils/seedTimelineNodes.js
+!src/utils/seedFormSchemas.js
 src/utils/cleanDatabase.js
 src/utils/checkConnection.js
 

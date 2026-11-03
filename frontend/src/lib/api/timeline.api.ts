@@ -75,6 +75,8 @@ function normalizeNode(n: any): ITimelineNode {
       status: (n.status || 'PENDING') as TimelineNodeStatus,
       assignedEmployee: rawAssignee,
       assignedTo: rawAssignee,
+      completionDate: n.completionDate || null,
+      remarks: n.remarks || '',
     dependencies: Array.isArray(n.dependencies) ? n.dependencies : [],
     formSchema: n.formSchema || null,
     formData: n.formData || {},

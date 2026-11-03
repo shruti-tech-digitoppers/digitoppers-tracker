@@ -147,6 +147,26 @@ async function initMasterCatalogs() {
     console.log(`  ✅ ${projectCount} Projects and ${timelineNodeCount} Timeline Nodes already present.`);
   }
 
+  // 8. Ensure Static Timeline Nodes (timeline_nodes collection)
+  try {
+    const { seedTimelineNodes } = require('./seedTimelineNodes');
+    if (typeof seedTimelineNodes === 'function') {
+      await seedTimelineNodes(false);
+    }
+  } catch (err) {
+    console.error('❌ Error initializing static timeline nodes:', err.message);
+  }
+
+  // 9. Ensure Master Form Schemas (form_schemas collection)
+  try {
+    const { seedFormSchemas } = require('./seedFormSchemas');
+    if (typeof seedFormSchemas === 'function') {
+      await seedFormSchemas(false);
+    }
+  } catch (err) {
+    console.error('❌ Error initializing master form schemas:', err.message);
+  }
+
   console.log('\n========================================================================');
   console.log('🎉 MASTER CATALOGS, TEAM & TIMELINES READY!');
   console.log('========================================================================\n');

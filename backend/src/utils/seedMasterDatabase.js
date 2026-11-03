@@ -26,7 +26,7 @@ const School = require('../modules/schools/school.model');
 const ProjectSchools = require('../modules/project-schools/project-schools.model');
 const Requirement = require('../modules/requirements/requirements.model');
 const Timeline = { create: async (doc) => ({ ...doc, _id: doc.project || new mongoose.Types.ObjectId() }), findOne: () => null, deleteMany: () => ({}) };
-const TimelineNode = require('../modules/timeline/timeline-node.model');
+const TimelineNode = require('../modules/timeline-data/timeline-data.model');
 const Activity = require('../modules/activity/activity.model');
 const Notification = require('../modules/notifications/notifications.model');
 const Grade = require('../modules/content/grade/grade.model');

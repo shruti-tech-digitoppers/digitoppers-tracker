@@ -1,0 +1,50 @@
+const express = require('express');
+const router = express.Router({ mergeParams: true });
+const controller = require('./timeline-data.controller');
+const { protect, optionalProtect } = require('../../core/auth');
+const { verifyProjectPermission } = require('../../core/authorization');
+const { DESIGNATIONS } = require('../../core/constants');
+
+// 1. Timeline Hierarchy & Roadmap
+router.get('/', optionalProtect, (req, res, next) => {
+  // If explicitly queried for raw list via query param, fallback to getByProject
+  if (req.query.format === 'raw' || req.query.list === 'true') {
+    return controller.getByProject(req, res, next);
+  }
+  return controller.getTimeline(req, res, next);
+});
+
+router.get('/roadmap', optionalProtect, (req, res, next) => controller.getRoadmap(req, res, next));
+router.get('/tree', optionalProtect, (req, res, next) => controller.getHierarchyTree(req, res, next));
+
+// 2. Protected routes for node interactions
+router.use(protect);
+
+// Initialize project timeline
+router.post('/initialize', (req, res, next) => controller.initialize(req, res, next));
+
+// Node detail & children
+router.get('/nodes/:nodeId', (req, res, next) => controller.getNode(req, res, next));
+router.get('/nodes/:nodeId/children', (req, res, next) => controller.getChildren(req, res, next));
+
+// Node assignment (supports both /assignment and /assign)
+router.patch('/nodes/:nodeId/assignment', (req, res, next) => controller.assignNode(req, res, next));
+router.patch('/nodes/:nodeId/assign', (req, res, next) => controller.assignNode(req, res, next));
+
+// Node status update
+router.patch('/nodes/:nodeId/status', (req, res, next) => controller.updateStatus(req, res, next));
+
+// Node form & data
+router.get('/nodes/:nodeId/form', (req, res, next) => controller.getForm(req, res, next));
+router.put('/nodes/:nodeId/form', (req, res, next) => controller.updateForm(req, res, next));
+router.patch('/nodes/:nodeId/form-data', (req, res, next) => controller.updateFormData(req, res, next));
+router.patch('/nodes/:nodeId/remarks', (req, res, next) => controller.updateRemarks(req, res, next));
+
+// Generic save
+router.put('/nodes/:nodeId', (req, res, next) => controller.saveNodeData(req, res, next));
+router.post('/nodes/:nodeId', (req, res, next) => controller.saveNodeData(req, res, next));
+
+// Reset timeline
+router.delete('/reset', (req, res, next) => controller.resetTimeline(req, res, next));
+
+module.exports = router;

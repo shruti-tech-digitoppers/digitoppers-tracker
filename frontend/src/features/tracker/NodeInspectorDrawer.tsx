@@ -118,6 +118,14 @@ const NodeInspectorContent: React.FC<
   const [pendingAction, setPendingAction] = React.useState<{ type: 'CLOSE' } | { type: 'NAVIGATE'; targetNode: ITimelineNode } | null>(null);
   const formRef = React.useRef<{ submitForm: () => Promise<void>; isDirty: () => boolean; getFormData: () => Record<string, any> } | null>(null);
 
+  const [remarks, setRemarks] = React.useState<string>(node?.remarks || (node?.formData?.remarks as string) || '');
+  const [isRemarksDirty, setIsRemarksDirty] = React.useState<boolean>(false);
+
+  React.useEffect(() => {
+    setRemarks(node?.remarks || (node?.formData?.remarks as string) || '');
+    setIsRemarksDirty(false);
+  }, [node?._id, node?.remarks, node?.formData?.remarks]);
+
   const getChildrenList = React.useCallback((): ITimelineNode[] => {
     if (!node) return [];
     if (node.children && node.children.length > 0) return node.children;
@@ -182,7 +190,7 @@ const NodeInspectorContent: React.FC<
     return false;
   }, [assignedEmployeeMap, initialAssignedEmployeeMap]);
 
-  const isDirty = isFormDirty || isAssignDirty;
+  const isDirty = isFormDirty || isAssignDirty || isRemarksDirty;
 
   const requestClose = () => {
     if (isDirty) {
@@ -522,6 +530,13 @@ const NodeInspectorContent: React.FC<
         setIsFormDirty(false);
       }
 
+      // 3. Save remarks if modified
+      if (isRemarksDirty) {
+        const currentData = formRef.current?.getFormData ? formRef.current.getFormData() : (memoizedInitialData || {});
+        await onFormSubmit({ ...currentData, remarks });
+        setIsRemarksDirty(false);
+      }
+
       setJustSaved(true);
       setTimeout(() => setJustSaved(false), 3000);
     } catch (err: any) {
@@ -566,6 +581,12 @@ const NodeInspectorContent: React.FC<
                 <h3 className="font-heading font-extrabold text-base sm:text-lg text-[#1f2937] leading-tight truncate">
                   {node.name}
                 </h3>
+                {node.completionDate && (
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-800 text-[10.5px] font-mono font-bold shadow-2xs">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    <span>Completed {formatTimelineDate(node.completionDate)}</span>
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -886,6 +907,36 @@ const NodeInspectorContent: React.FC<
               onDirtyChange={(dirty) => setIsFormDirty(dirty)}
               formRef={formRef}
               hideFooter={true}
+            />
+          </div>
+
+          {/* Dynamic Remarks / Activity Notes Section */}
+          <div className="p-4 bg-white border border-[#b6e0e4]/70 rounded-2xl shadow-2xs space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="text-xs font-bold uppercase tracking-wider text-[#3a7d84] flex items-center gap-1.5 font-heading">
+                <FileText className="w-3.5 h-3.5 text-[#51a8b1]" />
+                Remarks & Milestone Notes
+              </label>
+              {node.completionDate && (
+                <span className="text-[11px] text-[#556987] font-medium font-mono">
+                  Finished: {formatTimelineDate(node.completionDate)}
+                </span>
+              )}
+            </div>
+            <textarea
+              rows={2}
+              value={remarks}
+              disabled={isNotAssigned || isCurrentlyMutating || isSaving}
+              onChange={(e) => {
+                setRemarks(e.target.value);
+                setIsRemarksDirty(true);
+              }}
+              placeholder={isNotAssigned ? 'No remarks recorded.' : 'Enter stage remarks, operational updates, or handoff notes...'}
+              className={`w-full text-xs p-3 rounded-xl border bg-white transition outline-none resize-y ${
+                isNotAssigned
+                  ? 'border-slate-200 text-slate-500 bg-slate-50 cursor-not-allowed'
+                  : 'border-[#cbd5e1] focus:border-[#51a8b1] focus:ring-1 focus:ring-[#51a8b1] text-slate-800'
+              }`}
             />
           </div>
         </div>

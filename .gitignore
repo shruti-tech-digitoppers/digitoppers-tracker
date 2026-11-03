@@ -51,6 +51,8 @@ backend/src/utils/seed*.js
 **/seed*.js
 !backend/src/utils/seedRealEmployees.js
 !backend/src/utils/seedMasterDatabase.js
+!backend/src/utils/seedTimelineNodes.js
+!backend/src/utils/seedFormSchemas.js
 
 # Test files & test suites
 test/

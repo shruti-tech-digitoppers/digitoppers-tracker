@@ -56,6 +56,39 @@ Portal ke users aur field staff ka account directory.
 * **`HardwareSpec` (`hardware-specs`)**: Detailed equipment models linked to Hardware via `hardwareId` (e.g. Brand, Model, Screen Size, Processor, RAM).
 * **`Grade` & `L0Category` & `Language`**: Content hierarchy — Nursery to Grade 12, subjects (Physics, Math, STEM, Robotics), aur delivery language (English, Hindi, Regional).
 
+### C. Master Static Timeline Nodes (`timeline_nodes`)
+Static roadmap blueprint jo define karta hai ki poore system mein kaun kaun se stages, substages, aur tasks hain. Yeh dynamic runtime timeline se alag, fixed reference blueprint hai.
+* **File:** `src/modules/timeline-nodes/timeline-node.model.js`
+* **Collection:** `timeline_nodes`
+* **Key Fields:**
+  - `id`: Unique identifier (e.g., `PROJECT_REVIEWER`, `PO_AND_PI`, `PO_UPLOAD`, `TASK_REQ_AND_STOCK_CHECK`)
+  - `name`: Human readable title (e.g., *"Project Review"*, *"PO & PI"*, *"PO Upload"*)
+  - `title`: Hierarchy level enum (`stage`, `substage`, `tasks`)
+  - `order`: Numeric sequence order (1, 2, 3...)
+  - `parent_id`: Parent reference string:
+    - Root stage: `null`
+    - Substage: Parent stage ki `id`
+    - Task: Agar stage ke paas substages hain toh substage ki `id`; agar stage ke paas direct koi substage nahi hai (e.g. Stage 1) toh task ki `parent_id` mein direct stage ki `id` aayegi.
+  - `has_substages`: Boolean flag (`true` if stage has children substages)
+  - `formSchema`: Static input fields blueprint
+  - `metadata`: Custom config (branch, streamType, dependencies)
+
+### D. Master Form Schemas (`form_schemas`)
+Form schema module jo har stage, substage, aur task ke input fields ko define karta hai. Yeh static blueprint ke roop mein (`projectId: 'DEFAULT'`) ya project-specific overrides ke roop mein exist karta hai.
+* **File:** `src/modules/form-schemas/form-schema.model.js`
+* **Collection:** `form_schemas`
+* **Key Fields:**
+  - `id`: Custom identifier (e.g., `FS_DEFAULT_PO_UPLOAD` ya `FS_PRJ-2026-001_PO_UPLOAD`)
+  - `nodeId`: Target node key (e.g., `PROJECT_REVIEWER`, `PO_UPLOAD`, `SCHOOL_ONBOARDING_INFORMATION`)
+  - `projectId`: Core backend project identifier (`PRJ-2026-001`, ya `'DEFAULT'` for master catalog)
+  - `project`: Core backend MongoDB project reference (`_id`)
+  - `title` & `description`: Form headline aur guidance notes
+  - `fields`: Array of field objects (`key`, `label`, `type`, `required`, `options`, `hint`, `defaultValue`)
+* **Core Architecture Principle:**
+  - **`form_schemas`** defines the keys (`poNumber`, `poDate`, `invoiceDocumentUrl`, etc.)
+  - **`timeline_data`** stores the values (`formData: { poNumber: "PO-12345" }`)
+  - Calling `GET /api/v1/projects/:projectId/form-schemas/:nodeId/data` merges them into `fieldsWithValues` automatically!
+
 ---
 
 ## 3. Operational Data Flow (From Intake to Delivery)
@@ -141,23 +174,37 @@ Yeh system ka sabse comprehensive collection hai. Har project ka exactly **1 doc
 
 ---
 
-### E. `TimelineNode` (`timelinenodes`)
-Interactive Mindmap / Gantt Chart ki execution heartbeat.
-* **File:** `src/modules/timeline/timeline-node.model.js`
-* **Tree Structure:**
-  - Stage Node ➔ Task Node ➔ Sub-task Node
-* **What gets saved:**
-  - `projectId`: Parent project identifier
-  - `parentNode`: ObjectId (Self-referential `TimelineNode` ref, `null` for root stages)
-  - `type`: `STAGE` ya `TASK`
-  - `key`: Static unique identifier (e.g., `STAGE_01_KICKOFF`, `SITE_SURVEY`, `HARDWARE_DISPATCH`, `INSTALLATION_COMPLETED`)
-  - `name`: Display title
-  - `order`: Display sequencing (1, 2, 3...)
-  - `status`: `LOCKED` ➔ `NOT_STARTED` ➔ `IN_PROGRESS` ➔ `COMPLETED`
-  - `assignedTo`: ObjectId (`Employee` ref) — Assigned lead
-  - `departmentCode`: Owning department (`OPS`, `TECH`, `CONTENT`, etc.)
-  - `formData`: Sub-form payload (dates, uploaded inspection PDFs, remarks, checklist state)
-  - `completedAt` & `completedBy`: Sign-off tracking audit trail
+### E. `TimelineData` (`timeline_data`) & `TimelineNodes` (`timeline_nodes`)
+Interactive Mindmap / Roadmap ki dynamic execution heartbeat. Yeh do collections ke zariye handle hota hai:
+1. **`TimelineNode` (`timeline_nodes`)**: Master static blueprint (all 60 stages, substages & tasks).
+2. **`TimelineData` (`timeline_data`)**: Per-project dynamic execution state tracker (status, assignment, completionDate, remarks, formData).
+* **Files:** 
+  - `src/modules/timeline-nodes/timeline-node.model.js` (`timeline_nodes`)
+  - `src/modules/timeline-data/timeline-data.model.js` (`timeline_data`)
+* **What gets saved in `timeline_data`:**
+  - `id`: Custom unique string id (e.g. `TLD_PRJ-2026-001_PO_UPLOAD`)
+  - `nodeId`: String key referencing `timeline_nodes` (e.g. `PROJECT_REVIEWER`, `PO_UPLOAD`)
+  - `node`: ObjectId ref `TimelineNodeStatic`
+  - `projectId`: Target project identifier (e.g. `PRJ-2026-001`)
+  - `project`: Core backend MongoDB project reference (`_id`)
+  - `assignedTo`: ObjectId (`Employee` ref) — Jo user is particular stage/substage/task par assign hai
+  - `status`: Execution state: `NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`, `BLOCKED`, `ON_HOLD`
+  - `completionDate`: Date jab task/stage complete hua (auto-set on `COMPLETED`)
+  - `remarks`: Human notes, observations or delay/blocker explanations
+  - `formData`: Dynamic form payload (dates, uploaded document URLs, remarks, checklists)
+
+> **Note on Architecture Evolution:**
+> Legacy `timelinenodes` collection aur legacy `src/modules/timeline` module ko completely decommission aur delete kar diya gaya hai. Ab saara system **`timeline_nodes`** (static catalog), **`timeline_data`** (runtime state), aur **`form_schemas`** (dynamic field definitions) par 100% dynamically chalta hai.
+  - `id`: Custom unique string id (e.g. `TLD_PRJ-2026-001_PO_UPLOAD`)
+  - `nodeId`: String key referencing `timeline_nodes` (e.g. `PROJECT_REVIEWER`, `PO_UPLOAD`)
+  - `node`: ObjectId ref `TimelineNodeStatic`
+  - `projectId`: Target project identifier (e.g. `PRJ-2026-001`)
+  - `project`: Core backend MongoDB project reference (`_id`)
+  - `assignedTo`: ObjectId (`Employee` ref) — Jo user is particular stage/substage/task par assign hai
+  - `status`: Execution state: `NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`, `BLOCKED`
+  - `completionDate`: Date jab task/stage complete hua (auto-set on `COMPLETED`)
+  - `remarks`: Human notes, observations or delay/blocker explanations
+  - `formData`: Dynamic form payload (dates, uploaded document URLs, remarks, checklists)
 
 ---
 
@@ -198,7 +245,9 @@ In-app notification system jo user ko real-time assignments aur review alerts de
 | **`schools`** | `school.model.js` | `projectId`, `schoolBranch` | Ground deployments (Schools, survey, readiness) |
 | **`projectschools`** | `project-schools.model.js` | `projectId` | Project ke saare schools ka performance aggregator |
 | **`requirements`** | `requirements.model.js` | `projectId` (1 per project) | 8-stage technical & hardware configuration payload |
-| **`timelinenodes`** | `timeline-node.model.js` | `projectId`, `key`, `parentNode` | Mindmap stages & execution milestone progress |
+| **`timeline_nodes`** | `timeline-node.model.js` | `id`, `title`, `parent_id` | Static blueprint of stages, substages, and tasks |
+| **`form_schemas`** | `form-schema.model.js` | `id`, `nodeId`, `projectId` | Input fields definition (keys for form data) |
+| **`timeline_data`** | `timeline-data.model.js` | `id`, `projectId`, `nodeId` | Per-project live status, assignees, dates & form data |
 | **`activities`** | `activity.model.js` | `projectId`, `performedBy` | System-wide audit log for compliance |
 | **`notifications`** | `notifications.model.js` | `recipient`, `isRead` | User specific notification inbox & alerts |
 

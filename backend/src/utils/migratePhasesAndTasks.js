@@ -5,7 +5,7 @@ require('dotenv').config({ path: path.join(__dirname, '../../.env') });
 const Phase = require('../modules/phases/phase.model');
 const Task = require('../modules/tasks/task.model');
 const TaskFormData = require('../modules/tasks/task-form-data.model');
-const TimelineNode = require('../modules/timeline/timeline-node.model');
+const TimelineNode = require('../modules/timeline-data/timeline-data.model');
 const phasesService = require('../modules/phases/phases.service');
 
 async function migratePhasesAndTasks() {
