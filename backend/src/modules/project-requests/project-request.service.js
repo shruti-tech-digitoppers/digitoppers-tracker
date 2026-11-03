@@ -152,7 +152,7 @@ class RequestService {
     }
 
     const request = await ProjectRequest.create({
-      orgId: data.orgId || (creator ? creator.orgId : undefined),
+      organization: (data.organization || '').trim(),
       requestId: reqId,
       title: projectTitle,
       projectName: projectTitle,
@@ -378,13 +378,14 @@ class RequestService {
         await ProjectMember.findOneAndUpdate(
           {
             $or: [
+              { projectId: finalCoreProjectId.toLowerCase() },
               { projectId: finalCoreProjectId.toUpperCase() },
               { project: finalCoreMongoId }
             ],
             employee: request.projectManager
           },
           {
-            projectId: finalCoreProjectId.toUpperCase(),
+            projectId: finalCoreProjectId.toLowerCase(),
             project: finalCoreMongoId,
             employee: request.projectManager,
             designation: DESIGNATIONS.PROJECT_MANAGER,
@@ -553,7 +554,7 @@ class RequestService {
       if (Array.isArray(rawList) && rawList.length > 0) {
         coreProjects = rawList.filter(p => p.isActive !== false).map((p) => ({
           _id: String(p._id),
-          projectId: (p.projectId || String(p._id)).trim().toUpperCase(),
+          projectId: (p.projectId || String(p._id)).trim().toLowerCase(),
           projectName: p.projectName || p.title || 'Untitled Core Project',
           title: p.projectName || p.title || 'Untitled Core Project',
           organization: p.organization || p.client || p.projectName || 'Core Organization',

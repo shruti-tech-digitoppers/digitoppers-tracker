@@ -100,7 +100,7 @@ export interface Stage3ExtractedData {
   projectMeta: {
     projectId: string;
     projectName: string;
-    organization: string;
+    client: string;
     status: string;
     projectManagerName: string;
     numberOfSchools: number;
@@ -157,19 +157,22 @@ export function extractStage3OrderRequirementData(
   const normalizedSchools = rawSchools.map((s, idx) => ({
     id: s.id || s._id || `sch-${idx + 1}`,
     schoolName: s.schoolName || s.name || `School #${idx + 1}`,
-    schoolCode: s.schoolCode || '',
+    schoolBranch: s.schoolBranch || s.branch || '',
+    schoolCode: s.schoolCode || s.schoolId || '',
     address: s.address || s.addressContact || '',
     pocName: s.pocName || s.contactPerson?.name || s.contactPerson || '',
     phone: s.phone || s.pocContact || s.contactPerson?.phone || '',
     totalStudents: s.totalStudents || s.studentsCount || '',
     classes: s.classes || [],
+    solutions: s.solutions || [],
+    hardware: s.hardware || [],
+    content: s.content || [],
     ...s,
   }));
 
   const primarySchoolName =
     sData.schoolName ||
     normalizedSchools.map((s) => s.schoolName).filter(Boolean).join('; ') ||
-    project?.organization ||
     project?.projectName ||
     'School Onboarding Location';
 
@@ -285,6 +288,32 @@ export function extractStage3OrderRequirementData(
     });
   }
 
+  // Extract solutions directly from school solutions if present in Requirement
+  normalizedSchools.forEach((sch: any) => {
+    if (Array.isArray(sch.solutions)) {
+      sch.solutions.forEach((sol: any) => {
+        const sKey = sol.solutionKey || sol.key;
+        if (!sKey) return;
+        const sName = sol.solutionName || sol.name || sol.label || CANONICAL_SOLUTION_NAMES[sKey] || sKey.replace(/_/g, ' ');
+        const sQty = Number(sol.quantity || sol.qty || 1);
+        const existing = solutionsList.find((s) => s.key === sKey);
+        if (existing) {
+          existing.quantity += sQty;
+        } else {
+          seenSolKeys.add(sKey);
+          solutionsList.push({
+            key: sKey,
+            name: sName,
+            quantity: sQty,
+            targetClasses: [],
+            board: '',
+            notes: sol.remarks || sol.description || '',
+          });
+        }
+      });
+    }
+  });
+
   // Extract from selectedSolutions array (seed/legacy structure from MongoDB)
   const legacySelectedSolutions: string[] = Array.isArray(solData.selectedSolutions)
     ? solData.selectedSolutions
@@ -392,6 +421,40 @@ export function extractStage3OrderRequirementData(
       });
     });
   }
+
+  // Extract hardware directly from school solutions hardware if present in Requirement
+  normalizedSchools.forEach((sch: any) => {
+    const schId = sch.id || sch._id || sch.schoolId;
+    if (Array.isArray(sch.solutions)) {
+      sch.solutions.forEach((sol: any) => {
+        if (Array.isArray(sol.hardware)) {
+          sol.hardware.forEach((hw: any) => {
+            const hKey = hw.hardwareKey || hw.key;
+            if (!hKey) return;
+            const hName = hw.itemName || hw.hardwareName || hw.name || CANONICAL_HARDWARE_NAMES[hKey] || hKey.replace(/_/g, ' ');
+            const hQty = Number(hw.quantity || hw.qty || 1);
+            const existing = hardwareItemsList.find((h) => h.key === hKey);
+            if (existing) {
+              existing.quantity += hQty;
+              if (!existing.schoolAllocations) existing.schoolAllocations = {};
+              existing.schoolAllocations[schId] = (existing.schoolAllocations[schId] || 0) + hQty;
+            } else {
+              seenHwKeys.add(hKey);
+              hardwareItemsList.push({
+                key: hKey,
+                name: hName,
+                quantity: hQty,
+                specNotes: hw.specNotes || hw.specs || '',
+                serialNotes: hw.serialNotes || '',
+                solutionName: sol.solutionName || sol.label || hw.solutionName || '',
+                schoolAllocations: { [schId]: hQty },
+              });
+            }
+          });
+        }
+      });
+    }
+  });
 
   // Extract from selectedHardware array (seed/legacy structure from MongoDB)
   const legacySelectedHardware: string[] = Array.isArray(hwData.selectedHardware)
@@ -538,7 +601,7 @@ export function extractStage3OrderRequirementData(
     projectMeta: {
       projectId: project?.projectId || 'PRJ-2026',
       projectName: project?.projectName || project?.title || 'DigiToppers Operations Project',
-      organization: project?.organization || (project as any)?.client || 'DigiToppers Network',
+      client: (project as any)?.client || project?.projectName || 'DigiToppers Network',
       status: project?.status || 'ACTIVE',
       projectManagerName: pmName,
       numberOfSchools: numSchools,

@@ -197,8 +197,16 @@ export function MindMapWorkspace() {
         setSelectedNode({ ...detailRes.node, children: mergedChildren });
       }
       if (formRes) {
-        setFormSchema(formRes.formSchema || null);
-        setFormData(formRes.formData || {});
+        setFormSchema(formRes.formSchema || (detailRes?.node?.formSchema as any) || (node.formSchema as any) || null);
+        const mergedFormData = {
+          ...(node.formData || {}),
+          ...(detailRes?.node?.formData || {}),
+          ...(formRes.formData || {}),
+        };
+        setFormData(mergedFormData);
+      } else if (detailRes?.node) {
+        setFormSchema((detailRes.node.formSchema as any) || (node.formSchema as any) || null);
+        setFormData({ ...(node.formData || {}), ...(detailRes.node.formData || {}) });
       }
     } catch { }
   };

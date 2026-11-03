@@ -23,10 +23,11 @@ const {
 const solutionRouter = require('./modules/solutions/solution.routes');
 const hardwareRouter = require('./modules/hardware/hardware.routes');
 const hardwareSpecRoutes = require('./modules/hardware-specs/hardware-spec.routes');
-const departmentRoutes = require('./modules/departments/department.routes');
 const schoolRoutes = require('./modules/schools/school.routes');
 const { licenseRoutes } = require('./modules/tech');
 const trainingRoutes = require('./modules/training/training.routes');
+const phaseRoutes = require('./modules/phases/phases.routes');
+const taskRoutes = require('./modules/tasks/tasks.routes');
 
 const app = express();
 
@@ -51,10 +52,13 @@ app.get('/', (req, res) => {
 // API Routes
 app.use('/api/v1/auth', authRoutes);
 app.use('/api/v1/employees', employeeRoutes);
-app.use('/api/v1/departments', departmentRoutes);
 app.use('/api/v1/schools', schoolRoutes);
 app.use('/api/v1/projects/:projectId/schools', schoolRoutes);
 app.use('/api/v1/projects/:projectId/timeline', timelineRoutes);
+app.use('/api/v1/projects/:projectId/phases', phaseRoutes);
+app.use('/api/v1/projects/:projectId/tasks', taskRoutes);
+app.use('/api/v1/phases', phaseRoutes);
+app.use('/api/v1/tasks', taskRoutes);
 app.use('/api/v1/projects/:projectId/activity', activityRoutes);
 app.use('/api/v1/projects/:projectId/training', trainingRoutes);
 app.use('/api/v1/projects', projectRoutes);

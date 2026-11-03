@@ -36,7 +36,6 @@ export function ProjectCard({ project, onDelete }: ProjectCardProps) {
 
       <div className="space-y-3 pt-3 border-t border-slate-100">
         <div className="flex items-center justify-between text-xs text-slate-500">
-          <span>Organization: <strong className="text-slate-700">{project.organization || 'N/A'}</strong></span>
           <button
             type="button"
             onClick={() => onDelete(project._id)}

@@ -86,7 +86,7 @@ router.post('/', protect, upload.single('file'), (req, res, next) => {
     }
 
     const fileUrl = `/uploads/${req.file.filename}`;
-    
+
     res.status(200).json({
       success: true,
       message: 'File uploaded successfully',

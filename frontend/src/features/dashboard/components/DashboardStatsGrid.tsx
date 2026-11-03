@@ -32,29 +32,29 @@ export function DashboardStatsGrid({
   ];
 
   return (
-    <div className="dense-stats-grid gap-2 sm:gap-2.5 md:gap-3">
+    <div className="dense-stats-grid gap-2.5 sm:gap-3 md:gap-3.5">
       {statCards.map((card) => (
         <button
           key={card.label}
           type="button"
           onClick={() => onSelectFilter(card.filter)}
           className={`
-            dense-stat-card group flex flex-col justify-between rounded-xl border p-2.5 sm:p-3 shadow-2xs text-left cursor-pointer
-            transition-all duration-200 hover:shadow-xs active:scale-[0.99]
+            dense-stat-card group flex flex-col justify-between rounded-2xl border p-3.5 sm:p-4 shadow-2xs text-left cursor-pointer
+            transition-all duration-200 hover:shadow-xs active:scale-[0.99] min-h-[88px] sm:min-h-[96px]
             ${card.bg} ${card.border}
             ${currentFilter === card.filter ? 'ring-2 ring-[#51a8b1] ring-offset-1 shadow-xs' : ''}
           `}
         >
           <div className="flex items-center justify-between gap-1">
-            <span className={`text-[10px] sm:text-[10.5px] font-bold uppercase tracking-wider truncate ${card.lbl}`}>
+            <span className={`text-[11px] sm:text-[12px] font-extrabold uppercase tracking-wider truncate ${card.lbl}`}>
               {card.label}
             </span>
-            <div className={`p-1 sm:p-1.5 rounded-lg shrink-0 ${card.iconBg}`}>
-              {React.cloneElement(card.icon as React.ReactElement, { className: 'w-3.5 h-3.5 sm:w-4 sm:h-4' })}
+            <div className={`p-1.5 sm:p-2 rounded-xl shrink-0 ${card.iconBg}`}>
+              {React.cloneElement(card.icon as React.ReactElement, { className: 'w-4 h-4 sm:w-4.5 sm:h-4.5' })}
             </div>
           </div>
-          <div className="mt-1 sm:mt-1.5 flex items-baseline justify-between">
-            <span className={`font-heading text-lg sm:text-xl md:text-2xl font-black ${card.text}`}>
+          <div className="mt-2 sm:mt-2.5 flex items-baseline justify-between">
+            <span className={`font-heading text-2xl sm:text-3xl font-black ${card.text}`}>
               {card.value}
             </span>
           </div>

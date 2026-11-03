@@ -300,7 +300,6 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
       const q = searchQuery.toLowerCase().trim();
       const code = (p.projectId || '').toLowerCase();
       const name = (p.projectName || p.title || '').toLowerCase();
-      const org = (p.organization || '').toLowerCase();
       const pmName = (
         typeof p.projectManager === 'object' && p.projectManager !== null
           ? (p.projectManager as any).name || ''
@@ -309,7 +308,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
           : ''
       ).toLowerCase();
 
-      return code.includes(q) || name.includes(q) || org.includes(q) || pmName.includes(q);
+      return code.includes(q) || name.includes(q)  || pmName.includes(q);
     });
   }, [projects, scopeFilter, statusFilter, searchQuery, currentUser, isProjectAssignedToUser]);
 
@@ -494,12 +493,12 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
                   onClick={() => setScopeFilter('ALL')}
                   className={`px-2.5 py-1 rounded-lg font-bold transition flex items-center gap-1.5 cursor-pointer text-xs ${
                     scopeFilter === 'ALL'
-                      ? 'bg-white text-[#2d6b73] shadow-xs border border-[#b6e0e4] font-bold'
+                      ? 'bg-[#2d6b73] text-white shadow-xs font-bold'
                       : 'text-slate-600 hover:text-slate-900'
                   }`}
                 >
                   <span>All Projects</span>
-                  <span className="font-mono text-[10px] px-1.5 py-0.2 rounded-md bg-slate-200/70 text-slate-700 font-bold">
+                  <span className={`font-mono text-[10px] px-1.5 py-0.2 rounded-md font-bold transition-all ${scopeFilter === 'ALL' ? 'bg-white/20 text-white' : 'bg-slate-200/70 text-slate-700'}`}>
                     {projects.length}
                   </span>
                 </button>

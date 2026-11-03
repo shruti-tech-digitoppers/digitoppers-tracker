@@ -51,7 +51,6 @@ exports.getAllContentSections = async (req, res) => {
       .populate('language', 'name code id')
       .populate('gradeRef', 'name grade stream category')
       .populate('category', 'name id section layout')
-      .populate('department', 'name code description')
       .sort({ isCurriculum: -1, board: 1, grade: 1, categoryName: 1 });
 
     res.status(200).json({
@@ -98,8 +97,7 @@ exports.getContentSectionByKeyOrId = async (req, res) => {
       doc = await ContentSection.findById(keyOrId)
         .populate('language', 'name code')
         .populate('gradeRef', 'name grade stream')
-        .populate('category', 'name id')
-        .populate('department', 'name code description');
+        .populate('category', 'name id');
     }
 
     if (!doc) {
@@ -108,8 +106,7 @@ exports.getContentSectionByKeyOrId = async (req, res) => {
       })
         .populate('language', 'name code')
         .populate('gradeRef', 'name grade stream')
-        .populate('category', 'name id')
-        .populate('department', 'name code description');
+        .populate('category', 'name id');
     }
 
     if (!doc) {

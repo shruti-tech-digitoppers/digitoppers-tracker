@@ -127,8 +127,7 @@ export function CreateEmployeeModal({ isOpen, onClose, onSubmit }: CreateEmploye
     const q = projectSearch.toLowerCase();
     const code = (p.projectId || '').toLowerCase();
     const title = (p.projectName || p.title || '').toLowerCase();
-    const org = (p.organization || '').toLowerCase();
-    return code.includes(q) || title.includes(q) || org.includes(q);
+    return code.includes(q) || title.includes(q) ;
   });
 
   const assignedCount = Object.keys(projectRoles).length;
@@ -371,7 +370,7 @@ export function CreateEmployeeModal({ isOpen, onClose, onSubmit }: CreateEmploye
                   type="text"
                   value={projectSearch}
                   onChange={(e) => setProjectSearch(e.target.value)}
-                  placeholder="Search existing projects by ID, name, or organization..."
+                  placeholder="Search existing projects by ID or name..."
                   className="w-full pl-9 pr-3.5 py-2 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:bg-white transition"
                 />
               </div>
@@ -405,11 +404,6 @@ export function CreateEmployeeModal({ isOpen, onClose, onSubmit }: CreateEmploye
                               {proj.projectName || proj.title}
                             </span>
                           </div>
-                          {proj.organization && (
-                            <p className="text-[11px] text-[#4a5462] mt-0.5">
-                              Organization: <span className="font-medium text-[#333333]">{proj.organization}</span>
-                            </p>
-                          )}
                         </div>
 
                         {/* Interactive Role Dropdown */}

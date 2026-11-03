@@ -38,6 +38,7 @@ export function CreateProjectRequestModal({
 }: CreateProjectRequestModalProps) {
   const [requestId, setRequestId] = useState('');
   const [projectName, setProjectName] = useState('');
+  const [organization, setOrganization] = useState('');
   const [email, setEmail] = useState('');
   const [country, setCountry] = useState('India');
   const [phone, setPhone] = useState('');
@@ -114,6 +115,7 @@ export function CreateProjectRequestModal({
         requestId: requestId.trim().toUpperCase() || undefined,
         title: projectName.trim(),
         projectName: projectName.trim(),
+        organization: organization.trim(),
         email: email.trim(),
         country,
         phone: phone.trim(),
@@ -127,6 +129,7 @@ export function CreateProjectRequestModal({
       // Reset
       setRequestId('');
       setProjectName('');
+      setOrganization('');
       setEmail('');
       setCountry('India');
       setPhone('');
@@ -215,6 +218,19 @@ export function CreateProjectRequestModal({
 
         <form onSubmit={handleSubmit} className="space-y-4">
           
+          <div>
+            <label className="block text-xs font-semibold text-[#374151] mb-1.5">
+              Organization
+            </label>
+            <input
+              type="text"
+              value={organization}
+              onChange={(e) => setOrganization(e.target.value)}
+              placeholder="e.g. Acme Corporation"
+              className="w-full px-3.5 py-2 text-xs bg-white border border-[#d1d5db] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:border-transparent transition"
+            />
+          </div>
+
           {/* Row 1: Project Name* & Email* */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>

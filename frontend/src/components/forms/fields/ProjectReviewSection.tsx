@@ -43,7 +43,7 @@ export function ProjectReviewSection({
   const [submittingAction, setSubmittingAction] = useState<string | null>(null);
 
   // Derive initial values from value or project
-  const initialProjectName = value.projectName || value.organizationName || (project as any)?.projectName || project?.title || (project as any)?.organization || '';
+  const initialProjectName = value.projectName || value.organizationName || (project as any)?.projectName || project?.title || '';
   const initialEmail = (value.email !== undefined && value.email !== '') ? value.email : ((project as any)?.email || '');
   const initialPhone = (value.phone !== undefined && value.phone !== '') ? value.phone : ((project as any)?.phone || '');
   const initialCountry = (value.country !== undefined && value.country !== '') ? value.country : ((project as any)?.countryName || (project as any)?.country || 'India');

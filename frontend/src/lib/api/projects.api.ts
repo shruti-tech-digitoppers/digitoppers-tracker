@@ -16,7 +16,6 @@ export interface IUpdateProjectPayload {
   projectName?: string;
   title?: string;
   description?: string;
-  organization?: string;
   client?: string;
   status?: ProjectStatus;
   projectManager?: string;
@@ -25,7 +24,7 @@ export interface IUpdateProjectPayload {
 }
 
 function normalizeProject(p: any): IProject {
-  const code = p.projectId || p.id || 'PRJ';
+  const code = (p.projectId || p.id || 'prj').toLowerCase();
   const name = p.projectName || p.title || 'Untitled Project';
 
   return {
@@ -34,7 +33,6 @@ function normalizeProject(p: any): IProject {
     projectName: name,
     title: name,
     description: p.description || p.purpose || '',
-    organization: p.organization || p.client || (p.clientSchools && p.clientSchools[0]?.schoolName) || p.address || 'Direct Organization',
     status: p.status || (p.isActive ? 'ACTIVE' : 'ARCHIVED'),
     projectManager: p.projectManager,
     requestedBy: p.requestedBy,
@@ -117,7 +115,7 @@ export const projectsApi = {
     const name = payload.projectName || payload.title;
     const body: any = { ...payload };
     if (code) {
-      body.projectId = code.trim();
+      body.projectId = code.trim().toLowerCase();
     }
     if (name) {
       body.projectName = name.trim();

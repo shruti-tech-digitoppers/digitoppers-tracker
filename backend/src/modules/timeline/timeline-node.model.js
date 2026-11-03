@@ -2,7 +2,9 @@ const mongoose = require('mongoose');
 const { NODE_TYPES, NODE_STATUSES } = require('../../core/constants');
 
 const timelineNodeSchema = new mongoose.Schema({
-  timeline: { type: mongoose.Schema.Types.ObjectId, ref: 'Timeline', required: true, index: true },
+  projectId: { type: String, required: true, lowercase: true, trim: true, index: true },
+  project: { type: mongoose.Schema.Types.Mixed, index: true },
+  timeline: { type: mongoose.Schema.Types.Mixed, index: true }, // Backwards compatibility for existing records
   parentNode: { type: mongoose.Schema.Types.ObjectId, ref: 'TimelineNode', default: null, index: true },
   type: { type: String, enum: Object.values(NODE_TYPES), required: true },
   key: { type: String, required: true, uppercase: true },
@@ -16,7 +18,8 @@ const timelineNodeSchema = new mongoose.Schema({
   metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
 }, { timestamps: true });
 
-timelineNodeSchema.index({ timeline: 1, parentNode: 1 });
-timelineNodeSchema.index({ timeline: 1, key: 1 }, { unique: true });
+timelineNodeSchema.index({ projectId: 1, parentNode: 1 });
+timelineNodeSchema.index({ projectId: 1, key: 1 });
+timelineNodeSchema.index({ timeline: 1, key: 1 });
 
-module.exports = mongoose.model('TimelineNode', timelineNodeSchema);
+module.exports = mongoose.models.TimelineNode || mongoose.model('TimelineNode', timelineNodeSchema);

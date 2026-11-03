@@ -76,7 +76,7 @@ export function DashboardRoadmapList({
               No projects found for &quot;{searchQuery}&quot;
             </h3>
             <p className="text-xs text-[#556987] max-w-sm mx-auto">
-              We couldn&apos;t find any projects matching your search term. Try searching by project code, school name, or project manager.
+              We couldn&apos;t find any projects matching your search term. Try searching by project ID, school name, or project manager.
             </p>
             <button
               type="button"

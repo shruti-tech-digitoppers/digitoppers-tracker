@@ -487,7 +487,11 @@ const NodeInspectorContent: React.FC<
   ]);
 
   const memoizedInitialData = React.useMemo(() => {
-    return formData || (node?.formData as any) || {};
+    const nodeData = (node?.formData as any) || {};
+    if (formData && Object.keys(formData).length > 0) {
+      return { ...nodeData, ...formData };
+    }
+    return nodeData;
   }, [formData, node?._id, node?.formData]);
 
   const [justSaved, setJustSaved] = React.useState<boolean>(false);

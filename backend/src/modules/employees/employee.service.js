@@ -32,7 +32,7 @@ class EmployeeService {
       description: `New employee created: ${employee.name} (${employee.employeeCode})`,
       resourceType: 'Employee',
       resourceId: employee._id,
-      metadata: { employeeName: employee.name, email: employee.email, department: employee.department, role: employee.globalRole }
+      metadata: { employeeName: employee.name, email: employee.email, role: employee.globalRole }
     });
 
     // If initial project roles are provided, assign them and trigger notifications
@@ -100,7 +100,7 @@ class EmployeeService {
       description: `Employee profile updated: ${employee.name} (${employee.employeeCode})`,
       resourceType: 'Employee',
       resourceId: employee._id,
-      metadata: { employeeName: employee.name, department: employee.department, role: employee.globalRole }
+      metadata: { employeeName: employee.name, role: employee.globalRole }
     });
 
     return employee;
@@ -178,7 +178,6 @@ class EmployeeService {
           projectId: project.projectId || '',
           projectName: project.projectName || 'Untitled Project',
           status: project.status || 'ACTIVE',
-          organization: project.organization || ''
         },
         designation,
         isDefault

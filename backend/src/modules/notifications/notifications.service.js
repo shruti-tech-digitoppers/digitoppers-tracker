@@ -45,7 +45,7 @@ async function getEmployeeNotifications(employeeId, options = {}) {
   }
 
   const notifications = await Notification.find(query)
-    .populate('project', 'projectId projectName organization status')
+
     .sort({ createdAt: -1 });
   return notifications;
 }

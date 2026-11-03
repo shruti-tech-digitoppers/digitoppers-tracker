@@ -69,7 +69,7 @@ export const AppSidebar = React.memo(function AppSidebar({
           className={`
             desktop-docked-sidebar hidden lg:flex bg-white border-r border-[#b9c0cb]/40 flex-col justify-between z-30 transition-all duration-300 select-none
             sticky top-0 h-screen flex-shrink-0 shadow-xs
-            ${collapsed ? 'w-[72px]' : 'w-[230px]'}
+            ${collapsed ? 'w-[72px]' : 'w-[260px]'}
           `}
         >
           {/* Top: Brand Logo / Icon */}
@@ -84,7 +84,7 @@ export const AppSidebar = React.memo(function AppSidebar({
                   <img
                     src="/digitoppers-logo.png"
                     alt="Digitoppers"
-                    className="h-11 w-auto object-contain max-w-[155px]"
+                    className="h-11 w-auto object-contain max-w-[175px]"
                   />
                 </Link>
               ) : (
@@ -103,7 +103,7 @@ export const AppSidebar = React.memo(function AppSidebar({
             </div>
 
             {/* Navigation Links */}
-            <nav className={`space-y-1 mt-2.5 ${collapsed ? 'px-2' : 'p-2.5'}`}>
+            <nav className={`space-y-1.5 mt-3 ${collapsed ? 'px-2' : 'px-3.5'}`}>
               {navItems.map((item) => {
                 const Icon = item.icon;
                 const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
@@ -117,7 +117,7 @@ export const AppSidebar = React.memo(function AppSidebar({
                       ${
                         collapsed
                           ? 'w-11 h-11 mx-auto justify-center'
-                          : 'gap-3 px-3 py-2 text-xs font-medium'
+                          : 'gap-3 px-3.5 py-2.5 text-[13px] font-medium'
                       }
                       ${
                         isActive
@@ -129,7 +129,7 @@ export const AppSidebar = React.memo(function AppSidebar({
                   >
                     <Icon
                       className={`
-                        ${collapsed ? 'w-5 h-5' : 'w-4 h-4'} 
+                        ${collapsed ? 'w-5 h-5' : 'w-[18px] h-[18px]'} 
                         flex-shrink-0 transition-colors
                         ${isActive ? 'text-[#2c6870] stroke-[2.2]' : 'text-[#475569] group-hover:text-[#2c6870] stroke-[1.9]'}
                       `}
@@ -152,27 +152,27 @@ export const AppSidebar = React.memo(function AppSidebar({
 
           {/* Bottom: User Profile / Auth Area */}
           {mounted && currentUser && (
-            <div className={`border-t border-[#f1f3f6] ${collapsed ? 'p-2' : 'p-2.5'}`}>
+            <div className={`border-t border-[#f1f3f6] ${collapsed ? 'p-2' : 'p-3'}`}>
               <div className={collapsed ? 'flex flex-col items-center gap-1.5' : 'space-y-2'}>
                 {!collapsed ? (
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-[#f8fafb] border border-[#b9c0cb]/30">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <div className="w-7 h-7 rounded-lg bg-[#2f4154] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs">
+                  <div className="flex items-center justify-between p-2.5 rounded-xl bg-[#f8fafb] border border-[#b9c0cb]/30">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-[#2f4154] text-white flex items-center justify-center font-bold text-xs flex-shrink-0 shadow-xs">
                         {currentUser.name?.charAt(0) || 'U'}
                       </div>
                       <div className="min-w-0">
-                        <p className="text-xs font-bold text-[#333333] truncate leading-tight">{currentUser.name}</p>
-                        <p className="text-[10px] text-[#4a5462] truncate leading-tight">{(currentUser as any).globalRole || 'Employee'}</p>
+                        <p className="text-xs sm:text-[13px] font-bold text-[#333333] truncate leading-tight">{currentUser.name}</p>
+                        <p className="text-[11px] text-[#4a5462] truncate leading-tight">{(currentUser as any).globalRole || 'Employee'}</p>
                       </div>
                     </div>
 
                     <button
                       type="button"
                       onClick={onLogout}
-                      className="p-1 text-[#4a5462] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                      className="p-1.5 text-[#4a5462] hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                       title="Logout"
                     >
-                      <LogOut className="w-3.5 h-3.5 stroke-[2]" />
+                      <LogOut className="w-4 h-4 stroke-[2]" />
                     </button>
                   </div>
                 ) : (

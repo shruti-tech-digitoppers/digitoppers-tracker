@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 require('../language/language.model');
 require('../grade/grade.model');
 require('../category/l0category.model');
-require('../../departments/department.model');
 
 // ── Subschema: Co-Curricular Digital Package ────────────────────────────────
 const coCurricularDataSchema = new mongoose.Schema(
@@ -54,13 +53,6 @@ const contentSectionSchema = new mongoose.Schema(
       index: true
     },
 
-    // Department ownership
-    department: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Department',
-      default: null,
-      index: true
-    },
     departmentCode: {
       type: String,
       enum: ['OPS', 'TECH', 'CONTENT', 'FIN', 'SALES', 'INSTALLATION', 'TRAINING', null],

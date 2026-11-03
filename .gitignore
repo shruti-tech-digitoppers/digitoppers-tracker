@@ -49,6 +49,8 @@ backend/src/utils/cleanDatabase.js
 # Seed scripts with internal/seed data
 backend/src/utils/seed*.js
 **/seed*.js
+!backend/src/utils/seedRealEmployees.js
+!backend/src/utils/seedMasterDatabase.js
 
 # Test files & test suites
 test/

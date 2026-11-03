@@ -107,7 +107,7 @@ const schoolTrainingUnitSchema = new mongoose.Schema(
 // Main Schema: Project Training Lifecycle
 const projectTrainingSchema = new mongoose.Schema(
   {
-    projectId: { type: String, required: true, index: true, uppercase: true, trim: true },
+    projectId: { type: String, required: true, index: true, lowercase: true, trim: true },
     project: { type: mongoose.Schema.Types.Mixed, index: true },
     projectName: { type: String, required: true },
 

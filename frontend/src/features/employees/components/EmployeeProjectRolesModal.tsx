@@ -115,8 +115,7 @@ export function EmployeeProjectRolesModal({
       const q = searchQuery.toLowerCase();
       const code = (item.project.projectId || '').toLowerCase();
       const title = (item.project.projectName || item.project.title || '').toLowerCase();
-      const org = (item.project.organization || '').toLowerCase();
-      return code.includes(q) || title.includes(q) || org.includes(q);
+      return code.includes(q) || title.includes(q) ;
     });
   }, [projectRoles, searchQuery, roleFilter]);
 
@@ -251,11 +250,6 @@ export function EmployeeProjectRolesModal({
                         <h3 className="text-xs font-bold text-[#333333] truncate">
                           {item.project.projectName || item.project.title}
                         </h3>
-                        {item.project.organization && (
-                          <span className="text-[11px] text-[#4a5462] bg-slate-100 px-2 py-0.5 rounded">
-                            {item.project.organization}
-                          </span>
-                        )}
                       </div>
                       <div className="flex items-center gap-2 mt-1.5 text-[11px] text-[#4a5462]">
                         <span>Status: <strong className="text-[#333333]">{item.project.status}</strong></span>

@@ -9,7 +9,7 @@ const notificationSchema = new mongoose.Schema({
     required: [true, 'Notification must belong to an employee']
   },
   project: { type: mongoose.Schema.Types.Mixed, index: true },
-  projectId: { type: String, index: true, uppercase: true, trim: true },
+  projectId: { type: String, index: true, lowercase: true, trim: true },
   title: {
     type: String,
     required: [true, 'Notification title is required']

@@ -1,11 +1,10 @@
 const mongoose = require('mongoose');
 
 const projectRequestSchema = new mongoose.Schema({
-  orgId: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'Organization',
-    required: false,
-    index: true
+  organization: {
+    type: String,
+    trim: true,
+    default: ''
   },
   requestId: {
     type: String,
@@ -98,7 +97,7 @@ const projectRequestSchema = new mongoose.Schema({
   dashboardProjectId: {
     type: String,
     trim: true,
-    uppercase: true,
+    lowercase: true,
     index: true
   },
   isManualDashboardCreated: {

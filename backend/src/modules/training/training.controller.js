@@ -14,13 +14,23 @@ async function resolveProject(paramId) {
 // Helper: Ensure or initialize Training document from Project & ProjectSchools
 async function ensureTrainingDoc(project) {
   let trainingDoc = await Training.findOne({
-    $or: [{ project: project._id }, { projectId: project.projectId }]
+    $or: [
+      { project: project._id },
+      { projectId: (project.projectId || '').toLowerCase() },
+      { projectId: (project.projectId || '').toUpperCase() },
+      { projectId: project.projectId }
+    ].filter(Boolean)
   });
 
   if (!trainingDoc) {
     // Check if ProjectSchools exists
     const psDoc = await ProjectSchools.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [
+        { project: project._id },
+        { projectId: (project.projectId || '').toLowerCase() },
+        { projectId: (project.projectId || '').toUpperCase() },
+        { projectId: project.projectId }
+      ].filter(Boolean)
     }).populate('schools.school');
 
     const schoolsList = [];
@@ -68,7 +78,7 @@ async function ensureTrainingDoc(project) {
 
     trainingDoc = await Training.create({
       project: project._id,
-      projectId: project.projectId,
+      projectId: (project.projectId || String(project._id)).toLowerCase(),
       projectName: project.projectName || project.title || 'Project',
       overallStatus: psDoc?.training?.overallStatus || 'NOT_STARTED',
       schools: schoolsList,
@@ -107,7 +117,7 @@ exports.getAllTrainings = async (req, res, next) => {
     const skip = (Number(page) - 1) * Number(limit);
     const [trainings, total] = await Promise.all([
       Training.find(filter)
-        .populate('project', 'projectId projectName title status numberOfSchools')
+
         .populate('schools.school', 'name address district state contactPerson')
         .populate('schools.assignedTrainerId', 'name email phone designation')
         .populate('schools.trainers.trainerId', 'name email phone designation')
@@ -139,9 +149,14 @@ exports.getTrainingByProject = async (req, res, next) => {
     }
 
     let training = await Training.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [
+        { project: project._id },
+        { projectId: (project.projectId || '').toLowerCase() },
+        { projectId: (project.projectId || '').toUpperCase() },
+        { projectId: project.projectId }
+      ].filter(Boolean)
     })
-      .populate('project', 'projectId projectName title status numberOfSchools')
+
       .populate('schools.school', 'name address district state contactPerson')
       .populate('schools.assignedTrainerId', 'name email phone designation')
       .populate('schools.trainers.trainerId', 'name email phone designation')
@@ -210,7 +225,12 @@ exports.saveTrainingPlanning = async (req, res, next) => {
 
     // 1. Ensure Training doc exists
     let trainingDoc = await Training.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [
+        { project: project._id },
+        { projectId: (project.projectId || '').toLowerCase() },
+        { projectId: (project.projectId || '').toUpperCase() },
+        { projectId: project.projectId }
+      ].filter(Boolean)
     });
     if (!trainingDoc) {
       trainingDoc = await ensureTrainingDoc(project);
@@ -327,7 +347,12 @@ exports.saveTrainingPlanning = async (req, res, next) => {
 
     // 4. Sync to ProjectSchools for full backwards compatibility
     const psDoc = await ProjectSchools.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [
+        { project: project._id },
+        { projectId: (project.projectId || '').toLowerCase() },
+        { projectId: (project.projectId || '').toUpperCase() },
+        { projectId: project.projectId }
+      ].filter(Boolean)
     });
     if (psDoc) {
       psDoc.training = psDoc.training || {};
@@ -358,7 +383,12 @@ exports.saveTrainingExecution = async (req, res, next) => {
     const employee = req.user;
 
     let trainingDoc = await Training.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [
+        { project: project._id },
+        { projectId: (project.projectId || '').toLowerCase() },
+        { projectId: (project.projectId || '').toUpperCase() },
+        { projectId: project.projectId }
+      ].filter(Boolean)
     });
     if (!trainingDoc) {
       trainingDoc = await ensureTrainingDoc(project);
@@ -448,7 +478,12 @@ exports.updateSchoolTraining = async (req, res, next) => {
     if (!project) return next(new AppError('Project not found', 404, 'NOT_FOUND'));
 
     let trainingDoc = await Training.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [
+        { project: project._id },
+        { projectId: (project.projectId || '').toLowerCase() },
+        { projectId: (project.projectId || '').toUpperCase() },
+        { projectId: project.projectId }
+      ].filter(Boolean)
     });
     if (!trainingDoc) {
       trainingDoc = await ensureTrainingDoc(project);
@@ -480,7 +515,12 @@ exports.updateOverallTraining = async (req, res, next) => {
     if (!project) return next(new AppError('Project not found', 404, 'NOT_FOUND'));
 
     let trainingDoc = await Training.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [
+        { project: project._id },
+        { projectId: (project.projectId || '').toLowerCase() },
+        { projectId: (project.projectId || '').toUpperCase() },
+        { projectId: project.projectId }
+      ].filter(Boolean)
     });
     if (!trainingDoc) {
       trainingDoc = await ensureTrainingDoc(project);

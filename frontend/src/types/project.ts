@@ -17,7 +17,6 @@ export interface IProject {
   settings?: {
     purpose?: string;
   };
-  organization?: string;
   title?: string;
   description?: string;
   status: ProjectStatus;

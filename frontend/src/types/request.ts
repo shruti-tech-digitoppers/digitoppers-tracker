@@ -7,6 +7,7 @@ export interface IProjectRequest {
   requestId: string;
   title: string;
   projectName?: string;
+  organization?: string;
   email?: string;
   country?: string;
   phone?: string;
@@ -33,6 +34,7 @@ export interface ICreateProjectRequestPayload {
   requestId?: string;
   title?: string;
   projectName?: string;
+  organization?: string;
   email?: string;
   country?: string;
   phone?: string;

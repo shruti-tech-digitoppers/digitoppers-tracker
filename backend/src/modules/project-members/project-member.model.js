@@ -6,7 +6,7 @@ const projectMemberSchema = new mongoose.Schema({
     type: String,
     required: true,
     index: true,
-    uppercase: true,
+    lowercase: true,
     trim: true
   },
   project: {
@@ -19,19 +19,6 @@ const projectMemberSchema = new mongoose.Schema({
     required: true, 
     index: true 
   },
-  department: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Department', 
-    default: null, 
-    index: true 
-  },
-  departmentCode: { 
-    type: String, 
-    enum: ['OPS', 'TECH', 'CONTENT', 'FIN', 'SALES', 'INSTALLATION', 'TRAINING', null], 
-    uppercase: true, 
-    default: null, 
-    index: true 
-  },
   designation: { 
     type: String, 
     enum: Object.values(DESIGNATIONS), 
@@ -42,11 +29,6 @@ const projectMemberSchema = new mongoose.Schema({
     type: String, 
     trim: true, 
     default: '' 
-  },
-  isDepartmentLead: { 
-    type: Boolean, 
-    default: false, 
-    index: true 
   },
   assignedAt: { 
     type: Date, 

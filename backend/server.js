@@ -2,7 +2,6 @@ const app = require('./src/app');
 const connectDB = require('./src/config/database');
 const { port } = require('./src/config/env');
 const Employee = require('./src/modules/employees/employee.model');
-const Project = require('./src/modules/projects/project.model');
 const initMasterCatalogs = require('./src/utils/initMasterCatalogs');
 
 connectDB().then(async () => {

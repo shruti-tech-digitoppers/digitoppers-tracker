@@ -275,7 +275,7 @@ export function ProjectActivityWorkspace({
                 setSearchQuery(e.target.value);
                 setCurrentPage(1);
               }}
-              placeholder="Search actions, names, project codes, deltas..."
+              placeholder="Search actions, names, project IDs, deltas..."
               className="w-full pl-9 pr-8 py-1.5 text-xs rounded-xl border border-[#b9c0cb]/60 bg-white text-[#333333] placeholder:text-[#949ea9] focus:outline-none focus:border-[#51a8b1] focus:ring-1 focus:ring-[#51a8b1] transition"
             />
             {searchQuery && (

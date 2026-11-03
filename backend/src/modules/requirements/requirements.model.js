@@ -1,24 +1,102 @@
+
 const mongoose = require('mongoose');
+
+// Ensure referenced models are registered in Mongoose
+try {
+  require('../schools/school.model');
+  require('../solutions/solution.model');
+  require('../hardware/hardware.model');
+  require('../content/content-section/content-section.model');
+  require('../content/language/language.model');
+  require('../content/grade/grade.model');
+  require('../content/category/l0category.model');
+  require('../employees/employee.model');
+} catch (e) {
+  // Models will be registered when their respective modules load
+}
 
 /*
 |--------------------------------------------------------------------------
 | REQUIREMENTS MODEL — Dynamic Streamlined Schema
-| Aligned with timeline.js stages
+| Aligned with timeline.js stages & Referenced Project-School Structure
+| Hierarchy: Project -> School (School Branch) -> Solution -> Hardware & Content
 |--------------------------------------------------------------------------
 */
 
-// Subschema: Individual hardware item lifecycle inside school hardware array
+// Subschema: Content item requirement under solution / school
+const contentRequirementItemSchema = new mongoose.Schema(
+  {
+    content: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'ContentSection',
+      default: null
+    },
+    contentKey: { type: String, trim: true, default: '' },
+    reqKey: { type: String, trim: true, default: '' },
+    title: { type: String, trim: true, default: '' },
+    name: { type: String, trim: true, default: '' },
+    category: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'L0Category',
+      default: null
+    },
+    categoryName: { type: String, trim: true, default: '' },
+    language: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Language',
+      default: null
+    },
+    languageName: { type: String, trim: true, default: '' },
+    grade: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Grade',
+      default: null
+    },
+    gradeName: { type: String, trim: true, default: '' },
+    board: { type: String, trim: true, default: '' },
+    stream: { type: String, trim: true, default: '' },
+    driveLink: { type: String, trim: true, default: '' },
+    sheetUrl: { type: String, trim: true, default: '' },
+    solution: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Solution',
+      default: null
+    },
+    solutionKey: { type: String, trim: true, default: '' },
+    status: {
+      type: String,
+      enum: ['PENDING', 'CONFIGURED', 'IN_PROGRESS', 'READY', 'TESTED', null],
+      default: 'PENDING'
+    },
+    remarks: { type: String, default: '' }
+  },
+  { _id: true }
+);
+
+// Subschema: Individual hardware item lifecycle inside school / solution hardware array
 const hardwareExecutionItemSchema = new mongoose.Schema(
   {
-    hardwareKey: { type: String, required: true },
-    itemName: { type: String, required: true },
-    quantity: { type: Number, default: 1 },
-    qty: { type: Number, default: 1 },
+    hardware: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Hardware',
+      default: null
+    },
+    hardwareKey: { type: String, required: true, trim: true },
+    itemName: { type: String, required: true, trim: true },
+    hardwareName: { type: String, trim: true, default: '' },
+    quantity: { type: Number, default: 1, min: 0 },
+    qty: { type: Number, default: 1, min: 0 },
+    unit: { type: String, default: 'Units', trim: true },
     specNotes: { type: String, default: '' },
     spec: { type: String, default: '' },
     serialNotes: { type: String, default: '' },
-    solutionKey: { type: String, default: '' },
-    solutionName: { type: String, default: '' },
+    solution: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Solution',
+      default: null
+    },
+    solutionKey: { type: String, default: '', trim: true },
+    solutionName: { type: String, default: '', trim: true },
 
     stockCheck: {
       requiredQty: { type: Number, default: 0 },
@@ -109,25 +187,123 @@ const hardwareExecutionItemSchema = new mongoose.Schema(
     purchaseOrders: { type: mongoose.Schema.Types.Mixed, default: [] },
     proformaInvoices: { type: mongoose.Schema.Types.Mixed, default: [] }
   },
-  { _id: false }
+  { _id: true }
 );
 
-// Subschema: School-level execution record with an array of hardware items
-const schoolHardwareExecutionSchema = new mongoose.Schema(
+// Subschema: Solution requirement item with nested Hardware & Content
+const solutionRequirementSchema = new mongoose.Schema(
   {
-    schoolId: { type: String },
-    schoolName: { type: String },
-    address: { type: String, default: '' },
-    contactPerson: { type: String, default: '' },
-    phone: { type: String, default: '' },
+    solution: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Solution',
+      default: null
+    },
+    solutionKey: { type: String, trim: true, uppercase: true },
+    solutionName: { type: String, trim: true },
+    label: { type: String, trim: true },
+    quantity: { type: Number, default: 1, min: 0 },
+    description: { type: String, default: '' },
+    remarks: { type: String, default: '' },
+
+    // Hardware items required according to this solution
+    hardware: [hardwareExecutionItemSchema],
+
+    // Content items required according to this solution
+    content: [contentRequirementItemSchema]
+  },
+  { _id: true }
+);
+
+// Subschema: School-level requirement record with referenced School, School Branch, Solutions, Hardware & Content
+const schoolRequirementSchema = new mongoose.Schema(
+  {
+    school: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'School',
+      default: null
+    },
+    schoolBranch: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    schoolBranchId: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    schoolId: {
+      type: String,
+      trim: true,
+      uppercase: true
+    },
+    schoolName: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    order: {
+      type: Number,
+      default: 1
+    },
+    address: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    contactPerson: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+    phone: {
+      type: String,
+      trim: true,
+      default: ''
+    },
+
+    // Solutions deployed in this school branch (each contains its hardware & content)
+    solutions: [solutionRequirementSchema],
+
+    // Flat direct arrays for school-level hardware & content aggregation
+    hardware: [hardwareExecutionItemSchema],
+    content: [contentRequirementItemSchema],
+
     readyForInstallation: { type: String, default: 'NO' },
     allHardwareReceived: { type: String, default: 'NO' },
     deliveryDate: { type: Date },
-    hardware: [hardwareExecutionItemSchema],
-    hardwareMap: { type: mongoose.Schema.Types.Mixed, default: {} }
+    hardwareMap: { type: mongoose.Schema.Types.Mixed, default: {} },
+    remarks: { type: String, default: '' }
   },
-  { _id: false }
+  { _id: true }
 );
+
+// Hook to ensure solution references propagate down to nested hardware and content
+schoolRequirementSchema.pre('validate', function (next) {
+  if (this.solutions && Array.isArray(this.solutions)) {
+    this.solutions.forEach((sol) => {
+      if (sol.hardware && Array.isArray(sol.hardware)) {
+        sol.hardware.forEach((hw) => {
+          if (!hw.solution && sol.solution) hw.solution = sol.solution;
+          if (!hw.solutionKey && sol.solutionKey) hw.solutionKey = sol.solutionKey;
+          if (!hw.solutionName && (sol.solutionName || sol.label)) {
+            hw.solutionName = sol.solutionName || sol.label;
+          }
+        });
+      }
+      if (sol.content && Array.isArray(sol.content)) {
+        sol.content.forEach((cnt) => {
+          if (!cnt.solution && sol.solution) cnt.solution = sol.solution;
+          if (!cnt.solutionKey && sol.solutionKey) cnt.solutionKey = sol.solutionKey;
+        });
+      }
+    });
+  }
+  if (typeof next === 'function') next();
+});
+
+// Backward-compatible alias for existing execution references
+const schoolHardwareExecutionSchema = schoolRequirementSchema;
 
 const requirementSchema = new mongoose.Schema(
   {
@@ -136,7 +312,7 @@ const requirementSchema = new mongoose.Schema(
       required: [true, 'Requirement must belong to a project (projectId required)'],
       unique: true,
       index: true,
-      uppercase: true,
+      lowercase: true,
       trim: true
     },
     project: {
@@ -158,6 +334,9 @@ const requirementSchema = new mongoose.Schema(
       type: String,
       default: 'PROJECT_CREATED'
     },
+
+    // ── Schools Requirement Structure (Project -> School Branches -> Solutions -> Hardware & Content) ──
+    schools: [schoolRequirementSchema],
 
     // ─── 01 — PROJECT REVIEWER ───────────────────────────────────────────
     projectReviewer: {
@@ -267,6 +446,8 @@ const requirementSchema = new mongoose.Schema(
 
     // ─── 03 — ORDER REQUIREMENT ──────────────────────────────────────────
     orderRequirement: {
+      // Structured schools list referencing School, Solution, Hardware and Content
+      schools: [schoolRequirementSchema],
       schoolInformation: {
         type: mongoose.Schema.Types.Mixed,
         default: {}
@@ -435,8 +616,6 @@ const requirementSchema = new mongoose.Schema(
       }
     },
 
-
-
     // ─── 10 — PROJECT CLOSURE ────────────────────────────────────────────
     projectClosure: {
       finalProjectReview: {
@@ -489,6 +668,53 @@ const requirementSchema = new mongoose.Schema(
   }
 );
 
+// ── Compound Indexes for Fast Lookups & Relational Queries ───────────────────
 requirementSchema.index({ projectId: 1, currentStageKey: 1, currentSubstageKey: 1 });
+requirementSchema.index({ 'schools.school': 1 });
+requirementSchema.index({ 'schools.schoolId': 1 });
+requirementSchema.index({ 'schools.schoolBranch': 1 });
+requirementSchema.index({ 'schools.solutions.solution': 1 });
+requirementSchema.index({ 'schools.solutions.hardware.hardware': 1 });
+requirementSchema.index({ 'schools.solutions.content.content': 1 });
+requirementSchema.index({ 'orderRequirement.schools.school': 1 });
 
-module.exports = mongoose.model('Requirement', requirementSchema);
+// Pre-save hook to synchronize root schools array and orderRequirement.schools array
+requirementSchema.pre('save', function (next) {
+  // Propagate solution details to child hardware & content in schools
+  const targetSchools = this.schools && this.schools.length > 0 ? this.schools : this.orderRequirement?.schools;
+  if (targetSchools && Array.isArray(targetSchools)) {
+    targetSchools.forEach((sch) => {
+      if (sch.solutions && Array.isArray(sch.solutions)) {
+        sch.solutions.forEach((sol) => {
+          if (sol.hardware && Array.isArray(sol.hardware)) {
+            sol.hardware.forEach((hw) => {
+              if (!hw.solution && sol.solution) hw.solution = sol.solution;
+              if (!hw.solutionKey && sol.solutionKey) hw.solutionKey = sol.solutionKey;
+              if (!hw.solutionName && (sol.solutionName || sol.label)) {
+                hw.solutionName = sol.solutionName || sol.label;
+              }
+            });
+          }
+          if (sol.content && Array.isArray(sol.content)) {
+            sol.content.forEach((cnt) => {
+              if (!cnt.solution && sol.solution) cnt.solution = sol.solution;
+              if (!cnt.solutionKey && sol.solutionKey) cnt.solutionKey = sol.solutionKey;
+            });
+          }
+        });
+      }
+    });
+  }
+
+  if (this.schools && this.schools.length > 0) {
+    if (!this.orderRequirement) this.orderRequirement = {};
+    this.orderRequirement.schools = this.schools;
+  } else if (this.orderRequirement && this.orderRequirement.schools && this.orderRequirement.schools.length > 0) {
+    this.schools = this.orderRequirement.schools;
+  }
+  next();
+});
+
+const Requirement = mongoose.models.Requirement || mongoose.model('Requirement', requirementSchema);
+
+module.exports = Requirement;

@@ -48,7 +48,7 @@ export function RecentTimelineNotificationsBox({
   isShrunk = false,
 }: RecentTimelineNotificationsBoxProps) {
   const router = useRouter();
-  const [category, setCategory] = useState<MainCategory>('ASSIGNMENT');
+  const [category, setCategory] = useState<MainCategory>('ALL');
   const [assignmentSub, setAssignmentSub] = useState<AssignmentSubCategory>('PROJECT');
 
   // ── Helper to determine item classification ─────────────────────────
@@ -374,16 +374,18 @@ export function RecentTimelineNotificationsBox({
               onClick={() => setCategory('ALL')}
               className={`shrink-0 px-3 py-1.5 rounded-lg font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 category === 'ALL'
-                  ? 'bg-white text-[#2d6b73] shadow-xs border border-slate-200/90 font-black'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-[#2d6b73] text-white shadow-sm font-black'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Layers className="w-3.5 h-3.5 text-[#2d6b73]" />
+              <Layers className={`w-3.5 h-3.5 ${category === 'ALL' ? 'text-white' : 'text-[#2d6b73]'}`} />
               <span>All</span>
               <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
                 unreadCounts.allTotal > 0
                   ? 'bg-red-600 text-white border-red-600 font-black shadow-2xs'
-                  : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
+                  : category === 'ALL'
+                    ? 'bg-white/20 text-white border-white/30 font-semibold'
+                    : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
               }`}>
                 {unreadCounts.allTotal}
               </span>
@@ -394,16 +396,18 @@ export function RecentTimelineNotificationsBox({
               onClick={() => setCategory('ASSIGNMENT')}
               className={`shrink-0 px-3 py-1.5 rounded-lg font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 category === 'ASSIGNMENT'
-                  ? 'bg-white text-indigo-700 shadow-xs border border-slate-200/90 font-black'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-[#2d6b73] text-white shadow-sm font-black'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <UserCheck className="w-3.5 h-3.5 text-indigo-600" />
+              <UserCheck className={`w-3.5 h-3.5 ${category === 'ASSIGNMENT' ? 'text-white' : 'text-indigo-600'}`} />
               <span>Assignments</span>
               <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
                 unreadCounts.assignmentTotal > 0
                   ? 'bg-red-600 text-white border-red-600 font-black shadow-2xs'
-                  : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
+                  : category === 'ASSIGNMENT'
+                    ? 'bg-white/20 text-white border-white/30 font-semibold'
+                    : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
               }`}>
                 {unreadCounts.assignmentTotal}
               </span>
@@ -414,16 +418,18 @@ export function RecentTimelineNotificationsBox({
               onClick={() => setCategory('REQUESTS')}
               className={`shrink-0 px-3 py-1.5 rounded-lg font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 category === 'REQUESTS'
-                  ? 'bg-white text-purple-700 shadow-xs border border-slate-200/90 font-black'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-[#2d6b73] text-white shadow-sm font-black'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <FileText className="w-3.5 h-3.5 text-purple-600" />
+              <FileText className={`w-3.5 h-3.5 ${category === 'REQUESTS' ? 'text-white' : 'text-purple-600'}`} />
               <span>Requests</span>
               <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
                 unreadCounts.requests > 0
                   ? 'bg-red-600 text-white border-red-600 font-black shadow-2xs'
-                  : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
+                  : category === 'REQUESTS'
+                    ? 'bg-white/20 text-white border-white/30 font-semibold'
+                    : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
               }`}>
                 {unreadCounts.requests}
               </span>
@@ -434,16 +440,18 @@ export function RecentTimelineNotificationsBox({
               onClick={() => setCategory('UPDATES')}
               className={`shrink-0 px-3 py-1.5 rounded-lg font-bold text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 category === 'UPDATES'
-                  ? 'bg-white text-amber-700 shadow-xs border border-slate-200/90 font-black'
-                  : 'text-slate-600 hover:text-slate-900'
+                  ? 'bg-[#2d6b73] text-white shadow-sm font-black'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
               }`}
             >
-              <Activity className="w-3.5 h-3.5 text-amber-600" />
+              <Activity className={`w-3.5 h-3.5 ${category === 'UPDATES' ? 'text-white' : 'text-amber-600'}`} />
               <span>Updates</span>
               <span className={`text-[9.5px] font-mono px-1.5 py-0.2 rounded-full border transition-all ${
                 unreadCounts.updates > 0
                   ? 'bg-red-600 text-white border-red-600 font-black shadow-2xs'
-                  : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
+                  : category === 'UPDATES'
+                    ? 'bg-white/20 text-white border-white/30 font-semibold'
+                    : 'bg-slate-200/60 text-slate-400 border-slate-200 font-semibold'
               }`}>
                 {unreadCounts.updates}
               </span>
@@ -459,11 +467,11 @@ export function RecentTimelineNotificationsBox({
               onClick={() => setAssignmentSub('PROJECT')}
               className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 assignmentSub === 'PROJECT'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200 font-black'
-                  : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
+                  ? 'bg-[#2d6b73] text-white shadow-md shadow-[#2d6b73]/20 font-black'
+                  : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/80'
               }`}
             >
-              <Briefcase className="w-3.5 h-3.5" />
+              <Briefcase className={`w-3.5 h-3.5 ${assignmentSub === 'PROJECT' ? 'text-white' : 'text-slate-500'}`} />
               <span>Projects ({unreadCounts.projectAssignment})</span>
             </button>
 
@@ -472,11 +480,11 @@ export function RecentTimelineNotificationsBox({
               onClick={() => setAssignmentSub('TASK')}
               className={`flex-1 py-1.5 px-3 rounded-xl font-bold transition-all cursor-pointer flex items-center justify-center gap-1.5 whitespace-nowrap ${
                 assignmentSub === 'TASK'
-                  ? 'bg-[#0d9488] text-white shadow-md shadow-teal-200 font-black'
-                  : 'bg-white text-slate-600 hover:text-slate-900 border border-slate-200/80'
+                  ? 'bg-[#2d6b73] text-white shadow-md shadow-[#2d6b73]/20 font-black'
+                  : 'bg-white text-slate-600 hover:text-slate-900 hover:bg-slate-50 border border-slate-200/80'
               }`}
             >
-              <ListTodo className="w-3.5 h-3.5" />
+              <ListTodo className={`w-3.5 h-3.5 ${assignmentSub === 'TASK' ? 'text-white' : 'text-slate-500'}`} />
               <span>Tasks ({unreadCounts.taskAssignment})</span>
             </button>
           </div>

@@ -274,10 +274,10 @@ export const OrderRequirementPdfModal: React.FC<OrderRequirementPdfModalProps> =
                 </div>
                 <div>
                   <span className="text-[9.5px] uppercase font-bold text-[#4a5462] block tracking-wider">
-                    Client / Organization
+                    Client Name
                   </span>
                   <span className="text-xs font-semibold text-[#333333] line-clamp-1">
-                    {projectMeta.organization}
+                    {projectMeta.client || projectMeta.projectName}
                   </span>
                 </div>
                 <div>
@@ -382,7 +382,12 @@ export const OrderRequirementPdfModal: React.FC<OrderRequirementPdfModalProps> =
                           {schoolInfo.schools.map((sch, sIdx) => (
                             <tr key={sch.id || sIdx} className="hover:bg-slate-50/50">
                               <td className="py-1.5 px-2.5 font-mono text-[#4a5462]">{sIdx + 1}</td>
-                              <td className="py-1.5 px-2.5 font-medium text-[#333333]">{sch.schoolName}</td>
+                              <td className="py-1.5 px-2.5 font-medium text-[#333333]">
+                                <div>{sch.schoolName}</div>
+                                {sch.schoolBranch && (
+                                  <div className="text-[10px] text-teal-700 font-normal">Branch: {sch.schoolBranch}</div>
+                                )}
+                              </td>
                               <td className="py-1.5 px-2.5 text-[#4a5462]">{sch.address || 'Standard Site Address'}</td>
                               <td className="py-1.5 px-2.5 text-[#4a5462]">{sch.pocName || sch.contactPerson?.name || 'Site POC'}</td>
                               <td className="py-1.5 px-2.5 text-[#4a5462] font-mono text-[10px]">{sch.phone || sch.contactPerson?.phone || '—'}</td>
@@ -733,7 +738,12 @@ export const OrderRequirementPdfModal: React.FC<OrderRequirementPdfModalProps> =
                           {schoolInfo.schools.map((sch, sIdx) => (
                             <tr key={sch.id || sIdx} className="hover:bg-slate-50/50">
                               <td className="py-1.5 px-2.5 font-mono text-[#4a5462]">{sIdx + 1}</td>
-                              <td className="py-1.5 px-2.5 font-medium text-[#333333]">{sch.schoolName}</td>
+                              <td className="py-1.5 px-2.5 font-medium text-[#333333]">
+                                <div>{sch.schoolName}</div>
+                                {sch.schoolBranch && (
+                                  <div className="text-[10px] text-teal-700 font-normal">Branch: {sch.schoolBranch}</div>
+                                )}
+                              </td>
                               <td className="py-1.5 px-2.5 text-[#4a5462]">{sch.pocName || '—'}</td>
                               <td className="py-1.5 px-2.5 text-[#4a5462] font-mono text-[10px]">{sch.phone || '—'}</td>
                               <td className="py-1.5 px-2.5 text-right text-[#333333] font-mono">{sch.totalStudents || '—'}</td>

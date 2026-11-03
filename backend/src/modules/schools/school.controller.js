@@ -15,33 +15,31 @@ exports.getSchools = async (req, res, next) => {
 
     if (projectId) {
       const proj = await resolveProject(projectId);
-      const code = proj ? (proj.projectId || String(proj._id)).toUpperCase() : String(projectId).toUpperCase();
+      const code = proj ? (proj.projectId || String(proj._id)).toLowerCase() : String(projectId).toLowerCase();
       const rawId = proj ? proj._id : projectId;
 
       filter.$or = [
         { projectId: code },
+        { projectId: code.toUpperCase() },
         { projectId: String(rawId) },
         { projectId: rawId }
       ].filter(Boolean);
     }
-    if (req.query.installationStatus) filter['installation.status'] = req.query.installationStatus;
-    if (req.query.trainingStatus) filter['training.status'] = req.query.trainingStatus;
-    if (req.query.assignedEngineerId) filter['installation.assignedEngineerId'] = req.query.assignedEngineerId;
-    if (req.query.assignedTrainerId) filter['training.assignedTrainerId'] = req.query.assignedTrainerId;
     if (req.query.district) filter.district = new RegExp(req.query.district, 'i');
+    if (req.query.branch || req.query.schoolBranch) {
+      filter.schoolBranch = new RegExp(req.query.branch || req.query.schoolBranch, 'i');
+    }
     if (req.query.search) {
       filter.$or = [
         { name: new RegExp(req.query.search, 'i') },
+        { schoolBranch: new RegExp(req.query.search, 'i') },
         { district: new RegExp(req.query.search, 'i') }
       ];
     }
 
     const schools = await School.find(filter)
-      .populate('solutions.solutionId', 'label name icon key')
-      .populate('hardware.hardwareId', 'label name category unit')
-      .populate('installation.assignedEngineerId', 'name email phone designation')
-      .populate('training.assignedTrainerId', 'name email phone designation')
-      .sort({ name: 1 });
+
+      .sort({ order: 1, name: 1 });
 
     res.status(200).json({
       success: true,
@@ -57,11 +55,7 @@ exports.getSchools = async (req, res, next) => {
 exports.getSchoolById = async (req, res, next) => {
   try {
     const school = await School.findById(req.params.id)
-      
-      .populate('solutions.solutionId', 'label name icon key')
-      .populate('hardware.hardwareId', 'label name category unit modelNumber')
-      .populate('installation.assignedEngineerId', 'name email phone designation')
-      .populate('training.assignedTrainerId', 'name email phone designation');
+;
 
     if (!school) {
       return next(new AppError('School not found', 404, 'NOT_FOUND'));

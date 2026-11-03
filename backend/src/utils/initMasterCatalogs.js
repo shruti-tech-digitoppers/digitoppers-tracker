@@ -12,7 +12,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 
-const Department = require('../modules/departments/department.model');
 const Employee = require('../modules/employees/employee.model');
 const Solution = require('../modules/solutions/solution.model');
 const Hardware = require('../modules/hardware/hardware.model');
@@ -24,14 +23,14 @@ async function initMasterCatalogs() {
   console.log('📦 INITIALIZING MASTER CATALOGS & TEAM ACCOUNTS (NO DUMMY DATA)');
   console.log('========================================================================\n');
 
-  // 1 & 2. Ensure Master Departments and Real Employees (if seeder is present)
+  // 1 & 2. Ensure Master Employees / Team directory
   try {
     const { seedRealEmployees } = require('./seedRealEmployees');
     if (typeof seedRealEmployees === 'function') {
       await seedRealEmployees();
     }
   } catch (err) {
-    console.log('ℹ️ seedRealEmployees file not present or gitignored, skipping employee seed.');
+    console.error('❌ Error ensuring master employees:', err.message);
   }
 
   // 3. Ensure Solutions Catalog
@@ -130,8 +129,26 @@ async function initMasterCatalogs() {
     console.log(`  ✅ ${gradeCount} Curriculum Grades already present.`);
   }
 
+  // 7. Ensure Master Projects & Timeline Nodes
+  console.log('\n🎯 Checking Projects & Timeline Nodes...');
+  const projectCount = await mongoose.connection.collection('projects').countDocuments();
+  const timelineNodeCount = await mongoose.connection.collection('timelinenodes').countDocuments();
+  if (projectCount === 0 || timelineNodeCount === 0) {
+    console.log('  ⚠️ Projects or Timeline Nodes missing. Auto-initializing default projects & timeline roadmap...');
+    try {
+      const seedMasterDatabase = require('./seedMasterDatabase');
+      if (typeof seedMasterDatabase === 'function') {
+        await seedMasterDatabase();
+      }
+    } catch (err) {
+      console.error('❌ Error initializing default projects & timeline nodes:', err.message);
+    }
+  } else {
+    console.log(`  ✅ ${projectCount} Projects and ${timelineNodeCount} Timeline Nodes already present.`);
+  }
+
   console.log('\n========================================================================');
-  console.log('🎉 MASTER CATALOGS & TEAM ACCOUNTS READY (ZERO DUMMY PROJECTS)!');
+  console.log('🎉 MASTER CATALOGS, TEAM & TIMELINES READY!');
   console.log('========================================================================\n');
 }
 

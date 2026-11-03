@@ -3,9 +3,7 @@
 import React from 'react';
 import Link from 'next/link';
 import { IProject } from '../../../types/project';
-import { 
-  Building2, 
-  Calendar, 
+import { Calendar, 
   ArrowUpRight, 
   Trash2, 
   CheckCircle2, 
@@ -104,16 +102,13 @@ export function ProjectsTable({
                 1. Project ID &amp; Name
               </th>
               <th scope="col" className="py-3.5 px-4">
-                2. Organization
+                2. Project Manager
               </th>
               <th scope="col" className="py-3.5 px-4">
-                3. Project Manager
+                3. Status &amp; State
               </th>
               <th scope="col" className="py-3.5 px-4">
-                4. Status &amp; State
-              </th>
-              <th scope="col" className="py-3.5 px-4">
-                5. Created Date
+                4. Created Date
               </th>
               <th scope="col" className="py-3.5 px-4 text-right pr-6">
                 Actions
@@ -168,23 +163,6 @@ export function ProjectsTable({
                             {project.description}
                           </p>
                         )}
-                      </div>
-                    </div>
-                  </td>
-
-                  {/* Column 2: Organization */}
-                  <td className="py-4 px-4">
-                    <div className="flex items-center gap-2">
-                      <div className="w-6 h-6 rounded-lg bg-[#f8fafb] text-[#4a5462] border border-[#b9c0cb]/40 flex items-center justify-center shrink-0">
-                        <Building2 className="w-3.5 h-3.5" />
-                      </div>
-                      <div className="min-w-0 max-w-[200px]">
-                        <p className="font-bold text-[#333333] truncate">
-                          {project.organization || 'Direct Organization'}
-                        </p>
-                        <p className="text-[10px] text-[#4a5462] truncate">
-                          Affiliated Institutional Node
-                        </p>
                       </div>
                     </div>
                   </td>

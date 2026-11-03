@@ -7,7 +7,7 @@ class CoreApiService {
     this.secret = (config.internalServiceSecret || process.env.INTERNAL_SERVICE_SECRET || 'tracker_core_shared_secret_2026')
       .trim().replace(/^["']|["']$/g, '');
     this.serviceName = 'tracker-backend';
-    this.defaultTimeout = 8000;
+    this.defaultTimeout = 15000;
     this.projectsCache = { data: null, timestamp: 0 };
     this.projectByIdCache = new Map();
     this.cacheTtlMs = 60 * 1000; // 60 seconds TTL for Core Backend WAN responses

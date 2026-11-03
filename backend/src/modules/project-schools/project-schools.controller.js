@@ -36,8 +36,9 @@ exports.getProjectSchoolsByProject = async (req, res, next) => {
       return next(new AppError('Project not found', 404, 'NOT_FOUND'));
     }
 
+    const pCode = (project.projectId || '').toLowerCase();
     const doc = await ProjectSchools.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [{ project: project._id }, { projectId: pCode }, { projectId: pCode.toUpperCase() }, { projectId: project.projectId }].filter(Boolean)
     })
       .populate('project', 'projectId projectName title status numberOfSchools')
       .populate('schools.school', 'name address district state contactPerson')
@@ -85,8 +86,9 @@ exports.updateSchoolDeployment = async (req, res, next) => {
       return next(new AppError('Project not found', 404, 'NOT_FOUND'));
     }
 
+    const pCode = (project.projectId || '').toLowerCase();
     const doc = await ProjectSchools.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [{ project: project._id }, { projectId: pCode }, { projectId: pCode.toUpperCase() }, { projectId: project.projectId }].filter(Boolean)
     });
 
     if (!doc) {
@@ -131,8 +133,9 @@ exports.getProjectSchoolsSummary = async (req, res, next) => {
       return next(new AppError('Project not found', 404, 'NOT_FOUND'));
     }
 
+    const pCode = (project.projectId || '').toLowerCase();
     const doc = await ProjectSchools.findOne({
-      $or: [{ project: project._id }, { projectId: project.projectId }]
+      $or: [{ project: project._id }, { projectId: pCode }, { projectId: pCode.toUpperCase() }, { projectId: project.projectId }].filter(Boolean)
     }).lean();
 
     const schools = (doc && doc.schools) || [];
@@ -166,8 +169,7 @@ exports.getProjectSchoolsSummary = async (req, res, next) => {
     res.status(200).json({
       success: true,
       data: {
-        projectId: project._id,
-        projectCode: project.projectId,
+        projectId: (project.projectId || String(project._id)).toLowerCase(),
         projectName: project.projectName || project.title,
         totalSchools,
         installation: {

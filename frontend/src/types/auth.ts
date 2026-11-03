@@ -43,7 +43,6 @@ export interface IEmployeeProjectSummary {
   projectName?: string;
   title?: string;
   status: string;
-  organization?: string;
 }
 
 export interface IEmployeeProjectRole {

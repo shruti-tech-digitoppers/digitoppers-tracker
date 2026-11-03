@@ -15,21 +15,19 @@ async function resolveProjectId(paramId) {
 exports.getAllProjectMembers = async (req, res, next) => {
   try {
     const filter = {};
-    const { project, employee, department, isActive, isDepartmentLead } = req.query;
+    const { project, employee, isActive } = req.query;
 
     if (project) {
       const pId = await resolveProjectId(project);
       if (pId) filter.project = pId;
     }
     if (employee) filter.employee = employee;
-    if (department) filter.department = department;
+    
     if (typeof isActive !== 'undefined') filter.isActive = isActive === 'true';
-    if (typeof isDepartmentLead !== 'undefined') filter.isDepartmentLead = isDepartmentLead === 'true';
-
     const members = await ProjectMember.find(filter)
-      .populate('project', 'projectId projectName title status budget')
+
       .populate('employee', 'name email phone designation avatar employeeId')
-      .populate('department', 'name code')
+      
       .populate('assignedBy', 'name email')
       .sort({ createdAt: -1 });
 
@@ -48,21 +46,22 @@ exports.getProjectMembersByProject = async (req, res, next) => {
   try {
     const { projectId } = req.params;
     const project = await coreApi.getProjectById(projectId);
-    const code = project ? (project.projectId || String(project._id)).toUpperCase() : String(projectId).toUpperCase();
+    const code = project ? (project.projectId || String(project._id)).toLowerCase() : String(projectId).toLowerCase();
     const rawId = project ? project._id : projectId;
 
     const members = await ProjectMember.find({
       $or: [
         { projectId: code },
+        { projectId: code.toUpperCase() },
         { project: rawId },
         { project: projectId }
       ].filter(Boolean),
       isActive: true
     })
       .populate('employee', 'name email phone designation avatar employeeId department')
-      .populate('department', 'name code')
+      
       .populate('assignedBy', 'name email')
-      .sort({ isDepartmentLead: -1, createdAt: 1 });
+      .sort({ createdAt: 1 });
 
     res.status(200).json({
       success: true,
@@ -78,9 +77,9 @@ exports.getProjectMembersByProject = async (req, res, next) => {
 exports.getProjectMemberById = async (req, res, next) => {
   try {
     const member = await ProjectMember.findById(req.params.id)
-      .populate('project', 'projectId projectName title status')
+
       .populate('employee', 'name email phone designation avatar employeeId')
-      .populate('department', 'name code')
+      
       .populate('assignedBy', 'name email');
 
     if (!member) {
@@ -102,7 +101,7 @@ exports.addProjectMember = async (req, res, next) => {
     let projectId = req.params.projectId || req.body.project || req.body.projectId;
     const targetProject = await coreApi.getProjectById(projectId);
     const pId = targetProject ? targetProject._id : (mongoose.Types.ObjectId.isValid(projectId) ? projectId : null);
-    const code = targetProject ? (targetProject.projectId || String(targetProject._id)).toUpperCase() : String(projectId).toUpperCase();
+    const code = targetProject ? (targetProject.projectId || String(targetProject._id)).toLowerCase() : String(projectId).toLowerCase();
 
     if (!pId && !targetProject) {
       return next(new AppError('Target project not found', 404, 'NOT_FOUND'));
@@ -122,6 +121,7 @@ exports.addProjectMember = async (req, res, next) => {
     const existing = await ProjectMember.findOne({
       $or: [
         { projectId: code },
+        { projectId: code.toUpperCase() },
         { project: pId },
         { project: projectId }
       ].filter(Boolean),
@@ -134,7 +134,6 @@ exports.addProjectMember = async (req, res, next) => {
         existing.project = pId || code;
         existing.designation = req.body.designation || employee.designation;
         existing.projectRole = req.body.projectRole || existing.projectRole;
-        existing.isDepartmentLead = req.body.isDepartmentLead ?? existing.isDepartmentLead;
         await existing.save();
         return res.status(200).json({
           success: true,
@@ -151,19 +150,16 @@ exports.addProjectMember = async (req, res, next) => {
       projectId: code,
       project: pId || code,
       employee: employeeId,
-      department: req.body.department || employee.department || null,
-      departmentCode: req.body.departmentCode || null,
       designation: req.body.designation || employee.designation,
       projectRole: req.body.projectRole || '',
-      isDepartmentLead: Boolean(req.body.isDepartmentLead),
       assignedBy: currentUserId,
       isActive: true
     });
 
     const populated = await ProjectMember.findById(newMember._id)
-      .populate('project', 'projectId projectName')
+
       .populate('employee', 'name email designation employeeId')
-      .populate('department', 'name code');
+      ;
 
     res.status(201).json({
       success: true,
@@ -185,7 +181,7 @@ exports.updateProjectMember = async (req, res, next) => {
       return next(new AppError('Project member not found', 404, 'NOT_FOUND'));
     }
 
-    const allowed = ['designation', 'projectRole', 'isDepartmentLead', 'isActive', 'department', 'departmentCode'];
+    const allowed = ['designation', 'projectRole', 'isActive', ];
     allowed.forEach(field => {
       if (typeof req.body[field] !== 'undefined') {
         member[field] = req.body[field];
@@ -195,9 +191,9 @@ exports.updateProjectMember = async (req, res, next) => {
     await member.save();
 
     const populated = await ProjectMember.findById(member._id)
-      .populate('project', 'projectId projectName')
+
       .populate('employee', 'name email designation employeeId')
-      .populate('department', 'name code');
+      ;
 
     res.status(200).json({
       success: true,

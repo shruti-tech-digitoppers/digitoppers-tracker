@@ -146,8 +146,16 @@ export function ProjectRoadmapCard({
         setSelectedNode({ ...detailRes.node, children: mergedChildren });
       }
       if (formRes) {
-        setFormSchema(formRes.formSchema || null);
-        setFormData(formRes.formData || {});
+        setFormSchema(formRes.formSchema || (detailRes?.node?.formSchema as any) || (node.formSchema as any) || null);
+        const mergedFormData = {
+          ...(node.formData || {}),
+          ...(detailRes?.node?.formData || {}),
+          ...(formRes.formData || {}),
+        };
+        setFormData(mergedFormData);
+      } else if (detailRes?.node) {
+        setFormSchema((detailRes.node.formSchema as any) || (node.formSchema as any) || null);
+        setFormData({ ...(node.formData || {}), ...(detailRes.node.formData || {}) });
       }
     } catch { }
   };
@@ -297,14 +305,8 @@ export function ProjectRoadmapCard({
   const completedStages = stagesToCount.filter((n) => n.status === 'COMPLETED').length;
   const progressPct = Math.round((completedStages / totalStages) * 100);
 
-  // Parallel and hold status checks across stages and sub-streams
+  // Hold status check across stages and sub-streams
   const hasAnyHold = stagesToCount.some(s => s.status === 'ON_HOLD' || (s.children && s.children.some(c => c.status === 'ON_HOLD')));
-  const inProgressCount = stagesToCount.filter(s => s.status === 'IN_PROGRESS' || (s.children && s.children.some(c => c.status === 'IN_PROGRESS'))).length;
-  const parallelSubstreamsCount = stagesToCount.reduce((acc, s) => {
-    const activeChildren = s.children ? s.children.filter(c => c.status === 'IN_PROGRESS').length : 0;
-    return acc + (activeChildren > 1 ? activeChildren : 0);
-  }, 0);
-  const totalParallelActive = Math.max(inProgressCount, parallelSubstreamsCount);
 
   // Resolve Project Manager name cleanly
   const pmObj = typeof project.projectManager === 'object' && project.projectManager !== null
@@ -352,7 +354,6 @@ export function ProjectRoadmapCard({
                 <h3 className="font-heading text-xs sm:text-[13px] font-bold text-slate-900 leading-tight truncate">
                   {project.projectName || project.title}
                 </h3>
-                <p className="text-[10px] text-slate-500 truncate font-medium">{project.organization || 'Direct Organization'}</p>
               </div>
             </div>
 
@@ -415,12 +416,7 @@ export function ProjectRoadmapCard({
                   Hold
                 </span>
               )}
-              {totalParallelActive >= 2 && (
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4] animate-pulse shadow-2xs">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#51a8b1]" />
-                  {totalParallelActive} Parallel Active
-                </span>
-              )}
+
               <span className="text-[10px] sm:text-[10.5px] font-bold text-slate-600 shrink-0">
                 <strong className="text-[#3a7d84]">{completedStages}</strong>/8
               </span>
@@ -469,12 +465,6 @@ export function ProjectRoadmapCard({
                 >
                   {project.projectName || project.title}
                 </h3>
-                <p
-                  className="text-[10.5px] text-[#556987] truncate"
-                  title={project.organization || 'Direct Organization'}
-                >
-                  {project.organization || 'Direct Organization'}
-                </p>
               </div>
             </div>
           </div>

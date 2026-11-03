@@ -51,7 +51,6 @@ export function MultiPoSection({
     return (
       value?.organizationName ||
       value?.issuingOrganization ||
-      project?.organization ||
       project?.projectName ||
       project?.title ||
       allFormData?.organizationName ||

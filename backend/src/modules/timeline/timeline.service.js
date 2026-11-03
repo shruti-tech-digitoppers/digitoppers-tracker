@@ -1,5 +1,5 @@
 const mongoose = require('mongoose');
-const Timeline = require('./timeline.model');
+
 const TimelineNode = require('./timeline-node.model');
 const Activity = require('../activity/activity.model');
 const Notification = require('../notifications/notifications.model');
@@ -40,10 +40,9 @@ class TimelineService {
       if (coreP) {
         return {
           _id: String(coreP._id || idStr),
-          projectId: (coreP.projectId || idStr).toUpperCase(),
+          projectId: (coreP.projectId || idStr).toLowerCase(),
           projectName: coreP.projectName || coreP.title || 'Core Project',
           title: coreP.projectName || coreP.title || 'Core Project',
-          organization: coreP.organization || coreP.projectName || coreP.client || 'Direct Organization',
           email: coreP.email || '',
           phone: coreP.phone || '',
           address: coreP.address || '',
@@ -53,6 +52,36 @@ class TimelineService {
           status: coreP.status || 'ACTIVE',
           isActive: coreP.isActive !== false,
           source: 'CORE_BACKEND'
+        };
+      }
+    } catch (_) { }
+
+    // Fallback: Check local MongoDB projects collection when Core Backend is cold starting
+    try {
+      const isHexId = mongoose.isValidObjectId(idStr) && idStr.length === 24;
+      const localP = await mongoose.connection.collection('projects').findOne({
+        $or: [
+          isHexId ? { _id: new mongoose.Types.ObjectId(idStr) } : null,
+          { projectId: idStr.toUpperCase() },
+          { projectId: idStr }
+        ].filter(Boolean)
+      });
+      if (localP) {
+        return {
+          _id: String(localP._id),
+          projectId: (localP.projectId || idStr).toLowerCase(),
+          projectName: localP.projectName || localP.title || 'Core Project',
+          title: localP.projectName || localP.title || 'Core Project',
+          email: localP.email || '',
+          phone: localP.phone || '',
+          address: localP.address || '',
+          numberOfSchools: localP.numberOfSchools || 0,
+          numberOfLicenses: localP.numberOfLicenses || 0,
+          country: typeof localP.country === 'object' && localP.country ? localP.country.name : (localP.country || ''),
+          status: localP.status || 'ACTIVE',
+          projectManager: localP.projectManager || null,
+          isActive: localP.isActive !== false,
+          source: 'LOCAL_FALLBACK'
         };
       }
     } catch (_) { }
@@ -77,8 +106,7 @@ class TimelineService {
 
     // 4. Lookup in Timeline collection (if timeline already exists for this ID/code in Tracker)
     try {
-      const Timeline = require('./timeline.model');
-      const existingT = await Timeline.findOne(
+            const existingT = await Timeline.findOne(
         isObjectId
           ? { $or: [{ _id: idStr }, { project: idStr }, { projectId: idStr }, { projectId: idStr.toUpperCase() }] }
           : { $or: [{ projectId: idStr }, { projectId: idStr.toUpperCase() }] }
@@ -87,10 +115,9 @@ class TimelineService {
       if (existingT) {
         return {
           _id: existingT.project || existingT._id,
-          projectId: (existingT.projectId || idStr).toUpperCase(),
+          projectId: (existingT.projectId || idStr).toLowerCase(),
           projectName: existingT.projectName || 'Project',
           title: existingT.projectName || 'Project',
-          organization: existingT.organization || 'Direct Organization',
           email: existingT.email || '',
           phone: existingT.phone || '',
           address: existingT.address || '',
@@ -111,7 +138,7 @@ class TimelineService {
   async _findTimeline(projectIdOrObj) {
     if (!projectIdOrObj) return null;
     const project = await this._findProject(projectIdOrObj);
-    const code = (project?.projectId || (typeof projectIdOrObj === 'string' ? projectIdOrObj : '')).trim().toUpperCase();
+    const code = (project?.projectId || (typeof projectIdOrObj === 'string' ? projectIdOrObj : '')).trim().toLowerCase();
     const rawId = project?._id || projectIdOrObj;
     const isObjectId = mongoose.isValidObjectId(rawId) && String(rawId).length === 24;
 
@@ -130,7 +157,12 @@ class TimelineService {
     }
 
     if (queries.length === 0) return null;
-    return await Timeline.findOne({ $or: queries });
+    return {
+      _id: rawId,
+      project: rawId,
+      projectId: code || String(rawId),
+      projectName: project ? (project.projectName || project.title) : undefined
+    };
   }
 
 
@@ -159,9 +191,9 @@ class TimelineService {
       return null;
     }
 
-    // STRICT VALIDATION: Timeline can ONLY be created for projects that strictly exist in Core Backend.
+    // VALIDATION: Timeline can be created for Core Backend projects or valid local projects
     let isCoreProject = false;
-    if (project.source === 'CORE_BACKEND' || project.source === 'CORE_BACKEND_WITH_LOCAL_MERGE') {
+    if (project.source === 'CORE_BACKEND' || project.source === 'CORE_BACKEND_WITH_LOCAL_MERGE' || project.source === 'LOCAL_FALLBACK' || project.source === 'TIMELINE_DOC') {
       isCoreProject = true;
     } else {
       const lookupCode = project._id ? String(project._id) : (project.projectId || '');
@@ -176,8 +208,8 @@ class TimelineService {
       }
     }
 
-    if (!isCoreProject) {
-      console.warn(`[TimelineService] Timeline creation aborted: Project '${project.projectId || coreProjectOrId}' is not in Core Backend.`);
+    if (!isCoreProject && !project.projectId) {
+      console.warn(`[TimelineService] Timeline creation aborted: Project '${project.projectId || coreProjectOrId}' is not found in Core Backend or local DB.`);
       return null;
     }
 
@@ -200,22 +232,28 @@ class TimelineService {
     const projectIdObj = (rawId && mongoose.isValidObjectId(rawId))
       ? new mongoose.Types.ObjectId(String(rawId))
       : new mongoose.Types.ObjectId();
-    const projectCode = project ? (project.projectId || String(project._id)) : String(coreProjectOrId);
+    const targetProjectId = (project ? (project.projectId || String(project._id)) : String(coreProjectOrId)).toLowerCase();
 
     const query = {
       $or: [
         { project: projectIdObj },
-        { projectId: projectCode },
-        { projectId: projectCode.toUpperCase() },
-        { projectId: projectCode.toLowerCase() }
+        { projectId: targetProjectId },
+        { projectId: targetProjectId.toUpperCase() },
+        { projectId: targetProjectId.toLowerCase() }
       ]
     };
 
-    let existingTimeline = session
-      ? await Timeline.findOne(query).session(session)
-      : await Timeline.findOne(query);
+    const existingNodesCount = session
+      ? await TimelineNode.countDocuments({ $or: [{ projectId: targetProjectId }, { projectId: targetProjectId.toUpperCase() }, { project: projectIdObj }, { timeline: projectIdObj }] }).session(session)
+      : await TimelineNode.countDocuments({ $or: [{ projectId: targetProjectId }, { projectId: targetProjectId.toUpperCase() }, { project: projectIdObj }, { timeline: projectIdObj }] });
+    if (existingNodesCount > 0) {
+      return { _id: projectIdObj, project: projectIdObj, projectId: targetProjectId, projectName: project ? (project.projectName || project.title) : undefined };
+    }
 
-    if (existingTimeline) {
+
+
+
+    if (false) {
       if (effectivePmId && (!existingTimeline.projectManager || existingTimeline.projectManager.toString() !== effectivePmId.toString())) {
         existingTimeline.projectManager = effectivePmId;
         if (session) {
@@ -229,9 +267,8 @@ class TimelineService {
 
     const timelineData = {
       project: projectIdObj,
-      projectId: projectCode,
+      projectId: targetProjectId,
       projectName: project ? (project.projectName || project.title) : undefined,
-      organization: project ? (project.organization || project.client || project.projectName) : undefined,
       email: project ? project.email : undefined,
       phone: project ? project.phone : undefined,
       address: project ? project.address : undefined,
@@ -247,13 +284,15 @@ class TimelineService {
     };
 
     const sessionOpts = session ? { session } : {};
-    const createdTimelineArr = await Timeline.create([timelineData], sessionOpts);
-    const createdTimeline = createdTimelineArr[0];
+
+    const createdTimeline = { _id: projectIdObj };
 
     for (const stageDef of timelineConfig.stages) {
       const stageAssignedTo = effectivePmId || null;
       const stageNodeArr = await TimelineNode.create([{
-        timeline: createdTimeline._id,
+        timeline: projectIdObj,
+        projectId: targetProjectId.toLowerCase(),
+        project: projectIdObj,
         parentNode: null,
         type: NODE_TYPES.STAGE,
         key: stageDef.key,
@@ -272,7 +311,9 @@ class TimelineService {
         for (const subDef of stageDef.substages) {
           const subAssignedTo = null;
           const subTaskNodeArr = await TimelineNode.create([{
-            timeline: createdTimeline._id,
+            timeline: projectIdObj,
+        projectId: targetProjectId.toLowerCase(),
+        project: projectIdObj,
             parentNode: createdStage._id,
             type: NODE_TYPES.TASK,
             key: subDef.key,
@@ -290,7 +331,9 @@ class TimelineService {
             for (const nestedDef of subDef.nested) {
               const nestedAssignedTo = null;
               await TimelineNode.create([{
-                timeline: createdTimeline._id,
+                timeline: projectIdObj,
+        projectId: targetProjectId.toLowerCase(),
+        project: projectIdObj,
                 parentNode: createdSub._id,
                 type: NODE_TYPES.TASK,
                 key: nestedDef.key,
@@ -312,7 +355,13 @@ class TimelineService {
       }
     }
 
-    return createdTimeline;
+    return {
+      _id: projectIdObj,
+      project: projectIdObj,
+      projectId: targetProjectId.toLowerCase(),
+      projectName: project ? (project.projectName || project.title) : undefined,
+      projectManager: effectivePmId
+    };
   }
 
   // Backward compatibility alias for single method
@@ -377,7 +426,40 @@ class TimelineService {
       }
     }
 
-    let timeline = await Timeline.findOne({
+    const targetProjectId = (project.projectId || String(project._id)).toLowerCase();
+    const rawProjectId = project._id;
+    const pId = rawProjectId;
+    const actorId = effectivePmId || null;
+    let nodes = await TimelineNode.find({
+      $or: [{ projectId: targetProjectId }, { projectId: targetProjectId.toUpperCase() }, { project: rawProjectId }, { timeline: rawProjectId }].filter(Boolean)
+    }).populate('assignedTo', 'name email employeeCode').sort({ order: 1 });
+
+    if (!nodes || nodes.length === 0) {
+      try {
+        await this.createTimelineForProject(project, effectivePmId);
+        nodes = await TimelineNode.find({
+          $or: [{ projectId: targetProjectId }, { projectId: targetProjectId.toUpperCase() }, { project: rawProjectId }, { timeline: rawProjectId }].filter(Boolean)
+        }).populate('assignedTo', 'name email employeeCode').sort({ order: 1 });
+      } catch (initErr) {
+        console.error('[TimelineService] Auto-initialize timeline nodes failed:', initErr);
+      }
+    }
+
+    const completedTasksCount = (nodes || []).filter(n => n.type === NODE_TYPES.TASK && n.status === NODE_STATUSES.COMPLETED).length;
+    const totalTasksCount = (nodes || []).filter(n => n.type === NODE_TYPES.TASK).length;
+    const progressPercentage = totalTasksCount > 0 ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
+    const timeline = {
+      _id: project._id,
+      project: project._id,
+      projectId: targetProjectId,
+      projectName: project.projectName || project.title,
+      status: progressPercentage === 100 ? 'COMPLETED' : 'IN_PROGRESS',
+      progressPercentage,
+      projectManager: effectivePmId,
+      stages: []
+    };
+    if (false) {
+      let timelineIgnored = await Promise.resolve({
       $or: [
         { project: project._id },
         { projectId: project.projectId },
@@ -415,9 +497,9 @@ class TimelineService {
       timeline = await Timeline.findById(timeline._id).populate('projectManager', 'name email employeeCode globalRole designation');
     }
 
-    let nodes = await TimelineNode.find({ timeline: timeline._id })
-      .populate('assignedTo', 'name email employeeCode')
-      .sort({ order: 1 });
+    } // end ignored block
+
+
 
     // Ensure all STAGES (parent stage nodes) are assigned to PM, while tasks remain unassigned unless explicitly assigned by PM
     if (effectivePmId) {
@@ -431,14 +513,15 @@ class TimelineService {
           if (!currentAssignee || currentAssignee !== effectivePmId.toString()) {
             node.assignedTo = effectivePmId;
             await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
             pmAssignedUpdated = true;
           }
         }
       }
       if (pmAssignedUpdated) {
-        nodes = await TimelineNode.find({ timeline: timeline._id })
-          .populate('assignedTo', 'name email employeeCode')
-          .sort({ order: 1 });
+        nodes = await TimelineNode.find({
+          $or: [{ projectId: targetProjectId }, { project: rawProjectId }, { timeline: rawProjectId }].filter(Boolean)
+        }).populate('assignedTo', 'name email employeeCode').sort({ order: 1 });
       }
     }
 
@@ -617,9 +700,9 @@ class TimelineService {
     const execNode = nodes.find(n => n.key === 'EXECUTION');
     if (orderReqNode && orderReqNode.status === NODE_STATUSES.COMPLETED && execNode && (execNode.status === NODE_STATUSES.PENDING || execNode.status === 'NOT_STARTED')) {
       await this.startExecutionPhaseIfOrderReqCompleted(timeline._id, project._id);
-      nodes = await TimelineNode.find({ timeline: timeline._id })
-        .populate('assignedTo', 'name email employeeCode')
-        .sort({ order: 1 });
+      nodes = await TimelineNode.find({
+        $or: [{ projectId: targetProjectId }, { project: rawProjectId }, { timeline: rawProjectId }].filter(Boolean)
+      }).populate('assignedTo', 'name email employeeCode').sort({ order: 1 });
     }
 
     const prNode = nodes.find(n => n.key === 'PROJECT_REVIEWER');
@@ -739,15 +822,34 @@ class TimelineService {
       const ProjectSchools = require('../project-schools/project-schools.model');
       const Requirements = require('../requirements/requirements.model');
       [dbSchools, dbHardware, dbSolutions, dbProjectSchools, dbRequirement] = await Promise.all([
-        School.find({ projectId: project._id, isActive: true })
+        School.find({
+          $or: [
+            { project: project._id },
+            { projectId: project.projectId },
+            { projectId: String(project._id) }
+          ].filter(Boolean),
+          isActive: true
+        })
           .populate('installation.assignedEngineerId', 'name email phone')
           .populate('training.assignedTrainerId', 'name email phone')
           .lean()
           .catch(() => []),
         Hardware.find({ isActive: true }).lean().catch(() => []),
         Solution.find({ isActive: true }).lean().catch(() => []),
-        ProjectSchools.findOne({ project: project._id }).lean().catch(() => null),
-        Requirements.findOne({ project: project._id }).lean().catch(() => null)
+        ProjectSchools.findOne({
+          $or: [
+            { project: project._id },
+            { projectId: project.projectId },
+            { projectId: String(project._id) }
+          ].filter(Boolean)
+        }).lean().catch(() => null),
+        Requirements.findOne({
+          $or: [
+            { project: project._id },
+            { projectId: project.projectId },
+            { projectId: String(project._id) }
+          ].filter(Boolean)
+        }).lean().catch(() => null)
       ]);
     } catch (e) {
       console.warn('DB enrich warning in getTimelineHierarchy:', e.message);
@@ -755,54 +857,77 @@ class TimelineService {
 
     // Format canonical project schools from MongoDB School collection or ProjectSchools
     let canonicalSchools = [];
+    const configuredSchoolMap = new Map();
+    const reqSchoolsList = dbRequirement?.schools || dbRequirement?.orderRequirement?.schools || [];
+    if (Array.isArray(reqSchoolsList)) {
+      for (const cs of reqSchoolsList) {
+        if (cs.school) configuredSchoolMap.set(String(cs.school), cs);
+        if (cs.schoolId) configuredSchoolMap.set(String(cs.schoolId), cs);
+        if (cs.schoolName) configuredSchoolMap.set(String(cs.schoolName).toLowerCase().trim(), cs);
+        if (cs._id) configuredSchoolMap.set(String(cs._id), cs);
+      }
+    }
+
     if (dbSchools && dbSchools.length > 0) {
-      canonicalSchools = dbSchools.map((s) => ({
-        id: String(s._id),
-        _id: String(s._id),
-        schoolId: s.schoolId || String(s._id),
-        schoolName: s.name,
-        name: s.name,
-        schoolCode: s.schoolId || String(s._id),
-        address: s.address || '',
-        addressContact: s.address ? `${s.address}\nContact: ${s.contactPerson?.phone || ''}` : '',
-        principalName: s.survey?.principalName || s.contactPerson?.name || '',
-        principalDetails: s.survey?.principalDetails || `${s.contactPerson?.name || ''} (${s.contactPerson?.phone || ''})`,
-        pocName: s.survey?.pocName || s.contactPerson?.name || s.survey?.principalName || '',
-        pocDesignation: s.survey?.pocDesignation || s.contactPerson?.designation || (s.survey?.principalName ? 'Principal' : ''),
-        pocContact: s.survey?.pocContact || s.contactPerson?.phone || '',
-        phone: s.contactPerson?.phone || s.survey?.pocContact || '',
-        email: s.contactPerson?.email || s.survey?.email || '',
-        classes: s.classes || s.survey?.classes || [],
-        installation: s.installation || {},
-        training: s.training || {},
-        survey: s.survey || {},
-        school: s._id,
-        ...(s.survey || {})
-      }));
+      canonicalSchools = dbSchools.map((s) => {
+        const conf = configuredSchoolMap.get(String(s._id)) || configuredSchoolMap.get(s.schoolId) || configuredSchoolMap.get((s.name || '').toLowerCase().trim());
+        return {
+          id: String(s._id),
+          _id: String(s._id),
+          schoolId: s.schoolId || String(s._id),
+          schoolName: s.name,
+          name: s.name,
+          schoolCode: s.schoolId || String(s._id),
+          address: s.address || '',
+          addressContact: s.address ? `${s.address}\nContact: ${s.contactPerson?.phone || ''}` : '',
+          principalName: s.survey?.principalName || s.contactPerson?.name || '',
+          principalDetails: s.survey?.principalDetails || `${s.contactPerson?.name || ''} (${s.contactPerson?.phone || ''})`,
+          pocName: s.survey?.pocName || s.contactPerson?.name || s.survey?.principalName || '',
+          pocDesignation: s.survey?.pocDesignation || s.contactPerson?.designation || (s.survey?.principalName ? 'Principal' : ''),
+          pocContact: s.survey?.pocContact || s.contactPerson?.phone || '',
+          phone: s.contactPerson?.phone || s.survey?.pocContact || '',
+          email: s.contactPerson?.email || s.survey?.email || '',
+          classes: s.classes || s.survey?.classes || [],
+          installation: s.installation || {},
+          training: s.training || {},
+          survey: s.survey || {},
+          school: s._id,
+          solutions: conf?.solutions || [],
+          hardware: conf?.hardware || [],
+          content: conf?.content || [],
+          ...(s.survey || {})
+        };
+      });
     } else if (dbProjectSchools?.schools && dbProjectSchools.schools.length > 0) {
-      canonicalSchools = dbProjectSchools.schools.map((ps) => ({
-        id: String(ps.school || ps._id),
-        _id: String(ps.school || ps._id),
-        schoolId: ps.schoolId || String(ps.school || ps._id),
-        schoolName: ps.schoolName || ps.name,
-        name: ps.schoolName || ps.name,
-        schoolCode: ps.schoolId || String(ps.school || ps._id),
-        address: ps.address || '',
-        addressContact: ps.address ? `${ps.address}\nContact: ${ps.contactPerson?.phone || ''}` : '',
-        principalName: ps.survey?.principalName || ps.contactPerson?.name || '',
-        principalDetails: ps.survey?.principalDetails || `${ps.contactPerson?.name || ''} (${ps.contactPerson?.phone || ''})`,
-        pocName: ps.survey?.pocName || ps.contactPerson?.name || '',
-        pocDesignation: ps.survey?.pocDesignation || ps.contactPerson?.designation || '',
-        pocContact: ps.survey?.pocContact || ps.contactPerson?.phone || '',
-        phone: ps.contactPerson?.phone || ps.survey?.pocContact || '',
-        email: ps.contactPerson?.email || '',
-        classes: ps.classes || ps.survey?.classes || [],
-        installation: ps.installation || {},
-        training: ps.training || {},
-        survey: ps.survey || {},
-        school: ps.school || ps._id,
-        ...(ps.survey || {})
-      }));
+      canonicalSchools = dbProjectSchools.schools.map((ps) => {
+        const conf = configuredSchoolMap.get(String(ps.school || ps._id)) || configuredSchoolMap.get(ps.schoolId) || configuredSchoolMap.get((ps.schoolName || ps.name || '').toLowerCase().trim());
+        return {
+          id: String(ps.school || ps._id),
+          _id: String(ps.school || ps._id),
+          schoolId: ps.schoolId || String(ps.school || ps._id),
+          schoolName: ps.schoolName || ps.name,
+          name: ps.schoolName || ps.name,
+          schoolCode: ps.schoolId || String(ps.school || ps._id),
+          address: ps.address || '',
+          addressContact: ps.address ? `${ps.address}\nContact: ${ps.contactPerson?.phone || ''}` : '',
+          principalName: ps.survey?.principalName || ps.contactPerson?.name || '',
+          principalDetails: ps.survey?.principalDetails || `${ps.contactPerson?.name || ''} (${ps.contactPerson?.phone || ''})`,
+          pocName: ps.survey?.pocName || ps.contactPerson?.name || '',
+          pocDesignation: ps.survey?.pocDesignation || ps.contactPerson?.designation || '',
+          pocContact: ps.survey?.pocContact || ps.contactPerson?.phone || '',
+          phone: ps.contactPerson?.phone || ps.survey?.pocContact || '',
+          email: ps.contactPerson?.email || '',
+          classes: ps.classes || ps.survey?.classes || [],
+          installation: ps.installation || {},
+          training: ps.training || {},
+          survey: ps.survey || {},
+          school: ps.school || ps._id,
+          solutions: conf?.solutions || [],
+          hardware: conf?.hardware || [],
+          content: conf?.content || [],
+          ...(ps.survey || {})
+        };
+      });
     }
 
     // Build hierarchical tree
@@ -848,7 +973,7 @@ class TimelineService {
         obj.formData = {
           ...primarySchool,
           ...obj.formData,
-          schoolName: obj.formData.schoolName || canonicalSchools.map(s => s.schoolName).filter(Boolean).join('; ') || project.organization || project.projectName,
+          schoolName: obj.formData.schoolName || canonicalSchools.map(s => s.schoolName).filter(Boolean).join('; ') || project.projectName,
           totalStudents: obj.formData.totalStudents || canonicalSchools.reduce((acc, c) => acc + (Number(c.totalStudents) || 0), 0) || canonicalSchools.length * 850,
           schools: canonicalSchools,
           projectSchools: canonicalSchools
@@ -1005,44 +1130,81 @@ class TimelineService {
 
   async getNodeDoc(projectId, nodeId) {
     const project = await this._findProject(projectId);
-    const timeline = await this._findTimeline(projectId);
-    if (!timeline) throw new AppError('Timeline not found.', 404, 'TIMELINE_NOT_FOUND');
+    const pId = project ? project._id : projectId;
+    const targetProjectId = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toLowerCase();
 
-    const node = await TimelineNode.findOne({ _id: nodeId, timeline: timeline._id })
-      .populate('assignedTo', 'name email employeeCode');
+    let node = await TimelineNode.findById(nodeId).populate('assignedTo', 'name email employeeCode');
+    if (!node) {
+      node = await TimelineNode.findOne({
+        _id: nodeId,
+        $or: [
+          targetProjectId ? { projectId: targetProjectId } : null,
+          targetProjectId ? { projectId: targetProjectId.toUpperCase() } : null,
+          pId ? { project: pId } : null,
+          pId ? { timeline: pId } : null
+        ].filter(Boolean)
+      }).populate('assignedTo', 'name email employeeCode');
+    }
     if (!node) throw new AppError('Timeline node not found.', 404, 'NODE_NOT_FOUND');
 
     const schemaMap = this.getSchemaMap();
     if (schemaMap[node.key]) {
       node.formSchema = schemaMap[node.key];
+    } else if (!node.formSchema) {
+      node.formSchema = {
+        fields: [
+          { key: 'notes', label: 'Stage Notes & Requirements', type: 'textarea', placeholder: 'Enter details...' },
+          { key: 'expectedCompletionDate', label: 'Expected Completion Date', type: 'date' },
+          { key: 'remarks', label: 'Remarks', type: 'textarea' }
+        ]
+      };
     }
     return node;
   }
 
   async getNodeById(projectId, nodeId) {
     const project = await this._findProject(projectId);
-    const timeline = await this._findTimeline(projectId);
-    if (!timeline) throw new AppError('Timeline not found.', 404, 'TIMELINE_NOT_FOUND');
+    const pId = project ? project._id : projectId;
+    const targetProjectId = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toLowerCase();
 
-    const node = await TimelineNode.findOne({ _id: nodeId, timeline: timeline._id })
-      .populate('assignedTo', 'name email employeeCode');
+    let node = await TimelineNode.findById(nodeId).populate('assignedTo', 'name email employeeCode');
+    if (!node) {
+      node = await TimelineNode.findOne({
+        _id: nodeId,
+        $or: [
+          targetProjectId ? { projectId: targetProjectId } : null,
+          targetProjectId ? { projectId: targetProjectId.toUpperCase() } : null,
+          pId ? { project: pId } : null,
+          pId ? { timeline: pId } : null
+        ].filter(Boolean)
+      }).populate('assignedTo', 'name email employeeCode');
+    }
     if (!node) throw new AppError('Timeline node not found.', 404, 'NODE_NOT_FOUND');
 
     const schemaMap = this.getSchemaMap();
     const nodeObj = node.toObject();
     if (schemaMap[node.key]) {
       nodeObj.formSchema = schemaMap[node.key];
+    } else if (!nodeObj.formSchema) {
+      nodeObj.formSchema = {
+        fields: [
+          { key: 'notes', label: 'Stage Notes & Requirements', type: 'textarea', placeholder: 'Enter details...' },
+          { key: 'expectedCompletionDate', label: 'Expected Completion Date', type: 'date' },
+          { key: 'remarks', label: 'Remarks', type: 'textarea' }
+        ]
+      };
     }
 
     // Auto-fill node formData from Project & Requirements if empty
     try {
       const Requirements = require('../requirements/requirements.model');
-      const reqCode = (project?.projectId || (typeof pId === 'string' ? pId : '')).trim().toUpperCase();
+      const reqCode = (project?.projectId || (typeof pId === 'string' ? pId : '')).trim().toLowerCase();
       const reqDoc = await Requirements.findOne({
         $or: [
-          { projectId: reqCode },
-          { projectId: String(pId) },
-          { project: pId }
+          reqCode ? { projectId: reqCode } : null,
+          reqCode ? { projectId: reqCode.toUpperCase() } : null,
+          pId ? { projectId: String(pId) } : null,
+          pId ? { project: pId } : null
         ].filter(Boolean)
       }).lean();
       const projDoc = project ? (project.toObject ? project.toObject() : project) : null;
@@ -1055,12 +1217,23 @@ class TimelineService {
       const School = require('../schools/school.model');
       const ProjectSchools = require('../project-schools/project-schools.model');
       const [dbSchools, psDocForSchools] = await Promise.all([
-        School.find({ projectId: projectId, isActive: true })
+        School.find({
+          $or: [
+            pId ? { project: pId } : null,
+            targetProjectId ? { projectId: targetProjectId } : null
+          ].filter(Boolean),
+          isActive: true
+        })
           .populate('installation.assignedEngineerId', 'name email phone')
           .populate('training.assignedTrainerId', 'name email phone')
           .lean()
           .catch(() => []),
-        ProjectSchools.findOne({ project: projectId }).lean().catch(() => null)
+        ProjectSchools.findOne({
+          $or: [
+            pId ? { project: pId } : null,
+            targetProjectId ? { projectId: targetProjectId } : null
+          ].filter(Boolean)
+        }).lean().catch(() => null)
       ]);
 
       let canonicalSchools = [];
@@ -1124,8 +1297,7 @@ class TimelineService {
       if (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(node.key)) {
         const pReview = reqDoc?.projectReviewer?.projectCreated || {};
         nodeObj.formData = {
-          projectName: nodeObj.formData.projectName || pReview.organizationName || projDoc?.projectName || projDoc?.title || '',
-          organizationName: nodeObj.formData.organizationName || pReview.organizationName || projDoc?.organization || projDoc?.projectName || '',
+          projectName: nodeObj.formData.projectName || projDoc?.projectName || projDoc?.title || '',
           email: nodeObj.formData.email || pReview.email || projDoc?.email || '',
           phone: nodeObj.formData.phone || pReview.phone || projDoc?.phone || '',
           address: nodeObj.formData.address || pReview.address || projDoc?.address || '',
@@ -1143,7 +1315,7 @@ class TimelineService {
         const primarySchool = canonicalSchools[0] || {};
         nodeObj.formData = {
           ...primarySchool,
-          schoolName: canonicalSchools.map(s => s.schoolName).filter(Boolean).join('; ') || projDoc?.organization || projDoc?.projectName || '',
+          schoolName: canonicalSchools.map(s => s.schoolName).filter(Boolean).join('; ') || projDoc?.projectName || '',
           address: primarySchool.address || sInfo.address || projDoc?.address || '',
           phone: primarySchool.phone || sInfo.phone || projDoc?.phone || '',
           email: primarySchool.email || sInfo.email || projDoc?.email || '',
@@ -1171,8 +1343,18 @@ class TimelineService {
           const ProjectSchools = require('../project-schools/project-schools.model');
           const Training = require('../training/training.model');
           const [psDoc, trDoc] = await Promise.all([
-            ProjectSchools.findOne({ project: pId }).lean().catch(() => null),
-            Training.findOne({ project: pId }).lean().catch(() => null)
+            ProjectSchools.findOne({
+              $or: [
+                pId ? { project: pId } : null,
+                targetProjectId ? { projectId: targetProjectId } : null
+              ].filter(Boolean)
+            }).lean().catch(() => null),
+            Training.findOne({
+              $or: [
+                pId ? { project: pId } : null,
+                targetProjectId ? { projectId: targetProjectId } : null
+              ].filter(Boolean)
+            }).lean().catch(() => null)
           ]);
           const trainingData = {
             ...(psDoc?.training || {}),
@@ -1285,7 +1467,12 @@ class TimelineService {
         }
       } else if (node.key === 'ORDER_REQUIREMENT') {
         const ProjectSchools = require('../project-schools/project-schools.model');
-        const psDoc = await ProjectSchools.findOne({ project: pId }).lean().catch(() => null);
+        const psDoc = await ProjectSchools.findOne({
+          $or: [
+            pId ? { project: pId } : null,
+            targetProjectId ? { projectId: targetProjectId } : null
+          ].filter(Boolean)
+        }).lean().catch(() => null);
         const orderReqFromDb = psDoc?.orderRequirement || reqDoc?.orderRequirement || {};
         nodeObj.formData = {
           orderRequirement: orderReqFromDb,
@@ -1299,7 +1486,12 @@ class TimelineService {
         const ProjectSchools = require('../project-schools/project-schools.model');
         const Hardware = require('../hardware/hardware.model');
         const [psDoc, dbHardware] = await Promise.all([
-          ProjectSchools.findOne({ project: pId }).lean().catch(() => null),
+          ProjectSchools.findOne({
+            $or: [
+              pId ? { project: pId } : null,
+              targetProjectId ? { projectId: targetProjectId } : null
+            ].filter(Boolean)
+          }).lean().catch(() => null),
           Hardware.find({ isActive: true }).lean().catch(() => [])
         ]);
         const bom = psDoc?.orderRequirement?.overallHardwareBOM || {};
@@ -1342,7 +1534,12 @@ class TimelineService {
         const ProjectSchools = require('../project-schools/project-schools.model');
         const Solution = require('../solutions/solution.model');
         const [psDoc, dbSolutions] = await Promise.all([
-          ProjectSchools.findOne({ project: pId }).lean().catch(() => null),
+          ProjectSchools.findOne({
+            $or: [
+              pId ? { project: pId } : null,
+              targetProjectId ? { projectId: targetProjectId } : null
+            ].filter(Boolean)
+          }).lean().catch(() => null),
           Solution.find({ isActive: true }).lean().catch(() => [])
         ]);
         const dbSolsSelected = psDoc?.orderRequirement?.solutionsSelected || [];
@@ -1393,9 +1590,16 @@ class TimelineService {
     }
 
     // Attach children populated with assignedTo
-    const children = await TimelineNode.find({ timeline: timeline._id, parentNode: node._id })
-      .populate('assignedTo', 'name email employeeCode')
-      .sort({ order: 1 });
+    const children = await TimelineNode.find({
+      parentNode: node._id,
+      $or: [
+        targetProjectId ? { projectId: targetProjectId } : null,
+        pId ? { project: pId } : null,
+        pId ? { timeline: pId } : null
+      ].filter(Boolean)
+    }).populate('assignedTo', 'name email employeeCode').sort({ order: 1 });
+
+
 
     const DISABLED_KEYS = new Set([
       'ADDRESS_CONFIRMATION',
@@ -1423,12 +1627,94 @@ class TimelineService {
 
   async getChildren(projectId, nodeId) {
     const project = await this._findProject(projectId);
-    const timeline = await this._findTimeline(projectId);
-    if (!timeline) throw new AppError('Timeline not found.', 404, 'TIMELINE_NOT_FOUND');
+    const pId = project ? project._id : projectId;
+    const targetProjectId = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toLowerCase();
 
-    return await TimelineNode.find({ timeline: timeline._id, parentNode: nodeId })
-      .populate('assignedTo', 'name email employeeCode')
-      .sort({ order: 1 });
+    return await TimelineNode.find({
+      parentNode: nodeId,
+      $or: [
+        targetProjectId ? { projectId: targetProjectId } : null,
+        targetProjectId ? { projectId: targetProjectId.toUpperCase() } : null,
+        pId ? { project: pId } : null,
+        pId ? { timeline: pId } : null
+      ].filter(Boolean)
+    }).populate('assignedTo', 'name email employeeCode').sort({ order: 1 });
+  }
+
+  async _syncNodeToPhaseOrTask(node, pId = null, targetProjectId = null, actorId = null) {
+    if (!node) return;
+    try {
+      const Phase = require('../phases/phase.model');
+      const Task = require('../tasks/task.model');
+      const TaskFormData = require('../tasks/task-form-data.model');
+      const phasesService = require('../phases/phases.service');
+
+      // Handle flexible signatures: (node, actorId) or (node, pId, targetProjectId, actorId)
+      let resolvedActorId = actorId;
+      if (arguments.length === 2) {
+        resolvedActorId = arguments[1];
+      }
+
+      const pCode = (node.projectId || targetProjectId || '').toLowerCase();
+      const isStage = node.type === 'STAGE' || !node.parentNode;
+      const targetPId = node.project || node.timeline || pId;
+
+      if (isStage) {
+        await Phase.findOneAndUpdate(
+          {
+            $or: [
+              { projectId: pCode, phaseKey: node.key.toUpperCase() },
+              { projectId: pCode.toUpperCase(), phaseKey: node.key.toUpperCase() },
+              { _id: node._id }
+            ]
+          },
+          {
+            status: node.status,
+            assignedTo: node.assignedTo || null
+          }
+        );
+      } else {
+        const taskDoc = await Task.findOneAndUpdate(
+          {
+            $or: [
+              { timelineNodeId: node._id },
+              { projectId: pCode, taskKey: node.key.toUpperCase() },
+              { projectId: pCode.toUpperCase(), taskKey: node.key.toUpperCase() }
+            ]
+          },
+          {
+            status: node.status,
+            assignedTo: node.assignedTo || null,
+            formSchema: node.formSchema || undefined
+          },
+          { new: true }
+        );
+
+        if (taskDoc) {
+          if (node.formData && Object.keys(node.formData).length > 0) {
+            await TaskFormData.findOneAndUpdate(
+              { task: taskDoc._id },
+              {
+                project: taskDoc.project || targetPId,
+                projectId: pCode,
+                phase: taskDoc.phase,
+                task: taskDoc._id,
+                taskKey: taskDoc.taskKey,
+                submittedBy: resolvedActorId || node.assignedTo || null,
+                inputs: node.formData,
+                $inc: { version: 1 }
+              },
+              { upsert: true, new: true }
+            );
+          }
+          if (taskDoc.phase) {
+            await phasesService.recalculatePhaseProgress(taskDoc.phase);
+          }
+        }
+      }
+    } catch (err) {
+      console.warn('[TimelineService] _syncNodeToPhaseOrTask warning:', err.message);
+    }
   }
 
   async assignNode(projectId, nodeId, employeeId, actorId) {
@@ -1437,36 +1723,43 @@ class TimelineService {
 
     const node = await TimelineNode.findById(nodeId);
     if (!node) throw new AppError('Timeline node not found.', 404, 'NODE_NOT_FOUND');
-    node.assignedTo = employeeId || null;
+
+    // If employee id is not assigned or invalid, strictly set to null
+    const validEmpId = (employeeId && employeeId !== 'null' && employeeId !== 'undefined' && mongoose.Types.ObjectId.isValid(employeeId))
+      ? employeeId
+      : null;
+    node.assignedTo = validEmpId;
 
     // Automatically transition to IN_PROGRESS when a contributor is assigned to a pending/unstarted task
-    if (employeeId && (node.status === NODE_STATUSES.PENDING || node.status === 'NOT_STARTED')) {
+    if (validEmpId && (node.status === NODE_STATUSES.PENDING || node.status === 'NOT_STARTED')) {
       node.status = NODE_STATUSES.IN_PROGRESS;
     }
     await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, node.projectId, actorId);
 
     // Recalculate parent stage status so the stage accurately reflects IN_PROGRESS
     if (node.parentNode) {
       await this.recalculateStageStatus(node.parentNode);
     }
 
+    const validActorId = (actorId && mongoose.Types.ObjectId.isValid(actorId)) ? actorId : null;
     await Activity.create({
       project: pId,
-      actor: actorId,
+      actor: validActorId,
       action: 'CONTRIBUTOR_ASSIGNED',
       resourceType: 'TimelineNode',
       resourceId: node._id,
-      metadata: { nodeId, employeeId }
+      metadata: { nodeId, employeeId: validEmpId }
     });
 
     // Create Notification for the assigned user
-    if (employeeId) {
+    if (validEmpId) {
       try {
         const title = `Task Assigned: ${node.name}`;
         const message = `You have been assigned to "${node.name}" in project ${project ? project.projectId : ''} (${project ? (project.projectName || project.title) : ''}).`;
 
         await Notification.create({
-          recipient: employeeId,
+          recipient: validEmpId,
           project: pId,
           title,
           message,
@@ -1490,6 +1783,8 @@ class TimelineService {
   async updateNodeStatus(projectId, nodeId, newStatus, comment, employee, projectMembership) {
     const project = await this._findProject(projectId);
     const pId = project ? project._id : projectId;
+    const targetProjectId = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toLowerCase();
+    const actorId = employee?._id || employee || null;
     const node = await this.getNodeDoc(pId, nodeId);
 
     // Authorization checks for contributor vs PM/Admin
@@ -1519,20 +1814,37 @@ class TimelineService {
       'CONTENT_READY'
     ];
     if (execKeys.includes(node.key) && (newStatus === NODE_STATUSES.IN_PROGRESS || newStatus === NODE_STATUSES.COMPLETED)) {
-      const timeline = await this._findTimeline(projectId);
-      if (timeline) {
-        const orderReq = await TimelineNode.findOne({ timeline: timeline._id, key: 'ORDER_REQUIREMENT' });
-        if (orderReq && orderReq.status !== NODE_STATUSES.COMPLETED) {
-          throw new AppError('Order Requirement stage (Stage 03) must be completed before Execution phase (Stage 04) can start.', 422, 'ORDER_REQUIREMENT_NOT_COMPLETED');
-        }
+      const orderReq = await TimelineNode.findOne({
+        $or: [
+          targetProjectId ? { projectId: targetProjectId } : null,
+          pId ? { project: pId } : null,
+          pId ? { timeline: pId } : null
+        ].filter(Boolean),
+        key: 'ORDER_REQUIREMENT'
+      });
+      if (orderReq && orderReq.status !== NODE_STATUSES.COMPLETED) {
+        throw new AppError('Order Requirement stage (Stage 03) must be completed before Execution phase (Stage 04) can start.', 422, 'ORDER_REQUIREMENT_NOT_COMPLETED');
       }
     }
 
     // Check Dependency Gate for Stage 05 (TECH + CONTENT TESTING requires Tech Testing/Ready & Content Ready)
     if (node.key === 'TESTING_PREPARATION' && newStatus === NODE_STATUSES.IN_PROGRESS) {
-      const timeline = await this._findTimeline(projectId);
-      const techReady = await TimelineNode.findOne({ timeline: timeline._id, key: { $in: ['TECH_TESTING', 'TECH_READY'] } });
-      const contentReady = await TimelineNode.findOne({ timeline: timeline._id, key: 'CONTENT_READY' });
+      const techReady = await TimelineNode.findOne({
+        $or: [
+          targetProjectId ? { projectId: targetProjectId } : null,
+          pId ? { project: pId } : null,
+          pId ? { timeline: pId } : null
+        ].filter(Boolean),
+        key: { $in: ['TECH_TESTING', 'TECH_READY'] }
+      });
+      const contentReady = await TimelineNode.findOne({
+        $or: [
+          targetProjectId ? { projectId: targetProjectId } : null,
+          pId ? { project: pId } : null,
+          pId ? { timeline: pId } : null
+        ].filter(Boolean),
+        key: 'CONTENT_READY'
+      });
 
       if ((techReady && techReady.status !== NODE_STATUSES.COMPLETED) || (contentReady && contentReady.status !== NODE_STATUSES.COMPLETED)) {
         throw new AppError('Dependency Gate Failure: Both Tech Testing and Content Ready must be COMPLETED before testing can start.', 422, 'DEPENDENCY_GATE_FAILED');
@@ -1542,6 +1854,7 @@ class TimelineService {
     const previousStatus = node.status;
     node.status = newStatus;
     await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
 
     // Propagate status recalculation up the hierarchy recursively
     if (node.parentNode) {
@@ -1587,6 +1900,11 @@ class TimelineService {
   }
 
   async updateNodeForm(projectId, nodeId, formData, employee, projectMembership) {
+    const project = await this._findProject(projectId);
+    const pId = project ? project._id : projectId;
+    const targetProjectId = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toLowerCase();
+    const actorId = employee?._id || employee || null;
+
     const node = await this.getNodeDoc(projectId, nodeId);
 
     if (employee.globalRole !== GLOBAL_ROLES.ADMIN && projectMembership && projectMembership.designation === DESIGNATIONS.CONTRIBUTOR) {
@@ -1615,24 +1933,29 @@ class TimelineService {
       'CONTENT_READY'
     ];
     if (execKeys.includes(node.key)) {
-      const timeline = await this._findTimeline(projectId);
-      if (timeline) {
-        const orderReq = await TimelineNode.findOne({ timeline: timeline._id, key: 'ORDER_REQUIREMENT' });
-        if (orderReq && orderReq.status !== NODE_STATUSES.COMPLETED) {
-          throw new AppError('Order Requirement stage (Stage 03) must be completed before Execution tasks can be updated.', 422, 'ORDER_REQUIREMENT_NOT_COMPLETED');
-        }
+      const orderReq = await TimelineNode.findOne({
+        $or: [
+          targetProjectId ? { projectId: targetProjectId } : null,
+          pId ? { project: pId } : null,
+          pId ? { timeline: pId } : null
+        ].filter(Boolean),
+        key: 'ORDER_REQUIREMENT'
+      });
+      if (orderReq && orderReq.status !== NODE_STATUSES.COMPLETED) {
+        throw new AppError('Order Requirement stage (Stage 03) must be completed before Execution tasks can be updated.', 422, 'ORDER_REQUIREMENT_NOT_COMPLETED');
       }
     }
 
     node.formData = { ...(node.formData || {}), ...formData };
-    node.markModified('formData');
+    node.markModified('formData');  
     await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
 
     // Also sync to Requirements collection
     try {
       const Requirements = require('../requirements/requirements.model');
-      const reqCode = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toUpperCase();
-      const rawReqId = project?._id || projectId;
+      const reqCode = targetProjectId;
+      const rawReqId = pId;
       let reqDoc = await Requirements.findOne({
         $or: [
           { projectId: reqCode },
@@ -1660,12 +1983,14 @@ class TimelineService {
         if (formData.confirmed === 'YES' || formData.pmReviewStatus === 'APPROVED' || formData.projectReviewed === 'YES' || formData.projectCreated === 'YES' || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
         } else if (formData.confirmed === 'NO' || formData.pmReviewStatus === 'REJECTED' || formData.projectReviewed === 'NO' || formData.projectCreated === 'NO') {
           node.status = NODE_STATUSES.ON_HOLD;
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
@@ -1697,6 +2022,7 @@ class TimelineService {
         if (purchaseOrders.some(p => p.poNumber || p.poDocumentUrl) || formData.poNumber || formData.poDocumentUrl || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
@@ -1711,6 +2037,7 @@ class TimelineService {
         if (formData.requestedDate || formData.expectedPIDate || formData.requestRemarks || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
@@ -1772,6 +2099,7 @@ class TimelineService {
         if (proformaInvoices.some(p => p.piNumber || p.piDocumentUrl) || taxInvoices.some(t => t.invoiceNumber || t.invoiceDocumentUrl) || formData.piNumber || formData.invoiceNumber || formData.piDocumentUrl || formData.invoiceDocumentUrl || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
@@ -1807,12 +2135,32 @@ class TimelineService {
                 ]
               };
 
+              const schoolOrder = Number(s.order) || (idx + 1);
+              const branchName = s.schoolBranch || s.branch || '';
+
               await School.findOneAndUpdate(
                 filter,
                 {
                   $set: {
+                    project: project?._id || (mongoose.Types.ObjectId.isValid(projectId) ? projectId : undefined),
+                    projectId: project?.projectId || (typeof projectId === 'string' ? projectId : '').toLowerCase(),
+                    order: schoolOrder,
                     name: sName,
+                    schoolBranch: branchName,
+                    board: s.board || 'CBSE',
+                    schoolCategory: Array.isArray(s.schoolCategory) ? s.schoolCategory : [s.schoolCategory].filter(Boolean),
+                    classes: s.classes || [],
+                    streams: s.streams || [],
                     address: s.address || s.addressContact || '',
+                    city: s.city || '',
+                    district: s.district || '',
+                    state: s.state || '',
+                    pincode: s.pincode || '',
+                    principalName: s.principalName || '',
+                    principalDetails: s.principalDetails || s.principalPhone || '',
+                    pocName: s.pocName || '',
+                    pocDesignation: s.pocDesignation || '',
+                    pocContact: s.pocContact || s.pocPhone || '',
                     contactPerson: {
                       name: s.principalName || s.pocName || '',
                       phone: s.principalDetails || s.pocContact || s.phone || '',
@@ -1820,6 +2168,8 @@ class TimelineService {
                       designation: s.pocDesignation || 'Principal'
                     },
                     survey: {
+                      schoolBranch: branchName,
+                      order: schoolOrder,
                       schoolCategory: Array.isArray(s.schoolCategory) ? s.schoolCategory : [s.schoolCategory].filter(Boolean),
                       classes: s.classes || [],
                       streams: s.streams || [],
@@ -1890,9 +2240,9 @@ class TimelineService {
                     }
                   },
                   $setOnInsert: {
-                    projectId: projectId,
-                    installation: { status: 'PENDING' },
-                    training: { status: 'PENDING' }
+                    project: project?._id || (mongoose.Types.ObjectId.isValid(projectId) ? projectId : undefined),
+                    projectId: project?.projectId || (typeof projectId === 'string' ? projectId : '').toLowerCase(),
+                    isActive: true
                   }
                 },
                 { upsert: true, new: true }
@@ -1906,6 +2256,7 @@ class TimelineService {
         if (formData.schoolName || schoolsArr.length > 0 || formData.address || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
@@ -1935,6 +2286,7 @@ class TimelineService {
         if (derivedSolutionKeys.length > 0 || (formData.schoolWiseSolutions && Object.keys(formData.schoolWiseSolutions).length > 0) || (formData.solutions && Object.keys(formData.solutions).length > 0) || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
@@ -2025,6 +2377,7 @@ class TimelineService {
         if (derivedHardwareKeys.length > 0 || (formData.schoolWiseHardware && Object.keys(formData.schoolWiseHardware).length > 0) || formData.autoComplete === true) {
           node.status = NODE_STATUSES.COMPLETED;
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           if (node.parentNode) {
             await this.recalculateStageStatus(node.parentNode);
           }
@@ -2073,6 +2426,30 @@ class TimelineService {
           }
         };
         reqDoc.markModified('orderRequirement');
+
+        if (
+          formData.curriculumBoard ||
+          formData.board ||
+          formData.languages ||
+          formData.mediums ||
+          formData.gradesConfigured ||
+          formData.classes ||
+          formData.contentSets ||
+          formData.contents ||
+          formData.configurations ||
+          formData.driveLink ||
+          formData.sheetUrl ||
+          formData.autoComplete === true
+        ) {
+          node.status = NODE_STATUSES.COMPLETED;
+          await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
+          if (node.parentNode) {
+            await this.recalculateStageStatus(node.parentNode);
+          }
+        }
+
+        await this._syncStage3OrderRequirements(reqDoc, project, key, formData, employee);
       } else if (key === 'REQ_AND_STOCK_CHECK') {
         reqDoc.execution = {
           ...(reqDoc.execution || {}),
@@ -2368,9 +2745,11 @@ class TimelineService {
           if (anyNeedsImprovement) {
             node.status = 'IN_PROGRESS';
             await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           } else if (allPassed && formData.overallTestResult === 'ALL_PASSED') {
             node.status = 'COMPLETED';
             await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
           }
         } catch (notifErr) {
           console.error('Integration testing notification error:', notifErr.message);
@@ -2641,6 +3020,7 @@ class TimelineService {
           };
           node.markModified('formData');
           await node.save();
+    await this._syncNodeToPhaseOrTask(node, pId, targetProjectId, actorId);
 
           // Also sync to new Training model
           try {
@@ -2963,6 +3343,19 @@ class TimelineService {
         this._syncSchoolWiseHardwareExecution(reqDoc, project);
       }
 
+      // Sync Stage 3 referenced school requirements (solutions, hardware & content)
+      const stage3Keys = new Set([
+        'ORDER_REQUIREMENT',
+        'SCHOOL_ONBOARDING_INFORMATION',
+        'SOLUTION_SELECTION',
+        'HARDWARE_REQUIREMENT',
+        'CONTENT_CONFIGURATION'
+      ]);
+      if (stage3Keys.has(key)) {
+        const project = await this._findProject(projectId);
+        await this._syncStage3OrderRequirements(reqDoc, project, key, formData, employee);
+      }
+
       await reqDoc.save();
     } catch (syncErr) {
       console.warn('Requirements sync note:', syncErr.message);
@@ -3057,7 +3450,7 @@ class TimelineService {
         }
 
         // 3. Send real-time notifications to PM and Admins
-        const timeline = await Timeline.findById(timelineId).populate('project');
+        const timeline = { _id: timelineId, project: projectId || timelineId };
         const projId = projectId || timeline?.project?._id || timeline?.project;
         const project = timeline?.project || (projId ? await this._findProject(projId) : null);
 
@@ -3114,25 +3507,388 @@ class TimelineService {
     }
 
     const pId = project._id;
-    const projectCode = project.projectId || String(project._id);
+    const targetProjectId = project.projectId || String(project._id);
 
     const query = {
       $or: [
         { project: pId },
-        { projectId: projectCode },
-        { projectId: projectCode.toUpperCase() },
-        { projectId: projectCode.toLowerCase() }
+        { projectId: targetProjectId },
+        { projectId: targetProjectId.toUpperCase() },
+        { projectId: targetProjectId.toLowerCase() }
       ]
     };
 
-    const timeline = await Timeline.findOne(query);
+    await TimelineNode.deleteMany(query);
+    const timeline = null;
     if (timeline) {
       await TimelineNode.deleteMany({ timeline: timeline._id });
-      await Timeline.deleteOne({ _id: timeline._id });
+
     }
 
     await this.createTimelineForProject(project);
     return await this.getTimelineHierarchy(projectId);
+  }
+
+  async _syncStage3OrderRequirements(reqDoc, project, key, formData, employee) {
+    try {
+      if (!reqDoc) return;
+      const mongoose = require('mongoose');
+      const School = require('../schools/school.model');
+      const Solution = require('../solutions/solution.model');
+      const Hardware = require('../hardware/hardware.model');
+      let ContentSection = null;
+      try {
+        ContentSection = require('../content/content-section/content-section.model');
+      } catch (e) {}
+
+      const pId = project?._id || reqDoc.project;
+      const pCode = (project?.projectId || reqDoc.projectId || '').toString().trim().toLowerCase();
+
+      // 1. Fetch DB schools for this project
+      const dbSchools = await School.find({
+        $or: [
+          ...(pId && mongoose.Types.ObjectId.isValid(pId) ? [{ project: pId }] : []),
+          ...(pCode ? [{ projectId: pCode }, { projectId: pCode.toUpperCase() }] : [])
+        ].filter(Boolean),
+        isActive: true
+      }).sort({ order: 1, name: 1 }).lean();
+
+      // Fallback schools from orderRequirement.schoolInformation if dbSchools is empty
+      const rawSchoolsList = (dbSchools && dbSchools.length > 0)
+        ? dbSchools
+        : (Array.isArray(reqDoc.orderRequirement?.schoolInformation?.schools) && reqDoc.orderRequirement.schoolInformation.schools.length > 0)
+          ? reqDoc.orderRequirement.schoolInformation.schools
+          : (Array.isArray(project?.schools) && project.schools.length > 0)
+            ? project.schools
+            : [];
+
+      // 2. Fetch master catalogs
+      const [allSolutions, allHardware, allContent] = await Promise.all([
+        Solution.find({ isActive: true }).lean().catch(() => []),
+        Hardware.find({ isActive: true }).lean().catch(() => []),
+        ContentSection ? ContentSection.find({ isActive: true }).lean().catch(() => []) : []
+      ]);
+
+      const solCatalogByKey = new Map();
+      allSolutions.forEach(s => {
+        if (s.key) {
+          solCatalogByKey.set(s.key, s);
+          solCatalogByKey.set(s.key.toUpperCase(), s);
+        }
+        if (s._id) solCatalogByKey.set(String(s._id), s);
+      });
+
+      const hwCatalogByKey = new Map();
+      allHardware.forEach(h => {
+        if (h.key) {
+          hwCatalogByKey.set(h.key, h);
+          hwCatalogByKey.set(h.key.toUpperCase(), h);
+        }
+        if (h._id) hwCatalogByKey.set(String(h._id), h);
+      });
+
+      // 3. Extract Stage 3 sources
+      const orderReq = reqDoc.orderRequirement || {};
+      const solSelection = (key === 'SOLUTION_SELECTION' ? { ...(orderReq.solutionSelection || {}), ...formData } : (orderReq.solutionSelection || {}));
+      const hwRequirement = (key === 'HARDWARE_REQUIREMENT' ? { ...(orderReq.hardwareRequirement || {}), ...formData } : (orderReq.hardwareRequirement || {}));
+      const contentConfig = (key === 'CONTENT_CONFIGURATION' ? { ...(orderReq.contentConfiguration || {}), ...formData } : (orderReq.contentConfiguration || {}));
+
+      const schoolWiseSolutions = solSelection.schoolWiseSolutions || {};
+      const schoolWiseHardware = hwRequirement.schoolWiseHardware || {};
+      const schoolWiseContent = contentConfig.schoolWiseContent || {};
+
+      // 4. Construct canonical school requirement documents
+      const compiledSchools = [];
+
+      for (let idx = 0; idx < rawSchoolsList.length; idx++) {
+        const s = rawSchoolsList[idx];
+        const sId = s._id ? String(s._id) : (s.id ? String(s.id) : '');
+        const sCustomId = s.schoolId || s.schoolCode || sId || `SCH-${idx + 1}`;
+        const sName = s.name || s.schoolName || `School ${idx + 1}`;
+        const sBranch = s.schoolBranch || s.branch || '';
+        const sOrder = Number(s.order) || (idx + 1);
+        const sAddress = s.address || s.addressContact || '';
+        const sContact = s.contactPerson?.name || s.contactPerson || s.pocName || s.principalName || '';
+        const sPhone = s.contactPerson?.phone || s.phone || s.pocContact || '';
+
+        // School keys to check in maps
+        const schoolLookupKeys = [
+          sId,
+          sCustomId,
+          sName,
+          `school-${idx + 1}`,
+          `school_${idx + 1}`,
+          s.id ? String(s.id) : null
+        ].filter(Boolean);
+
+        // --- SOLUTIONS ---
+        let solMapForSchool = null;
+        for (const k of schoolLookupKeys) {
+          if (schoolWiseSolutions[k] && typeof schoolWiseSolutions[k] === 'object') {
+            solMapForSchool = schoolWiseSolutions[k];
+            break;
+          }
+        }
+
+        const schoolSolutions = [];
+        const seenSolKeys = new Set();
+
+        if (solMapForSchool) {
+          for (const [solKey, solData] of Object.entries(solMapForSchool)) {
+            if (!solData || solData.selected === false) continue;
+            const normKey = solKey.toUpperCase();
+            if (seenSolKeys.has(normKey)) continue;
+            seenSolKeys.add(normKey);
+
+            const master = solCatalogByKey.get(solKey) || solCatalogByKey.get(normKey);
+            const solName = solData.solutionName || solData.name || master?.name || master?.label || solKey.replace(/_/g, ' ');
+            const qty = Number(solData.quantity || solData.qty || 1);
+
+            schoolSolutions.push({
+              solution: master?._id || null,
+              solutionKey: normKey,
+              solutionName: solName,
+              label: master?.label || solName,
+              quantity: qty,
+              description: master?.description || solData.notes || '',
+              remarks: solData.notes || '',
+              hardware: [],
+              content: []
+            });
+          }
+        } else if (Array.isArray(solSelection.activeSolutionKeys) && solSelection.activeSolutionKeys.length > 0) {
+          for (const solKey of solSelection.activeSolutionKeys) {
+            const normKey = String(solKey).toUpperCase();
+            if (seenSolKeys.has(normKey)) continue;
+            seenSolKeys.add(normKey);
+
+            const master = solCatalogByKey.get(solKey) || solCatalogByKey.get(normKey);
+            const solName = master?.name || master?.label || normKey.replace(/_/g, ' ');
+
+            schoolSolutions.push({
+              solution: master?._id || null,
+              solutionKey: normKey,
+              solutionName: solName,
+              label: master?.label || solName,
+              quantity: 1,
+              description: master?.description || '',
+              remarks: '',
+              hardware: [],
+              content: []
+            });
+          }
+        }
+
+        // --- HARDWARE ---
+        let hwMapForSchool = null;
+        for (const k of schoolLookupKeys) {
+          if (schoolWiseHardware[k] && typeof schoolWiseHardware[k] === 'object') {
+            hwMapForSchool = schoolWiseHardware[k];
+            break;
+          }
+        }
+
+        const schoolHardwareList = [];
+        const seenHwKeys = new Set();
+
+        if (hwMapForSchool) {
+          for (const [hwKey, hwData] of Object.entries(hwMapForSchool)) {
+            if (!hwData || hwData.selected === false) continue;
+            const normKey = hwKey.toUpperCase();
+            if (seenHwKeys.has(normKey)) continue;
+            seenHwKeys.add(normKey);
+
+            const master = hwCatalogByKey.get(hwKey) || hwCatalogByKey.get(normKey);
+            const itemName = hwData.itemName || hwData.name || master?.name || master?.label || hwKey.replace(/_/g, ' ');
+            const qty = Number(hwData.quantity || hwData.qty || 1);
+            const specNotes = hwData.specNotes || hwData.spec || master?.description || '';
+            const solKeyRef = (hwData.solutionKey || '').toUpperCase();
+            const solNameRef = hwData.solutionName || '';
+
+            const hwItem = {
+              hardware: master?._id || null,
+              hardwareKey: normKey,
+              itemName: itemName,
+              hardwareName: itemName,
+              quantity: qty,
+              qty: qty,
+              unit: master?.unit || 'Units',
+              specNotes: specNotes,
+              spec: specNotes,
+              serialNotes: hwData.serialNotes || '',
+              solution: solCatalogByKey.get(solKeyRef)?._id || null,
+              solutionKey: solKeyRef,
+              solutionName: solNameRef,
+              stockCheck: {
+                requiredQty: qty,
+                inStockQty: qty,
+                purchaseQty: 0,
+                stockStatus: 'IN_STOCK'
+              }
+            };
+
+            schoolHardwareList.push(hwItem);
+
+            // Also attach to matching solution's hardware array
+            if (solKeyRef) {
+              const matchingSol = schoolSolutions.find(s => s.solutionKey === solKeyRef);
+              if (matchingSol) {
+                matchingSol.hardware.push(hwItem);
+              }
+            } else if (schoolSolutions.length === 1) {
+              schoolSolutions[0].hardware.push(hwItem);
+            }
+          }
+        } else if (Array.isArray(hwRequirement.activeHardwareKeys) && hwRequirement.activeHardwareKeys.length > 0) {
+          for (const hwKey of hwRequirement.activeHardwareKeys) {
+            const normKey = String(hwKey).toUpperCase();
+            if (seenHwKeys.has(normKey)) continue;
+            seenHwKeys.add(normKey);
+
+            const master = hwCatalogByKey.get(hwKey) || hwCatalogByKey.get(normKey);
+            const itemName = master?.name || master?.label || normKey.replace(/_/g, ' ');
+
+            const hwItem = {
+              hardware: master?._id || null,
+              hardwareKey: normKey,
+              itemName: itemName,
+              hardwareName: itemName,
+              quantity: 1,
+              qty: 1,
+              unit: master?.unit || 'Units',
+              specNotes: master?.description || '',
+              spec: master?.description || '',
+              serialNotes: '',
+              solution: null,
+              solutionKey: '',
+              solutionName: '',
+              stockCheck: {
+                requiredQty: 1,
+                inStockQty: 1,
+                purchaseQty: 0,
+                stockStatus: 'IN_STOCK'
+              }
+            };
+
+            schoolHardwareList.push(hwItem);
+            if (schoolSolutions.length === 1) {
+              schoolSolutions[0].hardware.push(hwItem);
+            }
+          }
+        }
+
+        // --- CONTENT ---
+        const schoolContentList = [];
+        let contentForSchool = null;
+        for (const k of schoolLookupKeys) {
+          if (schoolWiseContent[k]) {
+            contentForSchool = schoolWiseContent[k];
+            break;
+          }
+        }
+
+        const rawContentItems = Array.isArray(contentForSchool)
+          ? contentForSchool
+          : (Array.isArray(contentConfig.contentSets) ? contentConfig.contentSets : (Array.isArray(contentConfig.configurations) ? contentConfig.configurations : []));
+
+        if (rawContentItems.length > 0) {
+          rawContentItems.forEach((cItem, cIdx) => {
+            const cKey = cItem.contentKey || cItem.reqKey || `CNT-${idx + 1}-${cIdx + 1}`;
+            const cTitle = cItem.title || cItem.name || `${cItem.board || 'CBSE'} - ${cItem.medium || cItem.language || 'English'}`;
+            const solKeyRef = (cItem.solutionKey || '').toUpperCase();
+
+            const cntEntry = {
+              content: cItem.content || null,
+              contentKey: cKey,
+              reqKey: cKey,
+              title: cTitle,
+              name: cTitle,
+              board: cItem.board || contentConfig.curriculumBoard || contentConfig.board || s.board || 'CBSE',
+              languageName: cItem.medium || cItem.language || cItem.languageName || (Array.isArray(contentConfig.languages) ? contentConfig.languages.join(', ') : contentConfig.languages) || '',
+              gradeName: cItem.classes ? (Array.isArray(cItem.classes) ? cItem.classes.join(', ') : cItem.classes) : (contentConfig.gradesConfigured || ''),
+              stream: cItem.stream || '',
+              driveLink: cItem.driveLink || contentConfig.driveLink || '',
+              sheetUrl: cItem.sheetUrl || contentConfig.sheetUrl || '',
+              solution: solCatalogByKey.get(solKeyRef)?._id || null,
+              solutionKey: solKeyRef,
+              status: 'CONFIGURED',
+              remarks: cItem.remarks || ''
+            };
+
+            schoolContentList.push(cntEntry);
+
+            if (solKeyRef) {
+              const matchingSol = schoolSolutions.find(s => s.solutionKey === solKeyRef);
+              if (matchingSol) {
+                matchingSol.content.push(cntEntry);
+              }
+            } else if (schoolSolutions.length === 1) {
+              schoolSolutions[0].content.push(cntEntry);
+            }
+          });
+        } else if (contentConfig.curriculumBoard || contentConfig.board || contentConfig.languages || contentConfig.mediums || contentConfig.gradesConfigured || contentConfig.classes || contentConfig.driveLink || contentConfig.sheetUrl) {
+          const languagesStr = Array.isArray(contentConfig.languages)
+            ? contentConfig.languages.join(', ')
+            : (Array.isArray(contentConfig.mediums) ? contentConfig.mediums.join(', ') : (contentConfig.languages || contentConfig.medium || 'English'));
+          const gradesStr = Array.isArray(contentConfig.classes) ? contentConfig.classes.join(', ') : (contentConfig.gradesConfigured || '');
+          const boardStr = contentConfig.curriculumBoard || contentConfig.board || s.board || 'CBSE';
+
+          const cntEntry = {
+            content: null,
+            contentKey: `CNT-${idx + 1}`,
+            reqKey: `CNT-${idx + 1}`,
+            title: `${boardStr} Curriculum Package`,
+            name: `${boardStr} Curriculum Package`,
+            board: boardStr,
+            languageName: languagesStr,
+            gradeName: gradesStr,
+            driveLink: contentConfig.driveLink || '',
+            sheetUrl: contentConfig.sheetUrl || '',
+            solution: schoolSolutions[0]?.solution || null,
+            solutionKey: schoolSolutions[0]?.solutionKey || '',
+            status: 'CONFIGURED',
+            remarks: contentConfig.remarks || ''
+          };
+
+          schoolContentList.push(cntEntry);
+          if (schoolSolutions.length > 0) {
+            schoolSolutions[0].content.push(cntEntry);
+          }
+        }
+
+        // Assemble canonical school requirement item
+        compiledSchools.push({
+          school: s._id && mongoose.Types.ObjectId.isValid(s._id) ? s._id : null,
+          schoolId: sCustomId,
+          schoolName: sName,
+          schoolBranch: sBranch,
+          schoolBranchId: sBranch || sCustomId,
+          order: sOrder,
+          address: sAddress,
+          contactPerson: sContact,
+          phone: sPhone,
+          solutions: schoolSolutions,
+          hardware: schoolHardwareList,
+          content: schoolContentList,
+          readyForInstallation: 'NO',
+          allHardwareReceived: 'NO',
+          remarks: ''
+        });
+      }
+
+      if (compiledSchools.length > 0) {
+        reqDoc.schools = compiledSchools;
+        reqDoc.orderRequirement = reqDoc.orderRequirement || {};
+        reqDoc.orderRequirement.schools = compiledSchools;
+        reqDoc.markModified('schools');
+        reqDoc.markModified('orderRequirement');
+      }
+
+      // Keep execution.schoolWiseHardware in sync as well
+      this._syncSchoolWiseHardwareExecution(reqDoc, project);
+    } catch (err) {
+      console.warn('Error in _syncStage3OrderRequirements:', err.message, err.stack);
+    }
   }
 
   _syncSchoolWiseHardwareExecution(reqDoc, project) {
@@ -3540,17 +4296,18 @@ class TimelineService {
   async syncSchoolProgressToTimeline(projectId) {
     try {
       const School = require('../schools/school.model');
-      const Timeline = require('./timeline.model');
+      
       const TimelineNode = require('./timeline-node.model');
 
       const project = await this._findProject(projectId);
       if (!project) return;
 
-      const schoolCode = (project.projectId || '').toUpperCase();
+      const schoolCode = (project.projectId || '').toLowerCase();
       const rawSchoolId = project._id;
       const schools = await School.find({
         $or: [
           { projectId: schoolCode },
+          { projectId: schoolCode.toUpperCase() },
           { projectId: String(rawSchoolId) },
           { projectId: rawSchoolId }
         ].filter(Boolean),
@@ -3565,7 +4322,7 @@ class TimelineService {
       const timeline = await this._findTimeline(project);
       if (!timeline) return;
 
-      if (timeline.stages && Array.isArray(timeline.stages)) {
+      if (false) {
         for (const stage of timeline.stages) {
           if ((stage.stageKey === 'INSTALLATION' || stage.stageKey === 'STAGE_05_INSTALLATION') && stage.tasks) {
             for (const task of stage.tasks) {
@@ -3603,13 +4360,13 @@ class TimelineService {
       // Sync legacy TimelineNode if present for backward compatibility
       if (installedSchools === totalSchools && totalSchools > 0) {
         await TimelineNode.updateOne(
-          { timeline: timeline._id, key: 'INSTALLATION_COMPLETED' },
+          { $or: [{ projectId: schoolCode }, { timeline: timeline._id }], key: 'INSTALLATION_COMPLETED' },
           { $set: { status: 'COMPLETED' } }
         );
       }
       if (trainedSchools === totalSchools && totalSchools > 0) {
         await TimelineNode.updateOne(
-          { timeline: timeline._id, key: 'TRAINING_COMPLETED' },
+          { $or: [{ projectId: schoolCode }, { timeline: timeline._id }], key: 'TRAINING_COMPLETED' },
           { $set: { status: 'COMPLETED' } }
         );
       }

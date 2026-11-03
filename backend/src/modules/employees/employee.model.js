@@ -8,8 +8,6 @@ const employeeSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true, select: false },
   globalRole: { type: String, enum: Object.values(GLOBAL_ROLES), default: GLOBAL_ROLES.EMPLOYEE, index: true },
   employeeCode: { type: String, required: true, unique: true, uppercase: true, index: true },
-  department: { type: mongoose.Schema.Types.ObjectId, ref: 'Department', default: null, index: true },
-  departmentCode: { type: String, uppercase: true, trim: true, default: null },
   designation: { type: String, trim: true },
   phone: { type: String, trim: true },
   reportingManager: { type: String, trim: true },

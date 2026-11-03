@@ -68,7 +68,6 @@ export function MultiPiInvoiceSection({
   const organizationName = useMemo(() => {
     return (
       value?.organizationName ||
-      project?.organization ||
       project?.projectName ||
       project?.title ||
       allFormData?.organizationName ||

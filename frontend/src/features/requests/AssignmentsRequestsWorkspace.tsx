@@ -233,11 +233,10 @@ export function AssignmentsRequestsWorkspace() {
         const q = effectiveSearch.toLowerCase();
         const code = (p.projectId || '').toLowerCase();
         const title = (p.projectName || p.title || '').toLowerCase();
-        const org = (p.organization || '').toLowerCase();
         const pmObj = typeof p.projectManager === 'object' && p.projectManager !== null ? (p.projectManager as any) : null;
         const pmName = (pmObj?.name || '').toLowerCase();
 
-        return code.includes(q) || title.includes(q) || org.includes(q) || pmName.includes(q);
+        return code.includes(q) || title.includes(q)  || pmName.includes(q);
       }
 
       return true;
@@ -744,7 +743,7 @@ export function AssignmentsRequestsWorkspace() {
             <Search className="w-4 h-4 text-[#4a5462] absolute left-3.5 top-1/2 -translate-y-1/2 pointer-events-none" />
             <input
               type="text"
-              placeholder="Search assignments by Project Code, title, client, or PM..."
+              placeholder="Search assignments by Project ID, title, client, or PM..."
               value={assignmentSearch}
               onChange={(e) => setAssignmentSearch(e.target.value)}
               className="w-full pl-9 pr-9 py-2.5 bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-2xl text-xs text-[#333333] focus:outline-none focus:ring-2 focus:ring-[#51a8b1] transition placeholder:text-slate-400 font-medium"
@@ -816,13 +815,6 @@ export function AssignmentsRequestsWorkspace() {
                         <h3 className="font-heading font-bold text-sm sm:text-base text-[#333333] group-hover:text-[#51a8b1] transition line-clamp-1 pt-0.5">
                           {name}
                         </h3>
-
-                        {p.organization && (
-                          <p className="text-xs text-[#4a5462] flex items-center gap-1 font-medium">
-                            <Building2 className="w-3.5 h-3.5 text-[#51a8b1] shrink-0" />
-                            <span className="truncate">{p.organization}</span>
-                          </p>
-                        )}
                       </div>
 
                       {/* Open in Tracker CTA Button */}

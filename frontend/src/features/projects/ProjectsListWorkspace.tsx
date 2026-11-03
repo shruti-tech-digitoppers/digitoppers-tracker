@@ -8,14 +8,14 @@ import { CreateProjectRequestModal } from '../requests/components/CreateProjectR
 import { authApi } from '../../lib/api/auth.api';
 import { requestsApi } from '../../lib/api/requests.api';
 import { IProject } from '../../types/project';
-import { 
-  FolderKanban, 
-  Plus, 
-  Search, 
-  Table as TableIcon, 
-  LayoutGrid, 
-  CheckCircle2, 
-  Clock, 
+import {
+  FolderKanban,
+  Plus,
+  Search,
+  Table as TableIcon,
+  LayoutGrid,
+  CheckCircle2,
+  Clock,
   Sparkles,
   Layers,
   Filter,
@@ -41,14 +41,14 @@ export function ProjectsListWorkspace() {
           setCurrentUser(JSON.parse(stored));
           return;
         }
-      } catch {}
+      } catch { }
 
       authApi.getMe().then((res) => {
         if (res.user) {
           setCurrentUser(res.user);
-          try { localStorage.setItem('user', JSON.stringify(res.user)); } catch {}
+          try { localStorage.setItem('user', JSON.stringify(res.user)); } catch { }
         }
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, []);
 
@@ -69,11 +69,11 @@ export function ProjectsListWorkspace() {
   // Filter projects based on search query and status filter (only confirmed projects)
   const filteredProjects = useMemo(() => {
     return projects.filter((p) => {
-      const matchStatus = statusFilter === 'ALL' 
-        ? true 
-        : statusFilter === 'ARCHIVED' 
-        ? (!p.isActive || p.status === 'ARCHIVED')
-        : p.status === statusFilter;
+      const matchStatus = statusFilter === 'ALL'
+        ? true
+        : statusFilter === 'ARCHIVED'
+          ? (!p.isActive || p.status === 'ARCHIVED')
+          : p.status === statusFilter;
 
       if (!matchStatus) return false;
 
@@ -82,10 +82,9 @@ export function ProjectsListWorkspace() {
       const q = searchQuery.toLowerCase();
       const code = (p.projectId || '').toLowerCase();
       const name = (p.projectName || p.title || '').toLowerCase();
-      const org = (p.organization || '').toLowerCase();
       const pmName = (typeof p.projectManager === 'object' && p.projectManager !== null ? (p.projectManager as any).name : '').toLowerCase();
 
-      return code.includes(q) || name.includes(q) || org.includes(q) || pmName.includes(q);
+      return code.includes(q) || name.includes(q)  || pmName.includes(q);
     });
   }, [projects, searchQuery, statusFilter]);
 
@@ -121,11 +120,10 @@ export function ProjectsListWorkspace() {
             <button
               type="button"
               onClick={() => setViewMode('table')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                viewMode === 'table'
-                  ? 'bg-[#51a8b1] text-white shadow-2xs'
-                  : 'text-[#4a5462] hover:text-[#333333] hover:bg-[#f8fafb]'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${viewMode === 'table'
+                ? 'bg-[#51a8b1] text-white shadow-2xs'
+                : 'text-[#4a5462] hover:text-[#333333] hover:bg-[#f8fafb]'
+                }`}
             >
               <TableIcon className="w-3.5 h-3.5" />
               <span>Table View</span>
@@ -133,11 +131,10 @@ export function ProjectsListWorkspace() {
             <button
               type="button"
               onClick={() => setViewMode('grid')}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
-                viewMode === 'grid'
-                  ? 'bg-[#51a8b1] text-white shadow-2xs'
-                  : 'text-[#4a5462] hover:text-[#333333] hover:bg-[#f8fafb]'
-              }`}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${viewMode === 'grid'
+                ? 'bg-[#51a8b1] text-white shadow-2xs'
+                : 'text-[#4a5462] hover:text-[#333333] hover:bg-[#f8fafb]'
+                }`}
             >
               <LayoutGrid className="w-3.5 h-3.5" />
               <span>Grid View</span>
@@ -159,13 +156,12 @@ export function ProjectsListWorkspace() {
 
       {/* ── Metric Badges Row ───────────────────────────────────────── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div 
+        <div
           onClick={() => setStatusFilter('ALL')}
-          className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${
-            statusFilter === 'ALL'
-              ? 'bg-white border-[#51a8b1] ring-2 ring-[#51a8b1]/20 shadow-xs'
-              : 'bg-white border-[#b9c0cb]/40 hover:border-[#51a8b1]/40 shadow-2xs'
-          }`}
+          className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${statusFilter === 'ALL'
+            ? 'bg-white border-[#51a8b1] ring-2 ring-[#51a8b1]/20 shadow-xs'
+            : 'bg-white border-[#b9c0cb]/40 hover:border-[#51a8b1]/40 shadow-2xs'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#4a5462]">All Projects</span>
@@ -174,13 +170,12 @@ export function ProjectsListWorkspace() {
           <p className="text-xl font-bold font-heading text-[#333333] mt-1">{stats.total}</p>
         </div>
 
-        <div 
+        <div
           onClick={() => setStatusFilter('ACTIVE')}
-          className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${
-            statusFilter === 'ACTIVE'
-              ? 'bg-[#f0f8f9] border-[#51a8b1] ring-2 ring-[#51a8b1]/20 shadow-xs'
-              : 'bg-white border-[#b9c0cb]/40 hover:border-[#51a8b1]/40 shadow-2xs'
-          }`}
+          className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${statusFilter === 'ACTIVE'
+            ? 'bg-[#f0f8f9] border-[#51a8b1] ring-2 ring-[#51a8b1]/20 shadow-xs'
+            : 'bg-white border-[#b9c0cb]/40 hover:border-[#51a8b1]/40 shadow-2xs'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#3a7d84]">Active / Live</span>
@@ -189,13 +184,12 @@ export function ProjectsListWorkspace() {
           <p className="text-xl font-bold font-heading text-[#3a7d84] mt-1">{stats.active}</p>
         </div>
 
-        <div 
+        <div
           onClick={() => setStatusFilter('COMPLETED')}
-          className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${
-            statusFilter === 'COMPLETED'
-              ? 'bg-[#f7fbe9] border-[#a8cf45] ring-2 ring-[#a8cf45]/20 shadow-xs'
-              : 'bg-white border-[#b9c0cb]/40 hover:border-[#a8cf45]/40 shadow-2xs'
-          }`}
+          className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${statusFilter === 'COMPLETED'
+            ? 'bg-[#f7fbe9] border-[#a8cf45] ring-2 ring-[#a8cf45]/20 shadow-xs'
+            : 'bg-white border-[#b9c0cb]/40 hover:border-[#a8cf45]/40 shadow-2xs'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-[#465b1c]">Completed</span>
@@ -204,13 +198,12 @@ export function ProjectsListWorkspace() {
           <p className="text-xl font-bold font-heading text-[#465b1c] mt-1">{stats.completed}</p>
         </div>
 
-        <div 
+        <div
           onClick={() => setStatusFilter('ON_HOLD')}
-          className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${
-            statusFilter === 'ON_HOLD'
-              ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-300/20 shadow-xs'
-              : 'bg-white border-[#b9c0cb]/40 hover:border-amber-300 shadow-2xs'
-          }`}
+          className={`p-3.5 rounded-2xl border transition cursor-pointer select-none ${statusFilter === 'ON_HOLD'
+            ? 'bg-amber-50 border-amber-300 ring-2 ring-amber-300/20 shadow-xs'
+            : 'bg-white border-[#b9c0cb]/40 hover:border-amber-300 shadow-2xs'
+            }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-amber-800">On Hold</span>
@@ -228,7 +221,7 @@ export function ProjectsListWorkspace() {
             type="text"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search by project ID, name, organization, or PM..."
+            placeholder="Search by project ID, name, or PM..."
             className="w-full pl-9 pr-8 py-2 bg-[#f8fafb] border border-[#b9c0cb]/50 rounded-xl text-xs text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white transition-all font-medium"
           />
           {searchQuery && (
@@ -247,22 +240,21 @@ export function ProjectsListWorkspace() {
         <div className="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto pb-1 sm:pb-0 no-scrollbar">
           {(['ALL', 'ACTIVE', 'ON_HOLD', 'COMPLETED', 'ARCHIVED'] as const).map((st) => {
             const isSelected = statusFilter === st;
-            const label = st === 'ALL' 
-              ? 'All' 
-              : st === 'ARCHIVED' 
-              ? 'Inactive / Archived' 
-              : st.replace('_', ' ');
+            const label = st === 'ALL'
+              ? 'All'
+              : st === 'ARCHIVED'
+                ? 'Inactive / Archived'
+                : st.replace('_', ' ');
 
             return (
               <button
                 key={st}
                 type="button"
                 onClick={() => setStatusFilter(st)}
-                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap border ${
-                  isSelected
-                    ? 'bg-[#51a8b1] text-white border-[#51a8b1] shadow-2xs'
-                    : 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40 hover:bg-[#f1f3f6]'
-                }`}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer whitespace-nowrap border ${isSelected
+                  ? 'bg-[#51a8b1] text-white border-[#51a8b1] shadow-2xs'
+                  : 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40 hover:bg-[#f1f3f6]'
+                  }`}
               >
                 {label}
               </button>

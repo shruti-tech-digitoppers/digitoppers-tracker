@@ -9,7 +9,7 @@ class ActivityService {
     try {
       let projectId = project;
       if (projectId && !mongoose.Types.ObjectId.isValid(projectId)) {
-        // If passed as projectCode or string, search or ignore
+        // If passed as string ID, search or ignore
         projectId = undefined;
       }
 
@@ -64,7 +64,7 @@ class ActivityService {
     const [activities, total] = await Promise.all([
       Activity.find(filter)
         .populate('actor', 'name email employeeCode department role designation')
-        .populate('project', 'projectId projectName organization status')
+
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(take)
@@ -144,7 +144,7 @@ class ActivityService {
     const [activities, total] = await Promise.all([
       Activity.find(filter)
         .populate('actor', 'name email employeeCode department role designation')
-        .populate('project', 'projectId projectName organization status')
+
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(take)

@@ -74,10 +74,22 @@ export interface ISchoolTraining {
 
 export interface ISchool {
   _id: string;
+  project?: string | { _id: string; projectName?: string; projectId?: string; title?: string };
   projectId: string | { _id: string; projectName: string; projectId: string };
+  order?: number;
   name: string;
+  schoolName?: string;
+  schoolBranch?: string;
+  branch?: string;
+  schoolId?: string;
+  board?: string;
+  schoolCategory?: string[];
+  classes?: string[];
+  streams?: string[];
+  city?: string;
   district?: string;
   state?: string;
+  pincode?: string;
   address?: string;
   contactPerson?: {
     name?: string;
@@ -85,10 +97,16 @@ export interface ISchool {
     email?: string;
     designation?: string;
   };
-  solutions: ISchoolSolutionItem[];
-  hardware: ISchoolHardwareItem[];
-  installation: ISchoolInstallation;
-  training: ISchoolTraining;
+  principalName?: string;
+  principalDetails?: string;
+  pocName?: string;
+  pocDesignation?: string;
+  pocContact?: string;
+  survey?: Record<string, any>;
+  solutions?: ISchoolSolutionItem[];
+  hardware?: ISchoolHardwareItem[];
+  installation?: ISchoolInstallation;
+  training?: ISchoolTraining;
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;

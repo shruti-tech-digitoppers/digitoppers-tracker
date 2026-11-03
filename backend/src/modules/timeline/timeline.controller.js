@@ -12,10 +12,11 @@ class TimelineController {
 
   async getRoadmap(req, res, next) {
     try {
-      const Timeline = require('./timeline.model');
-      const project = await timelineService._findProject(req.params.projectId);
-      const pId = project ? project._id : req.params.projectId;
-      const timeline = await Timeline.findOne({ project: pId }).lean();
+
+
+
+      const hierarchy = await timelineService.getTimelineHierarchy(req.params.projectId);
+      const timeline = hierarchy.timeline || hierarchy;
       res.status(200).json({ success: true, data: timeline });
     } catch (err) { next(err); }
   }

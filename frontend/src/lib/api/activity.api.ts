@@ -5,7 +5,6 @@ export interface IActivityProject {
   _id: string;
   projectId?: string;
   projectName?: string;
-  organization?: string;
   status?: string;
 }
 

@@ -8,18 +8,20 @@ const mongoose = require('mongoose');
 const checkProjectAccess = async (employeeId, projectId) => {
   if (!projectId) return null;
   let targetId = projectId;
-  let projectCode = String(projectId).trim().toUpperCase();
+  let targetProjectId = String(projectId).trim().toLowerCase();
   try {
     const proj = await coreApi.getProjectById(projectId);
     if (proj) {
       if (proj._id) targetId = proj._id;
-      if (proj.projectId) projectCode = proj.projectId.toUpperCase();
+      if (proj.projectId) targetProjectId = proj.projectId.toLowerCase();
     }
   } catch (_) { }
 
   return await ProjectMember.findOne({
     $or: [
-      { projectId: projectCode },
+      { projectId: targetProjectId },
+      { projectId: String(projectId).trim().toLowerCase() },
+      { projectId: targetProjectId.toUpperCase() },
       { projectId: String(projectId).trim().toUpperCase() },
       { project: targetId },
       { project: projectId }

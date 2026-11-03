@@ -89,8 +89,7 @@ export function ProjectRequestReviewModal({
     return dbProjects.filter((p) => {
       const code = (p.projectId || p._id || '').toLowerCase();
       const name = (p.projectName || p.title || '').toLowerCase();
-      const org = (p.organization || '').toLowerCase();
-      return code.includes(q) || name.includes(q) || org.includes(q);
+      return code.includes(q) || name.includes(q) ;
     });
   }, [dbProjects, projectSearchQuery]);
 
@@ -99,8 +98,8 @@ export function ProjectRequestReviewModal({
     if (!selectedProjectId) return null;
     return dbProjects.find((p) => {
       const pIdStr = String(p._id || '');
-      const pCode = String(p.projectId || '').toUpperCase();
-      const selStr = String(selectedProjectId).toUpperCase();
+      const pCode = String(p.projectId || '').toLowerCase();
+      const selStr = String(selectedProjectId).toLowerCase();
       return pIdStr === selectedProjectId || pCode === selStr;
     }) || null;
   }, [dbProjects, selectedProjectId]);
@@ -111,27 +110,27 @@ export function ProjectRequestReviewModal({
     const reqMongoId = typeof request.projectId === 'object' && request.projectId !== null
       ? String(request.projectId._id || request.projectId)
       : String(request.projectId || '');
-    const reqCode = String(request.dashboardProjectId || '').toUpperCase();
+    const reqCode = String(request.dashboardProjectId || '').toLowerCase();
 
     return dbProjects.find((p) => {
       const pId = String(p._id || '');
-      const pCode = String(p.projectId || '').toUpperCase();
+      const pCode = String(p.projectId || '').toLowerCase();
       return (reqMongoId && pId === reqMongoId) || (reqCode && pCode === reqCode);
     }) || null;
   }, [request, dbProjects]);
 
   if (!isOpen || !request) return null;
 
-  const reqBy = typeof request.requestedBy === 'object' && request.requestedBy !== null 
-    ? (request.requestedBy as any) 
+  const reqBy = typeof request.requestedBy === 'object' && request.requestedBy !== null
+    ? (request.requestedBy as any)
     : { name: 'Employee', email: '' };
 
-  const pmEmp = typeof request.projectManager === 'object' && request.projectManager !== null 
-    ? (request.projectManager as any) 
+  const pmEmp = typeof request.projectManager === 'object' && request.projectManager !== null
+    ? (request.projectManager as any)
     : { name: 'Assigned PM', email: '' };
 
-  const reqToEmp = typeof request.requestedTo === 'object' && request.requestedTo !== null 
-    ? (request.requestedTo as any) 
+  const reqToEmp = typeof request.requestedTo === 'object' && request.requestedTo !== null
+    ? (request.requestedTo as any)
     : { name: 'Requested To', email: '' };
 
   const isPending = request.status === 'PENDING';
@@ -170,7 +169,7 @@ export function ProjectRequestReviewModal({
 
       await requestsApi.approveRequest(request._id, {
         projectId: String(selectedProjectObj?._id || selectedProjectId).trim(),
-        dashboardProjectId: String(selectedProjectObj?.projectId || selectedProjectId).trim().toUpperCase(),
+        dashboardProjectId: String(selectedProjectObj?.projectId || selectedProjectId).trim().toLowerCase(),
         reviewNotes: reviewNotes.trim(),
       });
 
@@ -208,10 +207,10 @@ export function ProjectRequestReviewModal({
         <div className="flex items-center justify-between pb-3.5 border-b border-[#f1f3f6]">
           <div className="flex items-center gap-3">
             <div className={`w-10 h-10 rounded-2xl flex items-center justify-center font-bold shadow-2xs ${isApproved
-                ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
-                : canApprove
-                  ? 'bg-teal-100 text-teal-700 border border-teal-200'
-                  : 'bg-purple-100 text-purple-700 border border-purple-200'
+              ? 'bg-emerald-100 text-emerald-700 border border-emerald-200'
+              : canApprove
+                ? 'bg-teal-100 text-teal-700 border border-teal-200'
+                : 'bg-purple-100 text-purple-700 border border-purple-200'
               }`}>
               {isApproved ? <CheckCircle2 className="w-5 h-5" /> : <Building2 className="w-5 h-5" />}
             </div>
@@ -304,6 +303,15 @@ export function ProjectRequestReviewModal({
           </div>
 
           {/* Contact Details (Email, Phone, Country) */}
+          {request.organization && (
+            <div>
+              <span className="text-[10.5px] font-bold uppercase tracking-wider text-[#4a5462] block">
+                Organization
+              </span>
+              <p className="font-semibold text-xs text-[#333333] mt-0.5">{request.organization}</p>
+            </div>
+          )}
+
           <div className="pt-2.5 border-t border-[#e9edf1] grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-[11px]">
             <div>
               <span className="text-[#4a5462] block text-[10px] uppercase font-semibold">Contact Email</span>
@@ -429,11 +437,6 @@ export function ProjectRequestReviewModal({
                         {selectedProjectObj.projectName || selectedProjectObj.title}
                       </span>
                     </div>
-                    {selectedProjectObj.organization && (
-                      <p className="text-[11px] text-[#556987] mt-1 truncate pl-1">
-                        Organization: <span className="font-semibold text-[#1e2c3a]">{selectedProjectObj.organization}</span>
-                      </p>
-                    )}
                   </div>
                   <button
                     type="button"
@@ -532,9 +535,8 @@ export function ProjectRequestReviewModal({
                                 setSelectedProjectId(mongoId || code);
                                 setIsDropdownOpen(false);
                               }}
-                              className={`p-3 text-xs flex items-center justify-between gap-2.5 hover:bg-[#f0f8f9] transition cursor-pointer ${
-                                isSel ? 'bg-[#f0f8f9] font-bold text-[#2a6d74]' : 'text-[#2f4154]'
-                              }`}
+                              className={`p-3 text-xs flex items-center justify-between gap-2.5 hover:bg-[#f0f8f9] transition cursor-pointer ${isSel ? 'bg-[#f0f8f9] font-bold text-[#2a6d74]' : 'text-[#2f4154]'
+                                }`}
                             >
                               <div className="min-w-0">
                                 <div className="flex items-center gap-2">
@@ -543,11 +545,6 @@ export function ProjectRequestReviewModal({
                                   </span>
                                   <span className="truncate font-semibold text-[#1e2c3a]">{name}</span>
                                 </div>
-                                {p.organization && (
-                                  <span className="text-[11px] text-[#556987] block mt-0.5 truncate pl-1">
-                                    Organization: {p.organization}
-                                  </span>
-                                )}
                               </div>
                               {isSel ? (
                                 <Check className="w-4 h-4 text-[#2a6d74] shrink-0" />
