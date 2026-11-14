@@ -7,7 +7,7 @@ const connectDB = async () => {
   try {
     const masked = mongoUri ? mongoUri.replace(/\/\/([^:]+):([^@]+)@/, (match, user) => `//${user}:****@`) : 'NONE';
     console.log(`📡 Attempting MongoDB connection to: ${masked}`);
-    
+
     // First try connecting to configured URI
     let connected = false;
     if (mongoUri && !mongoUri.includes('placeholder')) {
@@ -55,7 +55,7 @@ const connectDB = async () => {
       memoryServer = await MongoMemoryReplSet.create({ replSet: { count: 1 } });
       const memUri = memoryServer.getUri();
       console.log(`🚀 Starting Embedded MongoDB Replica Set at: ${memUri}`);
-      
+
       const conn = await mongoose.connect(memUri, {
         autoIndex: true,
         family: 4

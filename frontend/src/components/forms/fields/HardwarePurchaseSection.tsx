@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { extractEffectiveHardwareItems, DEFAULT_HARDWARE_ITEMS } from '../utils/formHelpers';
+import { extractEffectiveHardwareItems } from '../utils/formHelpers';
 import { ConfirmDeleteFileModal } from '../common/ConfirmDeleteFileModal';
 import {
   ShoppingCart,
@@ -371,8 +371,7 @@ export function HardwarePurchaseSection({
       {entries.map(([itemKey, rawData]: [string, any]) => {
         const item = getItemData(itemKey);
         const purchaseQty = rawData?.purchaseQty ?? rawData?.quantity ?? 1;
-        const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey || d.label === itemKey);
-        const itemName = defObj?.label || itemKey;
+        const itemName = rawData?.itemName || itemKey;
         const specNotes = rawData?.specNotes || '';
 
         return (

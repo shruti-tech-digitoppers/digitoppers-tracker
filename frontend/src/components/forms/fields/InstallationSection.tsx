@@ -25,7 +25,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { IUser } from '../../../types/auth';
-import { DEFAULT_HARDWARE_ITEMS, extractEffectiveSchools, EffectiveSchoolItem } from '../utils/formHelpers';
+import { extractEffectiveSchools, EffectiveSchoolItem } from '../utils/formHelpers';
 import { apiClient } from '../../../lib/api/client';
 import { ConfirmDeleteFileModal } from '../common/ConfirmDeleteFileModal';
 
@@ -117,11 +117,10 @@ function groupAllocationsToHardwareItems(
   allocs.forEach((a) => {
     const key = (a.hardwareKey || 'DEVICE').toUpperCase();
     if (!map[key]) {
-      const def = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === key);
       map[key] = {
         itemKey: key,
-        productName: a.hardwareName || def?.label || key,
-        specifications: a.remarks || def?.desc || '',
+        productName: a.hardwareName || key,
+        specifications: a.remarks || '',
         quantity: 0,
         unitLicenses: [],
         serials: [],
@@ -206,8 +205,7 @@ function resolveOrderHardwareForSchool(
 
   if (targetSchoolHwMap && typeof targetSchoolHwMap === 'object' && Object.keys(targetSchoolHwMap).length > 0) {
     Object.entries(targetSchoolHwMap).forEach(([hwKey, hwVal]: [string, any]) => {
-      const defObj = DEFAULT_HARDWARE_ITEMS.find(d => d.key === hwKey);
-      const qty = Number(hwVal?.quantity || 1);
+            const qty = Number(hwVal?.quantity || 1);
       if (qty > 0) {
         const rawSerials = hwVal?.serialNotes || hwVal?.serialNumbers || '';
         const rawList = typeof rawSerials === 'string' && rawSerials.trim()
@@ -217,8 +215,8 @@ function resolveOrderHardwareForSchool(
 
         list.push({
           itemKey: hwKey,
-          productName: hwVal?.itemName || defObj?.label || hwKey,
-          specifications: hwVal?.specNotes || defObj?.desc || '',
+          productName: hwVal?.itemName || hwKey,
+          specifications: hwVal?.specNotes || '',
           quantity: qty,
           serialNumbers: rawSerials,
           individualSerials: individualSerials,
@@ -245,8 +243,7 @@ function resolveOrderHardwareForSchool(
 
   if (Array.isArray(activeKeys) && activeKeys.length > 0) {
     activeKeys.forEach((key) => {
-      const defObj = DEFAULT_HARDWARE_ITEMS.find(d => d.key === key);
-      const itemData = stage3Items[key] || {};
+            const itemData = stage3Items[key] || {};
       const qty = Number(itemData.quantity) || (key === 'STUDENT_TABLETS' ? 10 : 1);
       const rawSerials = itemData.serialNotes || itemData.serialNumbers || '';
       const rawList = typeof rawSerials === 'string' && rawSerials.trim()
@@ -256,8 +253,8 @@ function resolveOrderHardwareForSchool(
 
       list.push({
         itemKey: key,
-        productName: itemData.itemName || defObj?.label || key,
-        specifications: itemData.specNotes || itemData.specifications || defObj?.desc || '',
+        productName: itemData.itemName || key,
+        specifications: itemData.specNotes || itemData.specifications || '',
         quantity: qty,
         serialNumbers: rawSerials,
         individualSerials: individualSerials,
@@ -270,8 +267,7 @@ function resolveOrderHardwareForSchool(
   if (stage3Items && typeof stage3Items === 'object' && Object.keys(stage3Items).length > 0) {
     Object.entries(stage3Items).forEach(([key, val]: [string, any]) => {
       if (val && (val.selected !== false || val.quantity > 0)) {
-        const defObj = DEFAULT_HARDWARE_ITEMS.find(d => d.key === key);
-        const qty = Number(val.quantity || 1);
+                const qty = Number(val.quantity || 1);
         const rawSerials = val.serialNotes || val.serialNumbers || '';
         const rawList = typeof rawSerials === 'string' && rawSerials.trim()
           ? rawSerials.split(',').map((s: string) => s.trim())
@@ -280,8 +276,8 @@ function resolveOrderHardwareForSchool(
 
         list.push({
           itemKey: key,
-          productName: val.itemName || defObj?.label || key,
-          specifications: val.specifications || val.specNotes || val.specs || defObj?.desc || '',
+          productName: val.itemName || key,
+          specifications: val.specifications || val.specNotes || val.specs || '',
           quantity: qty,
           serialNumbers: rawSerials,
           individualSerials: individualSerials,
@@ -291,25 +287,8 @@ function resolveOrderHardwareForSchool(
     if (list.length > 0) return list;
   }
 
-  // 4. Default fallback package
-  return [
-    {
-      itemKey: 'IFP_75',
-      productName: '75" 4K UHD Interactive Flat Panel',
-      specifications: 'Interactive Flat Panel Touch Display',
-      quantity: 1,
-      serialNumbers: '',
-      individualSerials: [''],
-    },
-    {
-      itemKey: 'OPS_I5',
-      productName: 'OPS Windows 11 Pro i5 16GB/512GB PC',
-      specifications: 'Open Pluggable Specification PC Module',
-      quantity: 1,
-      serialNumbers: '',
-      individualSerials: [''],
-    }
-  ];
+  // 4. If no hardware found from database or requirements, return empty list (no hardcoded fake packages)
+  return [];
 }
 
 export function InstallationSection({
@@ -973,7 +952,7 @@ export function InstallationSection({
                           {/* 3. Specifications */}
                           <td className="py-3.5 px-4">
                             <span className="text-[11.5px] text-slate-600 font-medium leading-relaxed">
-                              {item.specifications || DEFAULT_HARDWARE_ITEMS.find(d => d.key === item.itemKey)?.desc || 'Standard interactive classroom equipment'}
+                              {item.specifications || 'Standard interactive classroom equipment'}
                             </span>
                           </td>
 

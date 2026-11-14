@@ -3,15 +3,16 @@ module.exports = {
   stages: [
     {
       key: 'PROJECT_REVIEWER',
+      dependentOn: [],
       name: 'Project Review',
       order: 1,
-      metadata: { noAssignment: true },
+      has_substages: false,
       formSchema: {
         fields: [
           { key: 'projectName', label: 'Project Name / Title', type: 'text', required: true },
           { key: 'email', label: 'Email Address', type: 'text' },
           { key: 'country', label: 'Country', type: 'text' },
-          { key: 'phone', label: 'Phone Number', type: 'text' },
+          { key: 'phone', label: 'Phone Number', type: 'tel' },
           { key: 'address', label: 'Address / Location', type: 'text' },
           { key: 'projectReviewed', label: 'Project Reviewed?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
           { key: 'projectCreated', label: 'Project Created?', type: 'select', options: ['YES', 'NO', 'PENDING'], required: true },
@@ -24,18 +25,22 @@ module.exports = {
     },
     {
       key: 'PO_AND_PI',
+      dependentOn: ["PROJECT_REVIEWER"],
       name: 'PO & PI',
       order: 2,
+      has_substages: false,
       substages: [
         {
           key: 'PO_UPLOAD',
+      dependentOn: ["PROJECT_REVIEWER"],
           name: 'PO Upload',
           order: 1,
+      has_substages: false,
           formSchema: {
             fields: [
               { key: 'multiPoSection', label: 'Purchase Orders (Multiple)', type: 'multiPoSection' },
               { key: 'poDocumentUrl', label: 'Primary PO Document', type: 'file', required: false, hint: 'Upload official Purchase Order document (PDF / Images • Max 2MB)' },
-              { key: 'poNumber', label: 'PO Number', type: 'text' },
+              { key: 'poNumber', label: 'PO Number', type: 'text', required: true },
               { key: 'poDate', label: 'PO Date', type: 'date' },
               { key: 'uploadDate', label: 'PO Upload Date', type: 'date' },
               { key: 'issuingOrganization', label: 'Issuing Organization', type: 'text' },
@@ -45,11 +50,12 @@ module.exports = {
         },
         {
           key: 'PI_REQUEST',
+      dependentOn: ["PO_UPLOAD"],
           name: 'PI Request',
           order: 2,
           formSchema: {
             fields: [
-              { key: 'requestedDate', label: 'PI Request Date', type: 'date' },
+              { key: 'requestedDate', label: 'PI Request Date', type: 'date', required: true },
               { key: 'expectedPIDate', label: 'Expected PI Date', type: 'date' },
               { key: 'requestRemarks', label: 'Request Details / Remarks', type: 'textarea' }
             ]
@@ -57,6 +63,7 @@ module.exports = {
         },
         {
           key: 'PI_UPLOAD',
+      dependentOn: ["PI_REQUEST"],
           name: 'PI & Tax Invoice Upload',
           order: 3,
           formSchema: {
@@ -71,7 +78,7 @@ module.exports = {
               { key: 'invoiceDate', label: 'Tax Invoice Date', type: 'date' },
               { key: 'invoiceUploadDate', label: 'Tax Invoice Upload Date', type: 'date' },
               { key: 'ewayBillNumber', label: 'E-Way Bill Number', type: 'text' },
-              { key: 'paymentStatus', label: 'Payment Status', type: 'select', options: ['PAID', 'PARTIALLY_PAID', 'PENDING'] },
+              { key: 'paymentStatus', label: 'Payment Status', type: 'select', options: ['PAID', 'PARTIALLY_PAID', 'PENDING'], required: true },
               { key: 'paymentTerms', label: 'Payment Terms', type: 'textarea' },
               { key: 'remarks', label: 'Invoice Remarks', type: 'textarea' }
             ]
@@ -81,15 +88,16 @@ module.exports = {
     },
     {
       key: 'ORDER_REQUIREMENT',
+      dependentOn: ["PO_AND_PI"],
       name: 'Order Requirement',
       order: 3,
-      metadata: { noAssignment: true },
+      has_substages: false,
       substages: [
         {
           key: 'SCHOOL_ONBOARDING_INFORMATION',
+      dependentOn: ["PO_UPLOAD"],
           name: 'School Information',
           order: 1,
-          metadata: { noAssignment: true },
           formSchema: {
             fields: [
               // 1. School Information
@@ -142,7 +150,7 @@ module.exports = {
               { key: 'supportingOrgName', label: '5.3.1 Supporting Organization / NGO Name', type: 'text' },
               { key: 'supportingOrgContactPerson', label: '5.3.2 Contact Person Name', type: 'text' },
               { key: 'supportingOrgDesignation', label: '5.3.3 Designation', type: 'text' },
-              { key: 'supportingOrgContact', label: '5.3.4 Contact Number', type: 'text' },
+              { key: 'supportingOrgContact', label: '5.3.4 Contact Number', type: 'tel' },
               { key: 'supportingOrgEmail', label: '5.3.5 Email Address', type: 'text' },
               { key: 'smartClassRoomIdentification', label: '5.4 Room identification for smart classroom setup', type: 'text' },
               { key: 'smartClassRoomCondition', label: '5.5 Seating / Furniture / Ventilation / Security', type: 'text' },
@@ -170,6 +178,7 @@ module.exports = {
         },
         {
           key: 'SOLUTION_SELECTION',
+      dependentOn: ["SCHOOL_ONBOARDING_INFORMATION"],
           name: 'Solutions',
           order: 2,
           formSchema: {
@@ -186,9 +195,9 @@ module.exports = {
         },
         {
           key: 'HARDWARE_REQUIREMENT',
+      dependentOn: ["SOLUTION_SELECTION"],
           name: 'Hardware',
           order: 3,
-          metadata: { noAssignment: true },
           formSchema: {
             fields: [
               {
@@ -204,6 +213,7 @@ module.exports = {
         },
         {
           key: 'CONTENT_CONFIGURATION',
+      dependentOn: ["SOLUTION_SELECTION"],
           name: 'Content Configuration',
           order: 4,
           formSchema: {
@@ -216,22 +226,42 @@ module.exports = {
               { key: 'remarks', label: 'Configuration Remarks', type: 'textarea' }
             ]
           }
+        },
+        {
+          key: 'SCHOOL_AND_LICENSE_CREATION',
+      dependentOn: ["SOLUTION_SELECTION","CONTENT_CONFIGURATION"],
+          name: 'School & License Creation',
+          order: 5,
+          formSchema: {
+            fields: [
+              {
+                key: 'schoolAndLicenseSection',
+                label: 'School and License Creation Summary',
+                type: 'schoolAndLicenseSection'
+              }
+            ]
+          }
         }
       ]
     },
     {
       key: 'EXECUTION',
+      dependentOn: ["ORDER_REQUIREMENT"],
       name: 'Execution',
       order: 4,
+      has_substages: true,
       substages: [
         {
           key: 'HARDWARE_STREAM',
+      dependentOn: ["HARDWARE_REQUIREMENT"],
           name: 'HARDWARE',
           order: 1,
+      has_substages: true,
           isBranch: true,
           nested: [
             {
               key: 'REQ_AND_STOCK_CHECK',
+      dependentOn: ["HARDWARE_REQUIREMENT"],
               name: 'Requirement & Stock Check',
               order: 1,
               supportsConditional: true,
@@ -250,6 +280,7 @@ module.exports = {
             },
             {
               key: 'PURCHASE_IF_NEEDED',
+      dependentOn: ["REQ_AND_STOCK_CHECK"],
               name: 'Purchase',
               order: 2,
               conditionalOnly: 'NOT_IN_STOCK',
@@ -267,6 +298,7 @@ module.exports = {
             },
             {
               key: 'CONSIGNMENT_TRACKING',
+      dependentOn: ["PURCHASE_IF_NEEDED"],
               name: 'Consignment / Tracking',
               order: 3,
               conditionalOnly: 'NOT_IN_STOCK',
@@ -314,6 +346,7 @@ module.exports = {
             */
             {
               key: 'HARDWARE_READY',
+      dependentOn: ["CONSIGNMENT_TRACKING"],
               name: 'Hardware Ready',
               order: 5,
               formSchema: {
@@ -331,12 +364,14 @@ module.exports = {
         },
         {
           key: 'TECH_STREAM',
+      dependentOn: ["SCHOOL_AND_LICENSE_CREATION"],
           name: 'TECH',
           order: 2,
           isBranch: true,
           nested: [
             {
               key: 'PROJECT_CONFIG_AND_IMPLEMENTATION',
+      dependentOn: ["SCHOOL_AND_LICENSE_CREATION"],
               name: 'Project Configuration & Implementation',
               order: 1,
               formSchema: {
@@ -351,6 +386,7 @@ module.exports = {
             },
             {
               key: 'TECH_TESTING',
+      dependentOn: ["PROJECT_CONFIG_AND_IMPLEMENTATION"],
               name: 'Testing Done',
               order: 2,
               formSchema: {
@@ -365,12 +401,14 @@ module.exports = {
         },
         {
           key: 'CONTENT_STREAM',
+      dependentOn: ["CONTENT_CONFIGURATION"],
           name: 'CONTENT',
           order: 3,
           isBranch: true,
           nested: [
             {
               key: 'CONTENT_REVIEW_QA',
+      dependentOn: ["CONTENT_CONFIGURATION"],
               name: 'Content Review & QA',
               order: 1,
               formSchema: {
@@ -382,6 +420,7 @@ module.exports = {
             },
             {
               key: 'SHEET_READINESS',
+      dependentOn: ["CONTENT_REVIEW_QA"],
               name: 'Sheet Readiness',
               order: 2,
               formSchema: {
@@ -399,6 +438,7 @@ module.exports = {
             },
             {
               key: 'DUMP_READINESS',
+      dependentOn: ["SHEET_READINESS"],
               name: 'Dump Readiness',
               order: 3,
               formSchema: {
@@ -410,6 +450,7 @@ module.exports = {
             },
             {
               key: 'CONTENT_READY',
+      dependentOn: ["DUMP_READINESS"],
               name: 'Content Ready',
               order: 4,
               formSchema: {
@@ -425,12 +466,15 @@ module.exports = {
     },
     {
       key: 'TECH_AND_CONTENT_TESTING',
+      dependentOn: ["EXECUTION"],
       name: 'Testing',
       order: 5,
+      has_substages: false,
       dependencies: ['TECH_READY', 'CONTENT_READY'],
       substages: [
         {
           key: 'TESTING_PREPARATION',
+      dependentOn: ["TECH_TESTING","CONTENT_READY"],
           name: 'Testing Preparation',
           order: 1,
           formSchema: {
@@ -450,6 +494,7 @@ module.exports = {
         },
         {
           key: 'INTEGRATION_TESTING',
+      dependentOn: ["TESTING_PREPARATION"],
           name: 'Integration Testing',
           order: 2,
           formSchema: {
@@ -469,11 +514,14 @@ module.exports = {
     },
     {
       key: 'INSTALLATION',
+      dependentOn: ["HARDWARE_STREAM"],
       name: 'Installation',
       order: 6,
+      has_substages: false,
       substages: [
         {
           key: 'INSTALLATION_PLANNING',
+      dependentOn: ["INTEGRATION_TESTING","HARDWARE_READY"],
           name: 'Installation Planning',
           order: 1,
           formSchema: {
@@ -489,6 +537,7 @@ module.exports = {
         },
         {
           key: 'INSTALLATION_EXECUTION',
+      dependentOn: ["INSTALLATION_PLANNING"],
           name: 'Installation Execution',
           order: 2,
           formSchema: {
@@ -504,6 +553,7 @@ module.exports = {
         },
         {
           key: 'INSTALLATION_COMPLETED',
+      dependentOn: ["INSTALLATION_EXECUTION"],
           name: 'Installation Completed',
           order: 3,
           formSchema: {
@@ -535,13 +585,16 @@ module.exports = {
     },
     {
       key: 'TRAINING',
+      dependentOn: ["INSTALLATION"],
       name: 'Training',
       order: 7,
+      has_substages: false,
       department: 'TRAINING',
       primaryDepartment: 'TRAINING',
       substages: [
         {
           key: 'TRAINING_PLANNING',
+      dependentOn: ["INSTALLATION_COMPLETED"],
           name: 'Planning and Scheduling',
           order: 1,
           department: 'TRAINING',
@@ -563,6 +616,7 @@ module.exports = {
         },
         {
           key: 'TRAINING_EXECUTION',
+      dependentOn: ["TRAINING_PLANNING"],
           name: 'Training Execution',
           order: 2,
           department: 'TRAINING',
@@ -583,6 +637,7 @@ module.exports = {
         },
         {
           key: 'TRAINING_COMPLETED',
+      dependentOn: ["TRAINING_EXECUTION"],
           name: 'Training Completed',
           order: 3,
           department: 'TRAINING',
@@ -604,11 +659,14 @@ module.exports = {
     },
     {
       key: 'PROJECT_CLOSURE',
+      dependentOn: ["TRAINING"],
       name: 'Project Closure',
       order: 8,
+      has_substages: false,
       substages: [
         {
           key: 'FINAL_PROJECT_REVIEW',
+      dependentOn: ["TRAINING_COMPLETED"],
           name: 'Final Project Review',
           order: 1,
           formSchema: {
@@ -622,6 +680,7 @@ module.exports = {
         },
         {
           key: 'DOCUMENTATION_COMPLETION',
+      dependentOn: ["FINAL_PROJECT_REVIEW"],
           name: 'Documentation Completion',
           order: 2,
           formSchema: {
@@ -633,6 +692,7 @@ module.exports = {
         },
         {
           key: 'PAYMENT_TRACKING',
+      dependentOn: ["PI_UPLOAD","DOCUMENTATION_COMPLETION"],
           name: 'Payment Tracking',
           order: 3,
           formSchema: {
@@ -647,6 +707,7 @@ module.exports = {
         },
         {
           key: 'PROJECT_CLOSED',
+      dependentOn: ["FINAL_PROJECT_REVIEW","DOCUMENTATION_COMPLETION","PAYMENT_TRACKING"],
           name: 'Project Closed',
           order: 4,
           formSchema: {

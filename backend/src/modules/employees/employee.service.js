@@ -13,11 +13,6 @@ class EmployeeService {
       throw new AppError(`An employee with email "${employeeData.email}" already exists.`, 409, 'DUPLICATE_EMAIL');
     }
 
-    const existingCode = await Employee.findOne({ employeeCode: employeeData.employeeCode.toUpperCase().trim() });
-    if (existingCode) {
-      throw new AppError(`An employee with code "${employeeData.employeeCode}" already exists.`, 409, 'DUPLICATE_CODE');
-    }
-
     const { projectRoles, password, ...basicData } = employeeData;
     if (password) {
       basicData.passwordHash = password;
@@ -29,7 +24,7 @@ class EmployeeService {
     await activityService.log({
       actor: actorId,
       action: 'EMPLOYEE_CREATED',
-      description: `New employee created: ${employee.name} (${employee.employeeCode})`,
+      description: `New employee created: ${employee.name} (${employee.email})`,
       resourceType: 'Employee',
       resourceId: employee._id,
       metadata: { employeeName: employee.name, email: employee.email, role: employee.globalRole }
@@ -97,7 +92,7 @@ class EmployeeService {
     await activityService.log({
       actor: actorId,
       action: 'EMPLOYEE_UPDATED',
-      description: `Employee profile updated: ${employee.name} (${employee.employeeCode})`,
+      description: `Employee profile updated: ${employee.name} (${employee.email})`,
       resourceType: 'Employee',
       resourceId: employee._id,
       metadata: { employeeName: employee.name, role: employee.globalRole }
@@ -131,10 +126,10 @@ class EmployeeService {
     await activityService.log({
       actor: actorId,
       action: 'EMPLOYEE_DELETED',
-      description: `Employee deleted: ${employee.name} (${employee.employeeCode})`,
+      description: `Employee deleted: ${employee.name} (${employee.email})`,
       resourceType: 'Employee',
       resourceId: id,
-      metadata: { employeeName: employee.name, employeeCode: employee.employeeCode }
+      metadata: { employeeName: employee.name, employeeEmail: employee.email }
     });
 
     return { success: true, message: 'Employee deleted successfully' };
@@ -189,7 +184,6 @@ class EmployeeService {
         _id: employee._id,
         name: employee.name,
         email: employee.email,
-        employeeCode: employee.employeeCode,
         globalRole: employee.globalRole,
       },
       projectRoles
@@ -278,5 +272,3 @@ class EmployeeService {
 }
 
 module.exports = new EmployeeService();
-
-

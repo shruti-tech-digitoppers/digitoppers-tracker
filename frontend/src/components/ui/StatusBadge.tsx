@@ -17,7 +17,8 @@ const STATUS_MAP: Record<string, { label: string; cls: string; dot: string }> = 
   COMPLETED:   { label: 'Completed',   cls: 'bg-[#f7fbe9] text-[#465b1c] border-[#dfefa6]', dot: 'bg-[#a8cf45]' },
   ON_HOLD:     { label: 'On Hold',     cls: 'bg-amber-50 text-amber-800 border-amber-200',   dot: 'bg-amber-500' },
   PENDING:     { label: 'Pending',     cls: 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40', dot: 'bg-[#b9c0cb]' },
-  CANCELLED:   { label: 'Cancelled',   cls: 'bg-rose-50 text-rose-800 border-rose-200',     dot: 'bg-rose-500' },
+  BLOCKED:     { label: 'Blocked',     cls: 'bg-rose-50 text-rose-800 border-rose-200',     dot: 'bg-rose-500' },
+  CANCELLED:   { label: 'Blocked',     cls: 'bg-rose-50 text-rose-800 border-rose-200',     dot: 'bg-rose-500' },
   ARCHIVED:    { label: 'Archived',    cls: 'bg-[#f8fafb] text-[#4a5462] border-[#b9c0cb]/40', dot: 'bg-[#b9c0cb]' },
 };
 

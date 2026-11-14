@@ -54,8 +54,7 @@ import { hardwareApi, HardwareItem } from '../../../lib/api/hardware.api';
 import { specsApi, IHardwareSpec } from '../../../lib/api/specs.api';
 import {
   extractEffectiveSchools,
-  EffectiveSchoolItem,
-  DEFAULT_HARDWARE_ITEMS
+  EffectiveSchoolItem
 } from '../utils/formHelpers';
 
 export interface ITrainingExecutionChecklist {
@@ -317,8 +316,8 @@ export function TrainingExecutionSection({
         map[sch.id] = {
           schoolId: sch.id,
           schoolName: sch.name || found?.schoolName || 'School',
-          address: sch.address || found?.address || 'Campus Location',
-          contactPerson: sch.pocName || sch.contactPerson || sch.principalName || found?.contactPerson || 'Site Principal',
+          address: sch.address || found?.address || '',
+          contactPerson: sch.pocName || sch.contactPerson || sch.principalName || found?.contactPerson || '',
           contactPhone: sch.pocContact || sch.contactPhone || sch.phone || found?.contactPhone || '',
           principalName: sch.principalName || found?.principalName || '',
           assignedTrainerName: assignedTrainerName || found?.assignedTrainerName || '',
@@ -638,69 +637,10 @@ export function TrainingExecutionSection({
     return matchAllocationsForSchool(currentSchool, allocations);
   }, [currentSchool, allocations]);
 
-  // Fallback hardware units if no database allocations exist yet
-  const fallbackSchoolHardware = useMemo(() => {
-    if (currentSchoolAllocations.length > 0) return [];
-
-    const rawItems =
-      (currentSchool as any)?.hardware ||
-      (currentSchool as any)?.hardwareItems ||
-      allFormData?.stage3HardwareItems ||
-      allFormData?.hardwareRequirements?.items ||
-      (project as any)?.orderRequirement?.hardwareRequirement?.items ||
-      {};
-
-    const list: ISchoolHardwareLicense[] = [];
-    if (Array.isArray(rawItems)) {
-      rawItems.forEach((item: any, idx: number) => {
-        const key = (item.key || item.hardwareKey || item.itemKey || `HW_${idx + 1}`).toUpperCase();
-        const qty = Number(item.quantity || item.qty || 1);
-        for (let u = 1; u <= qty; u++) {
-          list.push({
-            projectId: activeProjectId,
-            schoolId: currentSchool.id,
-            schoolName: currentSchool.name,
-            hardwareKey: key,
-            hardwareName: item.label || item.name || item.productName || key,
-            unitIndex: u,
-            licenseKey: `LIC-${currentSchool.schoolId || 'SCH'}-${key}-${String(u).padStart(2, '0')}`,
-            status: 'ALLOCATED',
-            isRegistered: false,
-            registeredTo: null,
-            remarks: 'Configured from project hardware BOM'
-          });
-        }
-      });
-    } else if (typeof rawItems === 'object' && rawItems !== null) {
-      Object.entries(rawItems).forEach(([key, val]: [string, any]) => {
-        if (!val || val.selected === false) return;
-        const qty = Number(val.quantity || 1);
-        const def = (DEFAULT_HARDWARE_ITEMS as any[])?.find?.((d) => d.key === key);
-        for (let u = 1; u <= qty; u++) {
-          list.push({
-            projectId: activeProjectId,
-            schoolId: currentSchool.id,
-            schoolName: currentSchool.name,
-            hardwareKey: key,
-            hardwareName: val.itemName || val.name || def?.label || key,
-            unitIndex: u,
-            licenseKey: `LIC-${currentSchool.schoolId || 'SCH'}-${key}-${String(u).padStart(2, '0')}`,
-            status: 'ALLOCATED',
-            isRegistered: false,
-            registeredTo: null,
-            remarks: val.specNotes || def?.desc || 'Project hardware requirement'
-          });
-        }
-      });
-    }
-
-    return list;
-  }, [currentSchoolAllocations, currentSchool, allFormData, project, activeProjectId]);
-
-  // Active units for current school (Direct unified list — no tabs!)
+  // Active units for current school (Direct from MongoDB allocations collection)
   const activeSchoolUnits: ISchoolHardwareLicense[] = useMemo(() => {
-    return currentSchoolAllocations.length > 0 ? currentSchoolAllocations : fallbackSchoolHardware;
-  }, [currentSchoolAllocations, fallbackSchoolHardware]);
+    return currentSchoolAllocations;
+  }, [currentSchoolAllocations]);
 
   const filteredUnits = activeSchoolUnits;
 

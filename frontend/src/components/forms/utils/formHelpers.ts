@@ -1,3 +1,5 @@
+export * from '@/constants/platforms.constants';
+
 export interface EffectiveSchoolItem {
   id: string;
   _id?: string;
@@ -5,6 +7,7 @@ export interface EffectiveSchoolItem {
   name: string;
   address?: string;
   district?: string;
+  state?: string;
   classes?: string[];
   pocName?: string;
   contactPerson?: string;
@@ -24,6 +27,14 @@ export interface EffectiveSchoolItem {
   technicalPersonId?: string;
   contactNumber?: string;
   planOutDate?: string;
+  email?: string;
+  block?: string;
+  city?: string;
+  numberOfStudents?: number;
+  numberOfTeachers?: number;
+  coordinatorId?: string;
+  rawSchool?: any;
+  pocType?: string;
 }
 
 export const DEFAULT_SOLUTIONS = [
@@ -141,13 +152,30 @@ export function extractEffectiveSchools(
       principalName ||
       '';
 
-    const phone =
-      s.pocContact ||
-      s.contactPhone ||
+    const rawPocStr = typeof s.pocContact === 'string' ? s.pocContact : '';
+    const rawPrincStr = typeof s.principalDetails === 'string' ? s.principalDetails : '';
+    const fullContactContext = `${rawPocStr} ${rawPrincStr} ${typeof s.contactPerson === 'string' ? s.contactPerson : ''}`;
+
+    // ── Checkpoint: Strict Phone Extraction (ONLY pure phone digits) ──
+    const phoneCandidate =
       s.phone ||
-      sSurvey.pocContact ||
+      s.contactPhone ||
+      s.pocContactPhone ||
       (typeof s.contactPerson === 'object' ? s.contactPerson?.phone : '') ||
+      sSurvey.phone ||
       '';
+    const phoneLabeled = `${phoneCandidate} ${fullContactContext}`.match(/(?:Mobile|Phone|Tel|Cell|Contact)[\s:|-]*(\+?\d[\d\s-]{8,14}\d)/i);
+    let cleanPhone = '';
+    if (phoneLabeled && phoneLabeled[1]) {
+      const digits = phoneLabeled[1].replace(/\D/g, '');
+      cleanPhone = digits.length > 10 && digits.startsWith('91') ? digits.slice(2) : (digits.length >= 10 ? digits.slice(-10) : digits);
+    } else {
+      const phoneDigitsMatch = `${phoneCandidate} ${fullContactContext}`.match(/(?:\+91[\s-]?)?([6-9]\d{4}[\s-]?\d{5})/);
+      if (phoneDigitsMatch && phoneDigitsMatch[1]) {
+        cleanPhone = phoneDigitsMatch[1].replace(/\D/g, '');
+      }
+    }
+    const phone = cleanPhone; // Strictly numbers only, never metadata or names
 
     const desig =
       s.pocDesignation ||
@@ -158,22 +186,90 @@ export function extractEffectiveSchools(
     const contactPersonStr = typeof s.contactPerson === 'object' ? s.contactPerson?.name : (s.contactPerson || poc);
     const contactPhoneStr = typeof s.contactPerson === 'object' ? s.contactPerson?.phone : (s.contactPhone || phone);
 
+    // ── Checkpoint: Strict Email Extraction (ONLY valid email) ──
+    const emailCandidate =
+      s.email ||
+      s.contactEmail ||
+      (typeof s.contactPerson === 'object' ? s.contactPerson?.email : '') ||
+      sSurvey.email ||
+      '';
+    const emailMatch = `${emailCandidate} ${fullContactContext}`.match(/([a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,})/);
+    const email = emailMatch ? emailMatch[1].toLowerCase().trim() : '';
+
+    // ── Checkpoint: Strict Block Extraction ──
+    let block = '';
+    if (s.block && typeof s.block === 'string' && s.block.trim().length <= 35 && !s.block.includes('@') && !s.block.includes('|')) {
+      block = s.block.trim();
+    } else if (s.blockName && typeof s.blockName === 'string' && s.blockName.trim().length <= 35) {
+      block = s.blockName.trim();
+    } else {
+      const fullAddr = s.address || s.addressContact || sSurvey.address || '';
+      const blockMatch = fullAddr.match(/(Sector\s*\d+[A-Za-z]?|Knowledge\s*Park(?:\s*[IVXLCDM]+)?|Block\s*[A-Za-z0-9]+)/i);
+      if (blockMatch) {
+        block = blockMatch[1].trim();
+      } else if (s.district && s.district.length <= 30 && !s.district.includes('@')) {
+        block = s.district.trim();
+      }
+    }
+
+    // ── Checkpoint: Strict City Extraction ──
+    let city = '';
+    if (s.city && typeof s.city === 'string' && s.city.trim().length <= 30 && !s.city.includes('@') && !s.city.includes('|')) {
+      city = s.city.trim();
+    } else {
+      const fullAddr = (s.address || s.addressContact || sSurvey.address || '').toLowerCase();
+      if (fullAddr.includes('greater noida')) city = 'Greater Noida';
+      else if (fullAddr.includes('noida')) city = 'Noida';
+      else if (fullAddr.includes('jaipur')) city = 'Jaipur';
+      else if (fullAddr.includes('delhi')) city = 'Delhi';
+      else if (fullAddr.includes('gurugram') || fullAddr.includes('gurgaon')) city = 'Gurugram';
+      else if (s.district && s.district.length <= 30 && !s.district.includes('@')) city = s.district.trim();
+    }
+
+    // ── Checkpoint: Numbers only ──
+    const numberOfStudents = Math.max(0, parseInt(String(
+      s.numberOfStudents || s.studentCount || s.totalStudents || sSurvey.numberOfStudents || sSurvey.totalStudents || 0
+    ).replace(/\D/g, ''), 10) || 0);
+
+    const numberOfTeachers = Math.max(0, parseInt(String(
+      s.numberOfTeachers || s.teacherCount || s.totalTeachers || sSurvey.numberOfTeachers || sSurvey.totalTeachers || 0
+    ).replace(/\D/g, ''), 10) || 0);
+
+    // ── Checkpoint: Coordinator ID only ──
+    let coordinatorId = '';
+    const rawCoord = s.coordinatorId || s.coordinator || sSurvey.coordinatorId || s.schoolId || s.schoolCode || s.code || '';
+    if (rawCoord && typeof rawCoord === 'string' && rawCoord.trim().length <= 30 && !rawCoord.includes('@') && !rawCoord.includes(' ')) {
+      coordinatorId = rawCoord.trim();
+    } else {
+      coordinatorId = `COORD-${idx + 1}`;
+    }
+
     return {
       id: resolvedId,
       _id: s._id ? String(s._id) : undefined,
       schoolId: s.schoolId ? String(s.schoolId) : undefined,
       name: s.schoolName || s.name || (totalLen > 1 ? `School ${idx + 1}` : 'School'),
       address: s.address || s.addressContact || sSurvey.address || '',
+      district: s.district || sSurvey.district || '',
+      state: s.state || sSurvey.state || '',
       classes: s.classes || sSurvey.classes || [],
       principalName,
       principalDetails: s.principalDetails || sSurvey.principalDetails || '',
       pocName: poc,
       pocDesignation: desig,
+      pocType: desig || (poc ? 'School Coordinator' : 'Coordinator'),
       contactPerson: contactPersonStr,
       schoolCode: schoolCode,
       pocContact: phone,
       contactPhone: contactPhoneStr,
       phone: phone,
+      email,
+      block,
+      city,
+      numberOfStudents,
+      numberOfTeachers,
+      coordinatorId,
+      rawSchool: s,
       survey: sSurvey,
       school: s.school,
       training: s.training,
@@ -287,8 +383,7 @@ export function extractEffectiveHardwareItems(
           if (NON_HARDWARE_FIELD_KEYS.has(hwKey)) return;
           const qty = Number(hwVal?.quantity || hwVal?.qty || 1);
           const spec = hwVal?.specs || hwVal?.specNotes || hwVal?.specifications || '';
-          const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === hwKey || d.label === hwKey);
-          const name = defObj?.label || hwKey;
+          const name = hwVal?.itemName || hwVal?.name || hwVal?.label || hwKey;
           if (!result[hwKey]) {
             result[hwKey] = { itemName: name, quantity: 0, specNotes: spec, schoolBreakdown: [] };
           }
@@ -312,8 +407,7 @@ export function extractEffectiveHardwareItems(
             if (NON_HARDWARE_FIELD_KEYS.has(hwKey)) return;
             const qty = Number(hwVal?.quantity || hwVal?.qty || 1);
             const spec = hwVal?.specNotes || hwVal?.specs || hwVal?.specifications || '';
-            const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === hwKey || d.label === hwKey);
-            const name = defObj?.label || hwKey;
+            const name = hwVal?.itemName || hwVal?.name || hwVal?.label || hwKey;
             if (!result[hwKey]) {
               result[hwKey] = { itemName: name, quantity: 0, specNotes: spec, schoolBreakdown: [] };
             }
@@ -346,9 +440,8 @@ export function extractEffectiveHardwareItems(
     Object.entries(flatItems).forEach(([k, v]: [string, any]) => {
       if (NON_HARDWARE_FIELD_KEYS.has(k)) return;
       if (typeof v !== 'object' || v === null || Array.isArray(v)) return;
-      const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === k || d.label === k);
       result[k] = {
-        itemName: defObj?.label || k,
+        itemName: v?.itemName || v?.name || v?.label || k,
         quantity: Number(v?.quantity) || 1,
         specNotes: v?.specNotes || '',
         schoolBreakdown: v?.schoolBreakdown || []
@@ -359,3 +452,68 @@ export function extractEffectiveHardwareItems(
 
   return {};
 }
+
+/**
+ * Check if a form field is a contact number / phone number field
+ */
+export function isContactNumberField(
+  field?: { key?: string; name?: string; label?: string; type?: string } | null,
+  fieldName?: string
+): boolean {
+  if (!field && !fieldName) return false;
+  const key = (field?.key || field?.name || fieldName || '').toLowerCase();
+  const label = (field?.label || '').toLowerCase();
+  const type = (field?.type || '').toLowerCase();
+
+  // If explicitly person name or address, don't treat as numeric contact
+  if (
+    key.includes('person') ||
+    key.includes('address') ||
+    label.includes('person') ||
+    label.includes('address') ||
+    label.includes('name')
+  ) {
+    return false;
+  }
+
+  if (type === 'tel' || type === 'phone') {
+    return true;
+  }
+
+  // Common contact keys: phone, phonenumber, contactno, contactnumber, contact, poccontact, etc.
+  const contactKeyPatterns = [
+    'phone',
+    'contactno',
+    'contact_no',
+    'contactnumber',
+    'contact_number',
+    'contactphone',
+    'contact_phone',
+    'mobile',
+    'mobileno',
+    'mobile_no',
+    'telephone',
+    'poccontact',
+    'supportingorgcontact',
+    'receivingpersonphone'
+  ];
+
+  if (contactKeyPatterns.some((pat) => key.includes(pat))) {
+    return true;
+  }
+
+  if (/\b(phone|mobile|contact\s*no|contact\s*number)\b/i.test(label)) {
+    return true;
+  }
+
+  return false;
+}
+
+/**
+ * Sanitize contact number so that ONLY numeric digits are allowed (no alphabets or symbols)
+ */
+export function sanitizeContactNumber(value: any): string {
+  if (value === null || value === undefined) return '';
+  return String(value).replace(/[^0-9]/g, '');
+}
+

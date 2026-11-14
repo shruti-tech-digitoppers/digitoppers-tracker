@@ -11,6 +11,7 @@ interface FormFieldSelectProps {
   value: any;
   onChange: (value: any) => void;
   disabled?: boolean;
+  error?: string;
 }
 
 export function FormFieldSelect({
@@ -19,6 +20,7 @@ export function FormFieldSelect({
   value,
   onChange,
   disabled = false,
+  error,
 }: FormFieldSelectProps) {
   const options = (field.options || []).map(normalizeOption);
   const isMulti = field.type === 'multiselect';
@@ -78,6 +80,12 @@ export function FormFieldSelect({
             <span>PENDING</span>
           </button>
         </div>
+        {error && (
+          <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1 animate-in fade-in duration-150">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{error}</span>
+          </p>
+        )}
       </div>
     );
   }
@@ -99,7 +107,9 @@ export function FormFieldSelect({
           {field.label || name}
           {field.required && <span className="text-rose-500 ml-0.5">*</span>}
         </label>
-        <div className="flex flex-wrap gap-1.5 p-2 rounded-xl border border-[#b9c0cb]/50 bg-[#f8fafb]">
+        <div className={`flex flex-wrap gap-1.5 p-2 rounded-xl border bg-[#f8fafb] ${
+          error ? 'border-rose-400 bg-rose-50/40' : 'border-[#b9c0cb]/50'
+        }`}>
           {options.map((opt) => {
             const checked = selectedValues.includes(opt.value);
             return (
@@ -119,6 +129,12 @@ export function FormFieldSelect({
             );
           })}
         </div>
+        {error && (
+          <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1 animate-in fade-in duration-150">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+            <span>{error}</span>
+          </p>
+        )}
       </div>
     );
   }
@@ -134,7 +150,11 @@ export function FormFieldSelect({
         value={value ?? ''}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
-        className="w-full px-3 py-2 text-xs rounded-xl border border-[#b9c0cb]/50 bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:border-[#51a8b1] focus:bg-white transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+        className={`w-full px-3 py-2 text-xs rounded-xl border bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 transition-all disabled:opacity-60 disabled:cursor-not-allowed ${
+          error
+            ? 'border-rose-400 bg-rose-50/40 text-rose-900 focus:ring-rose-200 focus:border-rose-500'
+            : 'border-[#b9c0cb]/50 focus:ring-[#51a8b1] focus:border-[#51a8b1] focus:bg-white'
+        }`}
       >
         <option value="">Select {field.label || name}...</option>
         {options.map((opt) => (
@@ -143,6 +163,12 @@ export function FormFieldSelect({
           </option>
         ))}
       </select>
+      {error && (
+        <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 mt-1 animate-in fade-in duration-150">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
     </div>
   );
 }

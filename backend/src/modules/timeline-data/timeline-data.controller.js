@@ -1,4 +1,5 @@
 const timelineDataService = require('./timeline-data.service');
+const nodeStatusController = require('./node-status.controller');
 
 class TimelineDataController {
   async getTimeline(req, res, next) {
@@ -72,28 +73,11 @@ class TimelineDataController {
   }
 
   async updateStatus(req, res, next) {
-    try {
-      const projectId = req.params.projectId || req.query.projectId;
-      const nodeId = req.params.nodeId;
-      const { status, comment, remarks, completionDate } = req.body;
+    return nodeStatusController.updateStatus(req, res, next);
+  }
 
-      const node = await timelineDataService.updateNodeStatus(
-        projectId,
-        nodeId,
-        status,
-        comment || remarks,
-        req.employee,
-        req.projectMembership
-      );
-      res.status(200).json({
-        success: true,
-        message: 'Status updated successfully.',
-        data: node,
-        node
-      });
-    } catch (err) {
-      next(err);
-    }
+  async checkEligibility(req, res, next) {
+    return nodeStatusController.checkEligibility(req, res, next);
   }
 
   async getForm(req, res, next) {
@@ -243,6 +227,23 @@ class TimelineDataController {
         success: true,
         message: 'Form data updated successfully.',
         data: record
+      });
+    } catch (err) {
+      res.status(400).json({ success: false, message: err.message });
+    }
+  }
+
+    async updateDueDate(req, res, next) {
+    try {
+      const projectId = req.params.projectId || req.body.projectId;
+      const nodeId = req.params.nodeId || req.body.nodeId;
+      const { dueDate } = req.body;
+      const record = await timelineDataService.updateDueDate(projectId, nodeId, dueDate);
+      const nodeDetail = await timelineDataService.getNode(projectId, nodeId).catch(() => null);
+      res.status(200).json({
+        success: true,
+        message: 'Due date updated successfully.',
+        data: nodeDetail || record
       });
     } catch (err) {
       res.status(400).json({ success: false, message: err.message });

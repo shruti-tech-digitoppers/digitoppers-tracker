@@ -248,6 +248,13 @@ export function ProjectRoadmapCard({
     }
   };
 
+  const handleDueDateChange = (newDueDate: string | null) => {
+    if (!selectedNode) return;
+    setNodes((prev) => updateNodeInTree(prev, selectedNode._id, { dueDate: newDueDate }));
+    setSelectedNode((prev) => (prev ? { ...prev, dueDate: newDueDate } : null));
+    if (onProjectUpdated) onProjectUpdated();
+  };
+
   const handleFormSubmit = async (updated: Record<string, any>) => {
     if (!selectedNode) return;
     try {
@@ -311,8 +318,11 @@ export function ProjectRoadmapCard({
   // Resolve Project Manager name cleanly
   const pmObj = typeof project.projectManager === 'object' && project.projectManager !== null
     ? project.projectManager
-    : employees.find((e) => e._id === project.projectManager);
-  const pmName = (pmObj as any)?.name || (typeof project.projectManager === 'string' && project.projectManager ? project.projectManager : 'Assigned PM');
+    : (employees || []).find((e) => e._id === project.projectManager || (e as any).id === project.projectManager);
+  const rawPmName = (pmObj as any)?.name || (typeof project.projectManager === 'string' && project.projectManager ? project.projectManager : null);
+  const pmName = rawPmName && rawPmName.trim() && rawPmName.trim().toLowerCase() !== 'assigned pm'
+    ? rawPmName.trim()
+    : 'Unassigned';
 
   return (
     <div
@@ -405,7 +415,7 @@ export function ProjectRoadmapCard({
             <div className="flex items-center gap-1 min-w-0">
               <User className="w-3 h-3 text-[#51a8b1] shrink-0" />
               <span className="text-slate-500 font-medium text-[10.5px] shrink-0">PM:</span>
-              <span className="font-bold text-slate-800 truncate text-[11px]">{pmName}</span>
+              <span className={`truncate text-[11px] ${pmName === 'Unassigned' ? 'text-slate-400 font-medium italic' : 'font-bold text-slate-800'}`}>{pmName}</span>
             </div>
 
             {/* Progress Bar & Stage Count */}
@@ -564,7 +574,7 @@ export function ProjectRoadmapCard({
               <div className="flex items-center gap-1 text-[#556987] font-medium truncate max-w-[200px] sm:max-w-[280px]">
                 <User className="w-3 h-3 text-[#51a8b1] flex-shrink-0" />
                 <span>PM:</span>
-                <strong className="text-[#3a7d84] font-bold truncate">
+                <strong className={`truncate ${pmName === 'Unassigned' ? 'text-slate-400 font-normal italic' : 'text-[#3a7d84] font-bold'}`}>
                   {pmName}
                 </strong>
               </div>
@@ -690,6 +700,7 @@ export function ProjectRoadmapCard({
           onFormSubmit={handleFormSubmit}
           onStatusChange={handleStatusChange}
           onAssignmentChange={handleAssignmentChange}
+          onDueDateChange={handleDueDateChange}
           availableEmployees={employees}
           canEditStatus={canModifyStatus}
           canAssign={canModifyAssignment}

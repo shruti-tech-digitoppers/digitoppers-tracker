@@ -104,20 +104,11 @@ export function AppBuildUploadSection({
 
       if (onSuccessMsg) onSuccessMsg(`${appType} build "${file.name}" uploaded successfully.`);
     } catch (err: any) {
-      console.warn('Backend upload failed, storing local reference:', err);
-      // Fallback: create local reference URL if server is in offline test mode
-      const localUrl = `/uploads/${Date.now()}-${file.name}`;
-      setFileName(file.name);
-      onChange(localUrl);
-      if (onFormDataChange) {
-        onFormDataChange({
-          [name]: localUrl,
-          apkFileUrl: localUrl,
-          appType: appType,
-          appFileName: file.name
-        });
+      console.error('Backend upload failed:', err);
+      const errMsg = err.message || 'File upload failed. Please check backend connection and retry.';
+      if (onErrorMsg) {
+        onErrorMsg(errMsg);
       }
-      if (onSuccessMsg) onSuccessMsg(`${appType} build "${file.name}" saved.`);
     } finally {
       setUploading(false);
     }

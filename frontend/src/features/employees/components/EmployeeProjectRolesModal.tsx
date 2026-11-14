@@ -1,23 +1,23 @@
 'use client';
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-  X, 
-  FolderKanban, 
-  Shield, 
-  Search, 
-  Check, 
-  Sparkles, 
-  Info, 
-  Crown, 
-  UserCheck, 
-  Eye, 
-  Filter 
+import {
+  X,
+  FolderKanban,
+  Shield,
+  Search,
+  Check,
+  Sparkles,
+  Info,
+  Crown,
+  UserCheck,
+  Eye,
+  Filter
 } from 'lucide-react';
-import { 
-  IUser, 
-  IEmployeeProjectRole, 
-  ProjectDesignation 
+import {
+  IUser,
+  IEmployeeProjectRole,
+  ProjectDesignation
 } from '../../../types/auth';
 import { useClickOutside } from '../../../hooks/useClickOutside';
 
@@ -76,7 +76,7 @@ export function EmployeeProjectRolesModal({
       setUpdatingProjectId(projectId);
       setError(null);
       await onUpdateRole(employee._id, projectId, newDesignation);
-      
+
       setProjectRoles((prev) =>
         prev.map((item) => {
           if (item.project._id === projectId) {
@@ -94,8 +94,8 @@ export function EmployeeProjectRolesModal({
         newDesignation === 'PROJECT_MANAGER'
           ? 'Project Manager'
           : newDesignation === 'CONTRIBUTOR'
-          ? 'Contributor'
-          : 'Viewer (Default)';
+            ? 'Contributor'
+            : 'Viewer (Default)';
 
       setSuccessToast(`Role successfully updated to ${readableRole}`);
       setTimeout(() => setSuccessToast(null), 3000);
@@ -115,7 +115,7 @@ export function EmployeeProjectRolesModal({
       const q = searchQuery.toLowerCase();
       const code = (item.project.projectId || '').toLowerCase();
       const title = (item.project.projectName || item.project.title || '').toLowerCase();
-      return code.includes(q) || title.includes(q) ;
+      return code.includes(q) || title.includes(q);
     });
   }, [projectRoles, searchQuery, roleFilter]);
 
@@ -142,8 +142,8 @@ export function EmployeeProjectRolesModal({
                 <h2 className="text-base font-bold text-[#333333] font-heading">
                   Project Roles &amp; Permissions
                 </h2>
-                <span className="px-2 py-0.5 rounded text-[11px] font-mono font-bold bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
-                  {employee.employeeCode}
+                <span className="px-2 py-0.5 rounded text-[11px] font-mono text-[#3a7d84] bg-[#f0f8f9] border border-[#b6e0e4]">
+                  {employee.email}
                 </span>
               </div>
               <p className="text-[11px] text-[#4a5462] mt-0.5">
@@ -260,14 +260,14 @@ export function EmployeeProjectRolesModal({
                             item.designation === 'PROJECT_MANAGER'
                               ? 'text-amber-700 font-bold'
                               : item.designation === 'CONTRIBUTOR'
-                              ? 'text-blue-700 font-bold'
-                              : 'text-slate-600 font-semibold'
+                                ? 'text-blue-700 font-bold'
+                                : 'text-slate-600 font-semibold'
                           }>
                             {item.designation === 'PROJECT_MANAGER'
                               ? 'Manager'
                               : item.designation === 'CONTRIBUTOR'
-                              ? 'Contributor'
-                              : 'Viewer (Default)'}
+                                ? 'Contributor'
+                                : 'Viewer (Default)'}
                           </strong>
                         </span>
                       </div>
@@ -279,13 +279,12 @@ export function EmployeeProjectRolesModal({
                         disabled={isUpdating}
                         value={item.designation || 'VIEWER'}
                         onChange={(e) => handleRoleChange(item.project._id, e.target.value as ProjectDesignation)}
-                        className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 ${
-                          item.designation === 'PROJECT_MANAGER'
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold border transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-[#51a8b1] disabled:opacity-50 ${item.designation === 'PROJECT_MANAGER'
                             ? 'bg-amber-50 text-amber-800 border-amber-300 font-bold'
                             : item.designation === 'CONTRIBUTOR'
-                            ? 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4] font-bold'
-                            : 'bg-[#f8fafb] text-[#333333] border-[#b9c0cb]/60 font-medium'
-                        }`}
+                              ? 'bg-[#f0f8f9] text-[#3a7d84] border-[#b6e0e4] font-bold'
+                              : 'bg-[#f8fafb] text-[#333333] border-[#b9c0cb]/60 font-medium'
+                          }`}
                       >
                         <option value="VIEWER">Viewer (Default)</option>
                         <option value="PROJECT_MANAGER">Project Manager</option>

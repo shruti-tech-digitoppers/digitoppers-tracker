@@ -1,4 +1,4 @@
-﻿const mongoose = require('mongoose');
+const mongoose = require('mongoose');
 require('../language/language.model');
 
 const l0CategorySchema = new mongoose.Schema(
@@ -54,7 +54,7 @@ const l0CategorySchema = new mongoose.Schema(
 l0CategorySchema.index({ language: 1, id: 1 });
 
 // Explicit collection 'l0categories' as requested
-const L0Category = mongoose.models.L0Category || mongoose.model('L0Category', l0CategorySchema, 'l0categories');
+const L0Category = mongoose.models.L0Category || mongoose.model('L0Category', l0CategorySchema, 'l0_categories');
 
 module.exports = L0Category;
 

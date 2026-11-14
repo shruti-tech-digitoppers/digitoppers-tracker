@@ -1,37 +1,145 @@
 const mongoose = require('mongoose');
 const License = require('./license.model');
 const SchoolHardwareLicense = require('./school-hardware-license.model');
+const coreApi = require('../../services/core-api.service');
 
 /**
  * Get all licenses with optional filtering by project, school, status, isRegistered
+ * Fetches strictly from Core Backend API (Single Source of Truth) with fallback to local collections
  * GET /api/v1/licenses
  */
 const getLicenses = async (req, res) => {
   try {
     const { projectId, schoolId, status, isRegistered, search } = req.query;
-    const filter = {};
 
-    if (projectId) filter.projectId = projectId;
-    if (schoolId) filter.schoolId = schoolId;
-    if (status) filter.status = status;
-    if (isRegistered !== undefined) filter.isRegistered = isRegistered === 'true';
+    // Fetch live licenses strictly from Core Backend API
+    let coreLicenses = [];
+    try {
+      const coreQuery = {};
+      if (projectId) coreQuery.projectId = projectId;
+      if (schoolId) coreQuery.schoolId = schoolId;
+      if (status) coreQuery.status = status;
+      if (isRegistered !== undefined) coreQuery.isRegistered = isRegistered;
 
-    if (search) {
-      filter.$or = [
-        { licenseKey: { $regex: search, $options: 'i' } },
-        { registeredTo: { $regex: search, $options: 'i' } },
-      ];
+      coreLicenses = await coreApi.getLicenses(coreQuery);
+    } catch (e) {
+      console.warn('[LicenseController] coreApi.getLicenses warning:', e.message);
     }
 
-    const licenses = await License.find(filter)
-      .populate('schoolId', 'name district state')
-      .populate('projectId', 'projectId projectName title')
-      .sort({ createdAt: -1 });
+    // Fallback to database if Core API returned empty or is offline
+    if (!Array.isArray(coreLicenses) || coreLicenses.length === 0) {
+      const orConditions = [];
+      if (projectId) {
+        orConditions.push({ projectId });
+        if (mongoose.Types.ObjectId.isValid(projectId)) {
+          orConditions.push({ projectId: new mongoose.Types.ObjectId(projectId) });
+        }
+        try {
+          const proj = await coreApi.getProjectById(projectId);
+          if (proj) {
+            if (proj._id) {
+              orConditions.push({ projectId: proj._id });
+              if (mongoose.Types.ObjectId.isValid(proj._id)) {
+                orConditions.push({ projectId: new mongoose.Types.ObjectId(proj._id) });
+              }
+            }
+            if (proj.projectId) {
+              orConditions.push({ projectId: proj.projectId });
+              orConditions.push({ projectId: proj.projectId.toLowerCase() });
+              orConditions.push({ projectId: proj.projectId.toUpperCase() });
+            }
+          }
+        } catch (_) {}
+      }
+      const filter = orConditions.length > 0 ? { $or: orConditions } : {};
+      if (schoolId) filter.schoolId = schoolId;
+      if (status) filter.status = status;
 
-    res.status(200).json({
+      // First check local License collection
+      const localLics = await License.find(filter).lean();
+      if (localLics && localLics.length > 0) {
+        coreLicenses = localLics.map((l) => ({
+          _id: l._id,
+          id: l._id,
+          licenseKey: l.licenseKey,
+          status: l.status || 'active',
+          isRegistered: !!l.isRegistered,
+          registeredAt: l.registeredAt || null,
+          registeredTo: l.registeredTo || null,
+          licenseDays: l.licenseDays || 365,
+          platform: l.platform || 'SmartShala',
+          solution: l.solution || 'SmartShala',
+          schoolId: l.schoolId,
+          schoolName: l.schoolName || '',
+          projectId: l.projectId,
+          createdAt: l.createdAt,
+          source: 'DATABASE_LICENSE'
+        }));
+      } else {
+        // Next check SchoolHardwareLicense allocations
+        const localAllocs = await SchoolHardwareLicense.find(filter).lean();
+        if (localAllocs && localAllocs.length > 0) {
+          coreLicenses = localAllocs.map((a) => ({
+            _id: a._id,
+            id: a._id,
+            licenseKey: a.licenseKey,
+            status: a.status || 'ACTIVE',
+            isRegistered: !!a.isRegistered,
+            registeredAt: a.registeredAt || null,
+            registeredTo: a.registeredTo || null,
+            licenseDays: 365,
+            platform: a.platform || a.hardwareKey || 'IFP',
+            solution: 'SmartShala',
+            hardwareName: a.hardwareName,
+            schoolId: a.schoolId,
+            schoolName: a.schoolName,
+            projectId: a.projectId,
+            createdAt: a.createdAt,
+            source: 'DATABASE_ALLOCATION'
+          }));
+        }
+      }
+    }
+
+    if (!Array.isArray(coreLicenses) || coreLicenses.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+      });
+    }
+
+    let mapped = coreLicenses.map(lic => ({
+      _id: String(lic._id || lic.licenseKey),
+      id: String(lic._id || lic.licenseKey),
+      licenseKey: lic.licenseKey,
+      status: lic.status || 'active',
+      isRegistered: !!lic.isRegistered,
+      registeredAt: lic.registeredAt || null,
+      registeredTo: lic.registeredTo || null,
+      licenseDays: lic.licenseDays || 365,
+      platform: lic.platform || null,
+      solution: lic.solution || null,
+      schoolId: lic.schoolId,
+      schoolName: lic.schoolName || null,
+      projectId: lic.projectId,
+      createdAt: lic.createdAt || new Date(),
+      updatedAt: lic.updatedAt || new Date(),
+      source: lic.source || 'CORE_BACKEND'
+    }));
+
+    if (search) {
+      const s = String(search).trim().toLowerCase();
+      mapped = mapped.filter(l =>
+        (l.licenseKey && l.licenseKey.toLowerCase().includes(s)) ||
+        (l.registeredTo && l.registeredTo.toLowerCase().includes(s))
+      );
+    }
+
+    return res.status(200).json({
       success: true,
-      count: licenses.length,
-      data: licenses,
+      count: mapped.length,
+      data: mapped,
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -39,33 +147,38 @@ const getLicenses = async (req, res) => {
 };
 
 /**
- * Get single license by ID or licenseKey
+ * Get single license by ID or licenseKey strictly from Core Backend API
+ * (No local MongoDB fallback)
  * GET /api/v1/licenses/:keyOrId
  */
 const getLicenseByKeyOrId = async (req, res) => {
   try {
     const { keyOrId } = req.params;
-    let license = null;
 
-    if (keyOrId.match(/^[0-9a-fA-F]{24}$/)) {
-      license = await License.findById(keyOrId)
-        .populate('schoolId', 'name district state')
-        .populate('projectId', 'projectId projectName title');
+    const coreLic = await coreApi.getLicenseById(keyOrId);
+    if (!coreLic) {
+      return res.status(404).json({ success: false, message: 'License not found in Core Backend' });
     }
 
-    if (!license) {
-      license = await License.findOne({ licenseKey: keyOrId })
-        .populate('schoolId', 'name district state')
-        .populate('projectId', 'projectId projectName title');
-    }
-
-    if (!license) {
-      return res.status(404).json({ success: false, message: 'License not found' });
-    }
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: license,
+      data: {
+        _id: String(coreLic._id || coreLic.licenseKey),
+        id: String(coreLic._id || coreLic.licenseKey),
+        licenseKey: coreLic.licenseKey,
+        status: coreLic.status || 'active',
+        isRegistered: !!coreLic.isRegistered,
+        registeredAt: coreLic.registeredAt || null,
+        registeredTo: coreLic.registeredTo || null,
+        licenseDays: coreLic.licenseDays || 365,
+        platform: coreLic.platform || null,
+        solution: coreLic.solution || null,
+        schoolId: coreLic.schoolId,
+        projectId: coreLic.projectId,
+        createdAt: coreLic.createdAt || new Date(),
+        updatedAt: coreLic.updatedAt || new Date(),
+        source: 'CORE_BACKEND'
+      }
     });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
@@ -73,159 +186,58 @@ const getLicenseByKeyOrId = async (req, res) => {
 };
 
 /**
- * Create a new license
+ * Create a new license - Read-Only in Project Tracker
  * POST /api/v1/licenses
  */
 const createLicense = async (req, res) => {
-  try {
-    const { licenseKey, status, isRegistered, registeredAt, registeredTo, schoolId, projectId } = req.body;
-
-    if (!licenseKey) {
-      return res.status(400).json({ success: false, message: 'licenseKey is required' });
-    }
-
-    const existing = await License.findOne({ licenseKey });
-    if (existing) {
-      return res.status(409).json({ success: false, message: 'License key already exists' });
-    }
-
-    const license = await License.create({
-      licenseKey,
-      status: status || 'active',
-      isRegistered: !!isRegistered,
-      registeredAt: registeredAt || (isRegistered ? new Date() : null),
-      registeredTo: registeredTo || null,
-      schoolId: schoolId || null,
-      projectId: projectId || null,
-    });
-
-    res.status(201).json({
-      success: true,
-      data: license,
-    });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Master licenses are managed directly by Core Backend. Project Tracker only has read-only access (GET APIs).'
+  });
 };
 
 /**
- * Bulk create or update licenses
+ * Bulk create licenses - Read-Only in Project Tracker
  * POST /api/v1/licenses/bulk
  */
 const bulkCreateLicenses = async (req, res) => {
-  try {
-    const { licenses } = req.body;
-    if (!Array.isArray(licenses) || licenses.length === 0) {
-      return res.status(400).json({ success: false, message: 'licenses array is required' });
-    }
-
-    const operations = licenses.map((item) => ({
-      updateOne: {
-        filter: { licenseKey: item.licenseKey },
-        update: {
-          $set: {
-            licenseKey: item.licenseKey,
-            status: item.status || 'active',
-            isRegistered: item.isRegistered !== undefined ? item.isRegistered : false,
-            registeredAt: item.registeredAt || (item.isRegistered ? new Date() : null),
-            registeredTo: item.registeredTo || null,
-            schoolId: item.schoolId || null,
-            projectId: item.projectId || null,
-          },
-        },
-        upsert: true,
-      },
-    }));
-
-    const result = await License.bulkWrite(operations);
-
-    res.status(200).json({
-      success: true,
-      message: 'Bulk licenses saved successfully',
-      result,
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Master licenses are managed directly by Core Backend. Project Tracker only has read-only access (GET APIs).'
+  });
 };
 
 /**
- * Register device for license
+ * Register device for license - Read-Only in Project Tracker
  * PATCH /api/v1/licenses/:id/register
  */
 const registerLicense = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { registeredTo } = req.body;
-
-    const license = await License.findById(id);
-    if (!license) {
-      return res.status(404).json({ success: false, message: 'License not found' });
-    }
-
-    license.isRegistered = true;
-    license.registeredAt = new Date();
-    license.status = 'registered';
-    if (registeredTo) license.registeredTo = registeredTo;
-
-    await license.save();
-
-    res.status(200).json({
-      success: true,
-      data: license,
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Master licenses are managed directly by Core Backend. Project Tracker only has read-only access (GET APIs).'
+  });
 };
 
 /**
- * Update license
+ * Update license - Read-Only in Project Tracker
  * PUT /api/v1/licenses/:id
  */
 const updateLicense = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = req.body;
-
-    const license = await License.findByIdAndUpdate(id, updateData, {
-      new: true,
-      runValidators: true,
-    });
-
-    if (!license) {
-      return res.status(404).json({ success: false, message: 'License not found' });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: license,
-    });
-  } catch (err) {
-    res.status(400).json({ success: false, message: err.message });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Master licenses are managed directly by Core Backend. Project Tracker only has read-only access (GET APIs).'
+  });
 };
 
 /**
- * Delete license
+ * Delete license - Read-Only in Project Tracker
  * DELETE /api/v1/licenses/:id
  */
 const deleteLicense = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const license = await License.findByIdAndDelete(id);
-
-    if (!license) {
-      return res.status(404).json({ success: false, message: 'License not found' });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'License deleted successfully',
-    });
-  } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Master licenses are managed directly by Core Backend. Project Tracker only has read-only access (GET APIs).'
+  });
 };
 
 /**
@@ -238,17 +250,25 @@ const getHardwareAllocations = async (req, res) => {
     const filter = {};
 
     if (projectId) {
+      const orConditions = [{ projectId }];
       if (mongoose.Types.ObjectId.isValid(projectId)) {
-        filter.projectId = projectId;
-      } else {
+        orConditions.push({ projectId: new mongoose.Types.ObjectId(projectId) });
+      }
+      try {
         const coreApi = require('../../services/core-api.service');
         const proj = await coreApi.getProjectById(projectId);
-        if (proj) {
-          filter.projectId = proj._id;
-        } else {
-          return res.status(200).json({ success: true, count: 0, data: [] });
+        if (proj && proj._id) {
+          orConditions.push({ projectId: proj._id });
+          if (proj.projectId) {
+            orConditions.push({ projectId: proj.projectId });
+            orConditions.push({ projectId: proj.projectId.toLowerCase() });
+            orConditions.push({ projectId: proj.projectId.toUpperCase() });
+          }
         }
+      } catch (_) {
+        // Non-blocking fallback
       }
+      filter.$or = orConditions;
     }
 
     if (schoolId) {
@@ -273,7 +293,6 @@ const getHardwareAllocations = async (req, res) => {
       .populate('projectId', 'projectId projectName title')
       .populate('hardwareId', 'label name key icon unit')
       .populate('specId', 'name code description')
-      .populate('licenseId')
       .sort({ schoolId: 1, hardwareKey: 1, unitIndex: 1 });
 
     res.status(200).json({
@@ -448,21 +467,7 @@ const syncProjectHardwareAllocations = async (req, res) => {
           const cleanKey = hwKey.slice(0, 8);
           const licenseCode = `LIC-${cleanCode}-${cleanKey}-${unitStr}`;
 
-          // 1. Ensure external License entry exists in pool (undisturbed!)
-          let licenseDoc = await License.findOne({ licenseKey: licenseCode });
-          if (!licenseDoc) {
-            licenseDoc = await License.create({
-              licenseKey: licenseCode,
-              status: 'active',
-              isRegistered: false,
-              registeredAt: null,
-              registeredTo: null,
-              schoolId: schId,
-              projectId: school.projectId,
-            });
-          }
-
-          // 2. Ensure relation model mapping exists
+          // Ensure relation model mapping exists (External license keys referenced without local Mongo License collection)
           const allocation = await SchoolHardwareLicense.findOneAndUpdate(
             { schoolId: schId, hardwareKey: hwKey, unitIndex: unit },
             {
@@ -474,12 +479,14 @@ const syncProjectHardwareAllocations = async (req, res) => {
                 hardwareKey: hwKey,
                 hardwareName: hwName,
                 unitIndex: unit,
-                licenseId: licenseDoc._id,
                 licenseKey: licenseCode,
-                status: licenseDoc.isRegistered ? 'REGISTERED' : 'ALLOCATED',
-                isRegistered: licenseDoc.isRegistered,
-                registeredAt: licenseDoc.registeredAt,
-                registeredTo: licenseDoc.registeredTo,
+                status: 'ALLOCATED',
+                isRegistered: false,
+                registeredAt: null,
+                registeredTo: null,
+              },
+              $setOnInsert: {
+                allocatedAt: new Date(),
               },
             },
             { upsert: true, new: true }
@@ -551,26 +558,10 @@ const updateAllocationById = async (req, res) => {
       .populate('schoolId', 'name district state')
       .populate('projectId', 'projectId projectName title')
       .populate('hardwareId', 'label name key icon unit')
-      .populate('specId', 'name code description')
-      .populate('licenseId');
+      .populate('specId', 'name code description');
 
     if (!updated) {
       return res.status(404).json({ success: false, message: 'Allocation not found' });
-    }
-
-    // Also synchronize status and serial with the root License model if licenseKey exists
-    if (updated.licenseKey) {
-      await License.findOneAndUpdate(
-        { licenseKey: updated.licenseKey },
-        {
-          $set: {
-            isRegistered: updated.isRegistered,
-            registeredTo: updated.registeredTo,
-            status: updated.isRegistered ? 'registered' : 'active',
-            ...(updated.isRegistered ? { registeredAt: new Date() } : {}),
-          },
-        }
-      );
     }
 
     res.status(200).json({ success: true, data: updated });

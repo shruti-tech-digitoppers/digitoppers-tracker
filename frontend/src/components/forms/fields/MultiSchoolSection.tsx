@@ -1726,11 +1726,17 @@ export function MultiSchoolSection({
                   <div className="space-y-1">
                     <label className="text-[11px] font-bold text-slate-600">5.3.4 Contact</label>
                     <input
-                      type="text"
+                      type="tel"
+                      inputMode="numeric"
                       disabled={disabled}
-                      placeholder="Phone Number"
+                      placeholder="Phone Number (Numbers only)"
                       value={currentSchool.supportingOrgContact || ''}
-                      onChange={(e) => handleUpdateCurrentSchool({ supportingOrgContact: e.target.value })}
+                      onChange={(e) => handleUpdateCurrentSchool({ supportingOrgContact: e.target.value.replace(/[^0-9]/g, '') })}
+                      onKeyDown={(e) => {
+                        if (/^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                          e.preventDefault();
+                        }
+                      }}
                       className="w-full text-xs bg-white border border-slate-200 rounded-lg px-2.5 py-1.5 text-slate-900 focus:ring-1 focus:ring-[#51a8b1]"
                     />
                   </div>

@@ -122,7 +122,8 @@ export function ProjectsTable({
               const pmObj = typeof project.projectManager === 'object' && project.projectManager !== null
                 ? project.projectManager as any
                 : null;
-              const pmName = pmObj?.name || (typeof project.projectManager === 'string' ? project.projectManager : 'Unassigned PM');
+              const rawPm = pmObj?.name || (typeof project.projectManager === 'string' && project.projectManager ? project.projectManager : null);
+              const pmName = rawPm && rawPm.toLowerCase() !== 'assigned pm' && rawPm.toLowerCase() !== 'unassigned pm' ? rawPm : 'Unassigned';
               const pmEmail = pmObj?.email || '';
 
               const requesterObj = typeof project.requestedBy === 'object' && project.requestedBy !== null

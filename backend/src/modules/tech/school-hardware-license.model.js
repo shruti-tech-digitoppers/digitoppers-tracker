@@ -1,18 +1,9 @@
 const mongoose = require('mongoose');
 
-/**
- * SchoolHardwareLicense Schema
- * Relation / Junction model mapping:
- * Project + School (FK) + Hardware (Key/FK) + External License (FK/Key)
- * 
- * Allows the external `License` model to remain completely undisturbed,
- * while managing school-wise and hardware-wise license allocations in Tech Stream.
- */
 const schoolHardwareLicenseSchema = new mongoose.Schema(
   {
-    // ── Foreign Keys: Project & School ───────────────────────────
     projectId: {
-      type: mongoose.Schema.Types.ObjectId,
+      type: mongoose.Schema.Types.Mixed,
       required: [true, 'Project ID is required'],
       index: true,
     },
@@ -27,33 +18,27 @@ const schoolHardwareLicenseSchema = new mongoose.Schema(
       trim: true,
       default: '',
     },
-
-    // ── Hardware Linkage ─────────────────────────────────────────
     hardwareId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Hardware',
+      type: mongoose.Schema.Types.Mixed,
       default: null,
     },
     hardwareKey: {
       type: String,
       required: [true, 'Hardware key is required'],
-      trim: true, // e.g. 'IFP', 'OPS', 'TABLET', 'SMART_TV'
+      trim: true,
     },
     hardwareName: {
       type: String,
       required: [true, 'Hardware name is required'],
-      trim: true, // e.g. 'Interactive Flat Panel 75"'
+      trim: true,
     },
     unitIndex: {
       type: Number,
       required: true,
-      default: 1, // Unit 1, Unit 2, Unit 3 of that hardware for this school
+      default: 1,
     },
-
-    // ── Specification Linkage (Foreign Key to HardwareSpec) ─────
     specId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'HardwareSpec',
+      type: mongoose.Schema.Types.Mixed,
       default: null,
       index: true,
     },
@@ -67,8 +52,6 @@ const schoolHardwareLicenseSchema = new mongoose.Schema(
       default: '',
       trim: true,
     },
-
-    // ── License Reference (Undisturbed External License) ─────────
     licenseId: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'License',
@@ -81,8 +64,6 @@ const schoolHardwareLicenseSchema = new mongoose.Schema(
       trim: true,
       index: true,
     },
-
-    // ── Allocation & Registration State ──────────────────────────
     status: {
       type: String,
       enum: ['ALLOCATED', 'ACTIVE', 'REGISTERED', 'REVOKED', 'EXPIRED'],
@@ -100,7 +81,7 @@ const schoolHardwareLicenseSchema = new mongoose.Schema(
     },
     registeredTo: {
       type: String,
-      default: null, // Device identifier (MAC / Android ID / Device Serial #)
+      default: null,
       trim: true,
     },
     allocatedAt: {
@@ -113,19 +94,15 @@ const schoolHardwareLicenseSchema = new mongoose.Schema(
       trim: true,
     },
   },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
-  }
+  { timestamps: true }
 );
 
-// Composite indexes for rapid lookups and preventing duplicate allocation of the same unit
 schoolHardwareLicenseSchema.index({ projectId: 1, schoolId: 1 });
 schoolHardwareLicenseSchema.index({ schoolId: 1, hardwareKey: 1, unitIndex: 1 }, { unique: true });
 
 const SchoolHardwareLicense =
   mongoose.models.SchoolHardwareLicense ||
-  mongoose.model('SchoolHardwareLicense', schoolHardwareLicenseSchema);
+  mongoose.model('SchoolHardwareLicense', schoolHardwareLicenseSchema, 'school_hardware_licenses');
 
 module.exports = SchoolHardwareLicense;
+

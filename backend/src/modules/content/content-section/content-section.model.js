@@ -238,6 +238,6 @@ contentSectionSchema.index({ type: 1, board: 1, language: 1, grade: 1 });
 
 const ContentSection =
   mongoose.models.ContentSection ||
-  mongoose.model('ContentSection', contentSectionSchema, 'contentsections');
+  mongoose.model('ContentSection', contentSectionSchema, 'content_sections');
 
 module.exports = ContentSection;

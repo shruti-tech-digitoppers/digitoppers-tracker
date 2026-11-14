@@ -201,7 +201,7 @@ export function TrainingCompletedSection({
           schoolId: sch.id,
           schoolName: sch.name || found?.schoolName || 'School',
           address: sch.address || found?.address || '',
-          contactPerson: sch.pocName || sch.contactPerson || sch.principalName || found?.contactPerson || 'Site Principal',
+          contactPerson: sch.pocName || sch.contactPerson || sch.principalName || found?.contactPerson || '',
           contactPhone: sch.pocContact || sch.contactPhone || sch.phone || found?.contactPhone || '',
           principalName: sch.principalName || found?.principalName || '',
           assignedTrainerName: assignedTrainerName || found?.assignedTrainerName || '',

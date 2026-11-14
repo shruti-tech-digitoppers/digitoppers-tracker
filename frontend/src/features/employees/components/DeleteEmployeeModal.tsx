@@ -50,8 +50,7 @@ export function DeleteEmployeeModal({
             <h2 className="text-base font-bold text-[#333333] font-heading">Delete Employee</h2>
             <p className="text-xs text-[#4a5462] mt-1">
               Are you sure you want to permanently delete{' '}
-              <span className="font-bold text-[#333333]">{employee.name}</span> (
-              <span className="font-mono text-[#51a8b1]">{employee.employeeCode}</span>)?
+              <span className="font-bold text-[#333333]">{employee.name}</span> ({employee.email})?
             </p>
             <p className="text-[11px] text-rose-500 mt-2 bg-rose-50/60 p-2 rounded-xl border border-rose-100">
               This action will remove the employee and all their explicit project assignments.

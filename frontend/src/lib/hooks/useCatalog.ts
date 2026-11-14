@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { solutionsApi, SolutionItem } from '../api/solutions.api';
 import { hardwareApi, HardwareItem } from '../api/hardware.api';
-import { DEFAULT_SOLUTIONS, DEFAULT_HARDWARE_ITEMS } from '@/components/forms/utils/formHelpers';
 
 export interface MasterSolution {
   _id?: string;
@@ -11,6 +10,11 @@ export interface MasterSolution {
   icon: string;
   desc: string;
   description?: string;
+  platform?: string;
+  platforms?: string[];
+  licenseRequired?: boolean;
+  isLicenseRequired?: boolean;
+  licenseCount?: number;
 }
 
 export interface MasterHardware {
@@ -18,6 +22,9 @@ export interface MasterHardware {
   key: string;
   label: string;
   name?: string;
+  spec?: string;
+  specs?: any;
+  specification?: string;
   icon: string;
   desc: string;
   description?: string;
@@ -26,19 +33,21 @@ export interface MasterHardware {
 }
 
 export function useSolutionsAndHardware() {
-  const [solutions, setSolutions] = useState<MasterSolution[]>(DEFAULT_SOLUTIONS as any[]);
-  const [hardware, setHardware] = useState<MasterHardware[]>(DEFAULT_HARDWARE_ITEMS as any[]);
+  const [solutions, setSolutions] = useState<MasterSolution[]>([]);
+  const [hardware, setHardware] = useState<MasterHardware[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
 
   const fetchSolutionsAndHardware = useCallback(async () => {
     try {
       setLoading(true);
+      setError(null);
       const [sols, hws] = await Promise.allSettled([
         solutionsApi.getSolutions(),
         hardwareApi.getHardware(),
       ]);
 
-      if (sols.status === 'fulfilled' && Array.isArray(sols.value) && sols.value.length > 0) {
+      if (sols.status === 'fulfilled' && Array.isArray(sols.value)) {
         setSolutions(
           sols.value.map((s: SolutionItem) => ({
             _id: s._id,
@@ -50,15 +59,20 @@ export function useSolutionsAndHardware() {
             description: s.description || s.desc || '',
           }))
         );
+      } else if (sols.status === 'rejected') {
+        console.error('Failed to load solutions from MongoDB:', sols.reason);
       }
 
-      if (hws.status === 'fulfilled' && Array.isArray(hws.value) && hws.value.length > 0) {
+      if (hws.status === 'fulfilled' && Array.isArray(hws.value)) {
         setHardware(
           hws.value.map((h: HardwareItem) => ({
             _id: h._id,
             key: h.key,
             label: h.label || h.name || h.key,
             name: h.name || h.label || h.key,
+            spec: h.spec || h.specification || '',
+            specs: h.specs || [],
+            specification: h.specification || h.spec || '',
             icon: h.icon || '🖥️',
             desc: h.description || h.desc || '',
             description: h.description || h.desc || '',
@@ -70,9 +84,12 @@ export function useSolutionsAndHardware() {
               : [],
           }))
         );
+      } else if (hws.status === 'rejected') {
+        console.error('Failed to load hardware from MongoDB:', hws.reason);
       }
-    } catch (err) {
-      console.warn('Using fallback solutions and hardware items:', err);
+    } catch (err: any) {
+      console.error('Failed to fetch solutions and hardware catalog from MongoDB:', err);
+      setError(err?.message || 'Failed to fetch catalog from database.');
     } finally {
       setLoading(false);
     }
@@ -99,6 +116,7 @@ export function useSolutionsAndHardware() {
     hardware,
     products: hardware,
     loading,
+    error,
     refreshSolutionsAndHardware: fetchSolutionsAndHardware,
     refreshCatalog: fetchSolutionsAndHardware,
     refreshProducts: fetchSolutionsAndHardware,

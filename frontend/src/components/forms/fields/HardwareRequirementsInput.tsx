@@ -2,9 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
-  DEFAULT_HARDWARE_ITEMS,
-  DEFAULT_SOLUTIONS,
-  EffectiveSchoolItem,
+      EffectiveSchoolItem,
   extractEffectiveSchools
 } from '../utils/formHelpers';
 import { useSolutionsAndHardware, MasterHardware, MasterSolution } from '@/lib/hooks/useSolutionsAndHardware';
@@ -419,8 +417,7 @@ export function HardwareRequirementsInput({
         // Skip if not an active/selected object or false
         if (!item || item === false) return;
         const defObj =
-          catalogSolutions.find((d) => d.key === solKey) ||
-          DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+          catalogSolutions.find((d) => d.key === solKey);
 
         configuredList.push({
           solutionKey: solKey,
@@ -457,8 +454,7 @@ export function HardwareRequirementsInput({
             allFormData?.[solKey] ||
             {};
           const defObj =
-            catalogSolutions.find((d) => d.key === solKey) ||
-            DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+            catalogSolutions.find((d) => d.key === solKey);
 
           configuredList.push({
             solutionKey: solKey,
@@ -483,8 +479,7 @@ export function HardwareRequirementsInput({
     localKeys.forEach((solKey) => {
       if (!configuredList.some((s) => s.solutionKey === solKey)) {
         const defObj =
-          catalogSolutions.find((d) => d.key === solKey) ||
-          DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+          catalogSolutions.find((d) => d.key === solKey);
         configuredList.push({
           solutionKey: solKey,
           solutionName: defObj?.label || solKey,
@@ -560,8 +555,7 @@ export function HardwareRequirementsInput({
 
       const itemKey = normalizeHwKey(rawItemKey);
       const defObj =
-        catalogHardware.find((d) => d.key === itemKey || d.key === rawItemKey) ||
-        DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey || d.key === rawItemKey);
+        catalogHardware.find((d) => d.key === itemKey || d.key === rawItemKey);
 
       const qty = Number(rawVal?.quantity || rawVal?.qty || rawVal) || 1;
       const spec = rawVal?.specNotes || rawVal?.specs || rawVal?.specifications || defObj?.desc || '';
@@ -619,8 +613,7 @@ export function HardwareRequirementsInput({
         const legacy = legacyItems[rawItemKey] || {};
         const itemKey = normalizeHwKey(rawItemKey);
         const defObj =
-          catalogHardware.find((d) => d.key === itemKey || d.key === rawItemKey) ||
-          DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey || d.key === rawItemKey);
+          catalogHardware.find((d) => d.key === itemKey || d.key === rawItemKey);
 
         initialMap[sch.id][itemKey] = {
           itemKey,
@@ -651,8 +644,7 @@ export function HardwareRequirementsInput({
       const legacyItems: Record<string, any> = {};
       allActiveKeys.forEach((itemKey) => {
         const defObj =
-          catalogHardware.find((d) => d.key === itemKey) ||
-          DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
+          catalogHardware.find((d) => d.key === itemKey);
         let aggregatedQty = 0;
         let combinedSpecs = '';
 
@@ -709,8 +701,7 @@ export function HardwareRequirementsInput({
         delete nextSchoolMap[schoolId][itemKey];
       } else {
         const defObj =
-          catalogHardware.find((d) => d.key === itemKey) ||
-          DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
+          catalogHardware.find((d) => d.key === itemKey);
         nextSchoolMap[schoolId][itemKey] = {
           itemKey,
           itemName: defObj?.label || itemKey,
@@ -735,8 +726,7 @@ export function HardwareRequirementsInput({
       nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
 
       const defObj =
-        catalogHardware.find((d) => d.key === itemKey) ||
-        DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
+        catalogHardware.find((d) => d.key === itemKey);
 
       nextSchoolMap[schoolId][itemKey] = {
         itemKey,
@@ -760,8 +750,7 @@ export function HardwareRequirementsInput({
       const nextSchoolMap = { ...schoolAllocations };
       nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
       const defObj =
-        catalogHardware.find((d) => d.key === itemKey) ||
-        DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
+        catalogHardware.find((d) => d.key === itemKey);
 
       const existing = nextSchoolMap[schoolId][itemKey] || {
         itemKey,
@@ -945,8 +934,7 @@ export function HardwareRequirementsInput({
               })
               .map((key) => {
                 const defObj =
-                  catalogHardware.find((d) => d.key === key) ||
-                  DEFAULT_HARDWARE_ITEMS.find((d) => d.key === key);
+                  catalogHardware.find((d) => d.key === key);
                 return (
                   activeSchoolHardware[key] || {
                     itemKey: key,
@@ -1032,8 +1020,7 @@ export function HardwareRequirementsInput({
                     <div className="flex flex-wrap gap-2">
                       {recommendedKeys.map((itemKey) => {
                         const defObj =
-                          catalogHardware.find((d) => d.key === itemKey) ||
-                          DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey);
+                          catalogHardware.find((d) => d.key === itemKey);
                         const isSelected = !!activeSchoolHardware[itemKey];
 
                         return (
@@ -1085,8 +1072,7 @@ export function HardwareRequirementsInput({
 
                       {selectedHardwareUnderSolution.map((item) => {
                         const defObj =
-                          catalogHardware.find((d) => d.key === item.itemKey) ||
-                          DEFAULT_HARDWARE_ITEMS.find((d) => d.key === item.itemKey);
+                          catalogHardware.find((d) => d.key === item.itemKey);
 
                         return (
                           <div

@@ -14,6 +14,12 @@ router.get('/:id', optionalProtect, projectController.getById);
 // GET /api/v1/projects/:projectId/members/by-department (Recipe 2: team grouped by department)
 router.get('/:projectId/members/by-department', optionalProtect, projectController.getMembersGrouped);
 
+// GET /api/v1/projects/:projectId/core-schools (Fetch schools strictly from Core Backend API)
+router.get('/:projectId/core-schools', optionalProtect, (req, res, next) => {
+  const schoolController = require('../schools/school.controller');
+  return schoolController.getCoreSchools(req, res, next);
+});
+
 // All other project management routes require authentication
 router.use(protect);
 

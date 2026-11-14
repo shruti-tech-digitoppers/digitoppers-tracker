@@ -1,4 +1,4 @@
-export type TimelineNodeStatus = 'PENDING' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'CANCELLED';
+export type TimelineNodeStatus = 'PENDING' | 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'ON_HOLD' | 'BLOCKED' | 'CANCELLED';
 
 export interface IFormFieldOption {
   label: string;
@@ -31,14 +31,15 @@ export interface ITimelineNode {
   type: string;
   order?: number;
   status: TimelineNodeStatus;
-  assignedTo?: string | { _id: string; name: string; email: string; employeeCode?: string } | null;
-  assignedEmployee?: string | { _id: string; name: string; email: string; employeeCode?: string } | null;
+  assignedTo?: string | { _id: string; name: string; email: string } | null;
+  assignedEmployee?: string | { _id: string; name: string; email: string } | null;
   completionDate?: string | null;
+  dueDate?: string | null;
   remarks?: string;
-  dependencies: string[];
+  dependentOn?: string[];
+  dependencies?: string[];
   formSchema?: FormSchemaType;
   formData?: Record<string, any>;
-  metadata?: Record<string, any>;
   parent?: string | null;
   parentNode?: string | null;
   children?: ITimelineNode[];

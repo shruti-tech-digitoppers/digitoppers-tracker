@@ -20,6 +20,35 @@ export function formatTimelineDate(dateStr?: string | Date | null): string {
   }
 }
 
+export function formatDateOnly(dateStr?: string | Date | null): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    return new Intl.DateTimeFormat('en-IN', {
+      day: 'numeric',
+      month: 'short',
+      year: 'numeric'
+    }).format(d);
+  } catch {
+    return '';
+  }
+}
+
+export function toDateInputValue(dateStr?: string | Date | null): string {
+  if (!dateStr) return '';
+  try {
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '';
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  } catch {
+    return '';
+  }
+}
+
 export function formatTimeAgo(dateStr?: string | Date | null): string {
   if (!dateStr) return '';
   try {

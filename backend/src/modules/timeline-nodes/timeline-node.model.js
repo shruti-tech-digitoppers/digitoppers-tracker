@@ -45,13 +45,24 @@ const staticTimelineNodeSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+    dependentOn: {
+    type: [{
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'TimelineNodeStatic'
+    }],
+    default: []
+  },
+  completionDate: {
+    type: Date,
+    default: null
+  },
+  dueDate: {
+    type: Date,
+    default: null
+  },
   formSchema: {
     type: mongoose.Schema.Types.Mixed,
     default: null
-  },
-  metadata: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
   }
 }, {
   timestamps: true,

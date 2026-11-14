@@ -85,7 +85,7 @@ class FormSchemasService {
     const runtimeRecord = await TimelineData.findOne({
       projectId: projId,
       nodeId: nodeId
-    }).populate('assignedTo', 'name email employeeCode designation').lean();
+    }).populate('assignedTo', 'name email designation').lean();
 
     const rawFormData = (runtimeRecord && runtimeRecord.formData) ? runtimeRecord.formData : {};
     const schemaFields = (schema && Array.isArray(schema.fields)) ? schema.fields : [];
@@ -113,6 +113,7 @@ class FormSchemasService {
       status: runtimeRecord?.status || 'NOT_STARTED',
       assignedTo: runtimeRecord?.assignedTo || null,
       completionDate: runtimeRecord?.completionDate || null,
+      dueDate: runtimeRecord?.dueDate || null,
       remarks: runtimeRecord?.remarks || '',
       schema: {
         id: schema?.id || `FS_${projId}_${nodeId}`,
@@ -141,12 +142,57 @@ class FormSchemasService {
     const projId = this._normalizeProjectId(projectId);
     const dataToSave = (formData && typeof formData === 'object') ? formData : {};
 
-    // 1. Update timeline_data collection
+    // Validate contact number fields and detect missing compulsory fields
+    const schema = await this.getSchema(nodeId, projId);
+    let hasMissingRequired = false;
+    if (schema && Array.isArray(schema.fields)) {
+      for (const field of schema.fields) {
+        const k = field.key;
+        const val = dataToSave[k];
+
+        if (field.required) {
+          if (k === 'projectName' || k === 'projectTitle') {
+            // headline check
+          } else {
+            const isEmpty = val === undefined || val === null || (typeof val === 'string' && val.trim() === '') || (Array.isArray(val) && val.length === 0);
+            if (isEmpty) {
+              hasMissingRequired = true;
+            }
+          }
+        }
+
+        const isContact = (
+          (field.type === 'tel' || field.type === 'phone' || /(phone|mobile|tel|contactno|contactnumber|poccontact|supportingorgcontact)/i.test(k) || /\b(phone|mobile|contact\s*no|contact\s*number)\b/i.test(field.label || '')) &&
+          !/(person|address|name)/i.test(k) &&
+          !/(person|address|name)/i.test(field.label || '') &&
+          field.type !== 'textarea'
+        );
+
+        if (isContact && val !== undefined && val !== null && String(val).trim() !== '') {
+          const strVal = String(val).trim();
+          if (/[a-zA-Z]/.test(strVal)) {
+            const { AppError } = require('../../core/errors');
+            throw new AppError(`Field '${field.label || k}' must contain only numbers, no alphabets are allowed.`, 400, 'INVALID_CONTACT_NUMBER');
+          }
+        }
+      }
+    }
+
+    // 1. Update timeline_data collection: If required fields are missing, status cannot be COMPLETED (must be IN_PROGRESS)
     const timelineDataService = require('../timeline-data/timeline-data.service');
+    const existingDoc = await TimelineData.findOne({ projectId: projId, nodeId: nodeId }).lean();
+    let statusToApply = existingDoc?.status || 'IN_PROGRESS';
+    if (hasMissingRequired) {
+      statusToApply = 'IN_PROGRESS';
+    } else if (statusToApply === 'NOT_STARTED') {
+      statusToApply = 'IN_PROGRESS';
+    }
+
     const updatedRuntime = await timelineDataService.saveNodeData({
       projectId: projId,
       nodeId: nodeId,
-      formData: dataToSave
+      formData: dataToSave,
+      status: statusToApply
     });
 
     // 2. Return full merged representation
@@ -261,11 +307,40 @@ class FormSchemasService {
           { upsert: true, new: true }
         );
         seededRecords.push(schemaDoc);
+
+        // Also alias TASK_PROJECT_REVIEWER if this is PROJECT_REVIEWER
+        if (nodeId === 'PROJECT_REVIEWER') {
+          const taskStaticNode = await TimelineNodeStatic.findOne({ id: 'TASK_PROJECT_REVIEWER' }).lean();
+          await FormSchema.findOneAndUpdate(
+            { projectId: 'DEFAULT', nodeId: 'TASK_PROJECT_REVIEWER' },
+            {
+              $set: {
+                id: 'FS_DEFAULT_TASK_PROJECT_REVIEWER',
+                nodeId: 'TASK_PROJECT_REVIEWER',
+                node: taskStaticNode?._id || null,
+                projectId: 'DEFAULT',
+                project: null,
+                title: `${node.name || nodeId} Form`,
+                description: `Standard form schema for ${node.name || nodeId}`,
+                fields: node.formSchema.fields,
+                version: 'v1',
+                isActive: true,
+                metadata: node.metadata || {}
+              }
+            },
+            { upsert: true, new: true }
+          );
+        }
       }
 
       if (Array.isArray(node.substages)) {
         for (const sub of node.substages) {
           await extractSchemas(sub);
+        }
+      }
+      if (Array.isArray(node.tasks)) {
+        for (const task of node.tasks) {
+          await extractSchemas(task);
         }
       }
       if (Array.isArray(node.nested)) {

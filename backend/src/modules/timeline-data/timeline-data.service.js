@@ -79,29 +79,9 @@ class TimelineDataService {
           source: 'CORE_BACKEND'
         };
       }
-    } catch (_) {}
+    } catch (_) { }
 
-    // Fallback: check local MongoDB collection
-    try {
-      const localP = await mongoose.connection.collection('projects').findOne({
-        $or: [
-          mongoose.isValidObjectId(idStr) ? { _id: new mongoose.Types.ObjectId(idStr) } : null,
-          { projectId: idStr },
-          { projectId: idStr.toUpperCase() },
-          { projectId: idStr.toLowerCase() }
-        ].filter(Boolean)
-      });
-      if (localP) {
-        return {
-          _id: String(localP._id),
-          projectId: (localP.projectId || idStr).toUpperCase(),
-          projectName: localP.projectName || localP.title || 'Project',
-          projectManager: localP.projectManager || null,
-          schools: localP.schools || [],
-          source: 'LOCAL'
-        };
-      }
-    } catch (_) {}
+
 
     return {
       _id: idStr,
@@ -128,8 +108,8 @@ class TimelineDataService {
     }
 
     return await TimelineData.find(query)
-      .populate('assignedTo', 'name email employeeCode designation')
-      .populate('node', 'name title order parent_id has_substages formSchema')
+      .populate('assignedTo', 'name email designation')
+      .populate('node', 'name title order parent_id has_substages dependentOn formSchema')
       .sort({ createdAt: 1 })
       .lean();
   }
@@ -141,7 +121,7 @@ class TimelineDataService {
     const projId = this._normalizeProjectId(projectId);
     const cleanKey = await this._resolveNodeKey(nodeId);
     return await TimelineData.findOne({ projectId: projId, nodeId: cleanKey })
-      .populate('assignedTo', 'name email employeeCode designation')
+      .populate('assignedTo', 'name email designation')
       .populate('node')
       .lean();
   }
@@ -163,7 +143,6 @@ class TimelineDataService {
 
     const results = [];
     for (const node of nodes) {
-      const customId = `TLD_${projId}_${node.id}`;
       const isFirstStage = node.id === 'PROJECT_REVIEWER' || (node.order === 1 && node.title === 'stage');
       const initialStatus = isFirstStage ? 'IN_PROGRESS' : 'NOT_STARTED';
       const assignedEmployee = (isFirstStage && pmId) ? pmId : null;
@@ -172,7 +151,6 @@ class TimelineDataService {
         { projectId: projId, nodeId: node.id },
         {
           $setOnInsert: {
-            id: customId,
             nodeId: node.id,
             node: node._id,
             projectId: projId,
@@ -180,9 +158,9 @@ class TimelineDataService {
             assignedTo: assignedEmployee,
             status: initialStatus,
             completionDate: null,
+            dueDate: null,
             remarks: '',
             formData: {},
-            metadata: {}
           }
         },
         { upsert: true, new: true }
@@ -198,6 +176,22 @@ class TimelineDataService {
   }
 
   /**
+   * Compatibility alias for createTimelineForProject
+   */
+  async createTimelineForProject(project, pmId = null) {
+    const projId = project?.projectId || (typeof project === 'string' ? project : '');
+    const managerId = pmId || project?.projectManager || null;
+    return await this.initializeProjectTimelineData(projId, managerId, project);
+  }
+
+  /**
+   * Compatibility alias for syncSchoolProgressToTimeline
+   */
+  async syncSchoolProgressToTimeline(projectId) {
+    return Promise.resolve();
+  }
+
+  /**
    * Get live project hierarchy tree by merging static blueprint with dynamic runtime timeline_data
    */
   async getProjectHierarchyTree(projectId) {
@@ -208,7 +202,7 @@ class TimelineDataService {
 
     // 2. Fetch all runtime data for this project
     const runtimeRecords = await TimelineData.find({ projectId: projId })
-      .populate('assignedTo', 'name email employeeCode designation')
+      .populate('assignedTo', 'name email designation')
       .lean();
 
     const runtimeMap = new Map();
@@ -225,25 +219,28 @@ class TimelineDataService {
     // 3. Helper to attach runtime data to static node
     const attachRuntimeData = (staticNode) => {
       const runtime = runtimeMap.get(staticNode.id) || {
-        id: `TLD_${projId}_${staticNode.id}`,
         nodeId: staticNode.id,
         projectId: projId,
         status: 'NOT_STARTED',
         assignedTo: null,
         completionDate: null,
-        remarks: '',
-        formData: {}
+            dueDate: null,
+            remarks: '',
+            formData: {}
       };
 
       return {
         ...staticNode,
-        runtimeId: runtime.id,
+        runtimeId: runtime._id ? String(runtime._id) : staticNode.id,
         status: runtime.status || 'NOT_STARTED',
         assignedTo: runtime.assignedTo || null,
         assignedEmployee: runtime.assignedTo || null,
         completionDate: runtime.completionDate || null,
+        dueDate: runtime.dueDate || null,
         remarks: runtime.remarks || '',
         formData: runtime.formData || {},
+        dependentOn: staticNode.dependentOn || [],
+        dependencies: staticNode.dependentOn || staticNode.dependencies || [],
         updatedAt: runtime.updatedAt || null
       };
     };
@@ -327,19 +324,12 @@ class TimelineDataService {
         training: s.training || {},
         survey: s.survey || {}
       }));
-    } catch (_) {}
+    } catch (_) { }
 
     // 4. Format into normalized tree structure
-    let totalCount = 0;
-    let completedCount = 0;
-
     const formatNode = (node, type, parentKey = null) => {
-      totalCount++;
-      const isCompleted = node.status === 'COMPLETED';
-      if (isCompleted) completedCount++;
-
       let nodeFormData = node.formData || {};
-      if (node.id === 'SCHOOL_ONBOARDING_INFORMATION' && canonicalSchools.length > 0) {
+      if (['SCHOOL_ONBOARDING_INFORMATION', 'SCHOOL_AND_LICENSE_CREATION'].includes(node.id) && canonicalSchools.length > 0) {
         nodeFormData = {
           ...nodeFormData,
           schools: canonicalSchools,
@@ -358,26 +348,52 @@ class TimelineDataService {
       }
 
       const nodeFields = schemaMap.get(node.id) || (node.formSchema?.fields || node.formSchema) || null;
+      let effectiveStatus = node.status || 'NOT_STARTED';
+
+      // Validation check: If node is marked COMPLETED, verify all required form fields are filled
+      if (effectiveStatus === 'COMPLETED' && Array.isArray(nodeFields)) {
+        for (const f of nodeFields) {
+          if (f.required) {
+            const k = f.key || f.name;
+            if (k === 'projectName' || k === 'projectTitle') continue;
+            const val = nodeFormData[k];
+            const isEmpty = val === undefined || val === null || (typeof val === 'string' && val.trim() === '') || (Array.isArray(val) && val.length === 0);
+            if (isEmpty) {
+              effectiveStatus = 'IN_PROGRESS';
+              break;
+            }
+          }
+        }
+      }
 
       return {
-        _id: node.runtimeId || `TLD_${targetProjectId}_${node.id}`,
+        _id: node.runtimeId || node.id,
         id: node.id,
         key: node.id,
         name: node.name,
         type: type,
         order: node.order || 1,
-        status: node.status || 'NOT_STARTED',
+        status: effectiveStatus,
         assignedTo: node.assignedTo || null,
         assignedEmployee: node.assignedTo || null,
-        completionDate: node.completionDate || null,
+        completionDate: effectiveStatus === 'COMPLETED' ? (node.completionDate || new Date()) : null,
+        dueDate: node.dueDate || null,
         remarks: node.remarks || '',
         formData: nodeFormData,
         formSchema: nodeFields ? (Array.isArray(nodeFields) ? { fields: nodeFields } : nodeFields) : null,
         parent: parentKey,
-        dependencies: node.dependencies || [],
-        metadata: node.metadata || {},
+        dependentOn: node.dependentOn || [],
+        dependencies: node.dependentOn || node.dependencies || [],
         children: []
       };
+    };
+
+    let totalCount = 0;
+    let completedCount = 0;
+
+    const countNode = (node) => {
+      totalCount++;
+      if (node.status === 'COMPLETED') completedCount++;
     };
 
     const tree = rawTree.map((stage) => {
@@ -387,14 +403,39 @@ class TimelineDataService {
         stageFormatted.children = stage.substages.map((sub) => {
           const subFormatted = formatNode(sub, 'SUBSTAGE', stage.id);
           if (sub.tasks && sub.tasks.length > 0) {
-            subFormatted.children = sub.tasks.map((task) => formatNode(task, 'TASK', sub.id));
+            subFormatted.children = sub.tasks.map((task) => {
+              const taskFormatted = formatNode(task, 'TASK', sub.id);
+              countNode(taskFormatted);
+              return taskFormatted;
+            });
+            // If any child task is not COMPLETED, substage cannot be COMPLETED
+            const hasIncompleteTasks = subFormatted.children.some((c) => c.status !== 'COMPLETED');
+            if (hasIncompleteTasks && subFormatted.status === 'COMPLETED') {
+              subFormatted.status = 'IN_PROGRESS';
+            }
           }
+          countNode(subFormatted);
           return subFormatted;
         });
+
+        // If any substage or child task is not COMPLETED, stage cannot be COMPLETED
+        const hasIncompleteSubs = stageFormatted.children.some((c) => c.status !== 'COMPLETED');
+        if (hasIncompleteSubs && stageFormatted.status === 'COMPLETED') {
+          stageFormatted.status = 'IN_PROGRESS';
+        }
       } else if (stage.tasks && stage.tasks.length > 0) {
-        stageFormatted.children = stage.tasks.map((task) => formatNode(task, 'TASK', stage.id));
+        stageFormatted.children = stage.tasks.map((task) => {
+          const taskFormatted = formatNode(task, 'TASK', stage.id);
+          countNode(taskFormatted);
+          return taskFormatted;
+        });
+        const hasIncompleteTasks = stageFormatted.children.some((c) => c.status !== 'COMPLETED');
+        if (hasIncompleteTasks && stageFormatted.status === 'COMPLETED') {
+          stageFormatted.status = 'IN_PROGRESS';
+        }
       }
 
+      countNode(stageFormatted);
       return stageFormatted;
     });
 
@@ -431,7 +472,7 @@ class TimelineDataService {
         { id: nodeId },
         mongoose.isValidObjectId(nodeId) ? { _id: nodeId } : null
       ].filter(Boolean)
-    }).populate('assignedTo', 'name email employeeCode designation').lean();
+    }).populate('assignedTo', 'name email designation').lean();
 
     if (!runtimeRecord && cleanKey) {
       await this.saveNodeData({
@@ -442,7 +483,7 @@ class TimelineDataService {
       runtimeRecord = await TimelineData.findOne({
         projectId: targetProjectId,
         nodeId: cleanKey
-      }).populate('assignedTo', 'name email employeeCode designation').lean();
+      }).populate('assignedTo', 'name email designation').lean();
     }
 
     const dynamicSchema = cleanKey ? await formSchemasService.getSchema(cleanKey, targetProjectId) : null;
@@ -450,7 +491,7 @@ class TimelineDataService {
 
     const nodeFields = dynamicSchema?.fields || (staticNode?.formSchema?.fields || staticNode?.formSchema);
     const nodeObj = {
-      _id: runtimeRecord?.id || `TLD_${targetProjectId}_${effectiveKey}`,
+      _id: runtimeRecord?._id ? String(runtimeRecord._id) : effectiveKey,
       id: effectiveKey,
       key: effectiveKey,
       name: staticNode?.name || effectiveKey,
@@ -460,13 +501,14 @@ class TimelineDataService {
       assignedTo: runtimeRecord?.assignedTo || null,
       assignedEmployee: runtimeRecord?.assignedTo || null,
       completionDate: runtimeRecord?.completionDate || null,
+      dueDate: runtimeRecord?.dueDate || null,
       remarks: runtimeRecord?.remarks || '',
       formData: runtimeRecord?.formData || {},
       formSchema: nodeFields ? (Array.isArray(nodeFields) ? { fields: nodeFields } : nodeFields) : null,
       parent: staticNode?.parent_id || null,
       parentNode: staticNode?.parent_id || null,
-      dependencies: staticNode?.dependencies || [],
-      metadata: runtimeRecord?.metadata || {},
+      dependentOn: staticNode?.dependentOn || [],
+      dependencies: staticNode?.dependentOn || staticNode?.dependencies || [],
       children: []
     };
 
@@ -477,7 +519,7 @@ class TimelineDataService {
       const childRuntimes = await TimelineData.find({
         projectId: targetProjectId,
         nodeId: { $in: childKeys }
-      }).populate('assignedTo', 'name email employeeCode designation').lean();
+      }).populate('assignedTo', 'name email designation').lean();
 
       const childRuntimeMap = new Map();
       for (const cr of childRuntimes) {
@@ -487,7 +529,7 @@ class TimelineDataService {
       nodeObj.children = staticChildren.map((sc) => {
         const cr = childRuntimeMap.get(sc.id);
         return {
-          _id: cr?.id || `TLD_${targetProjectId}_${sc.id}`,
+          _id: cr?._id ? String(cr._id) : sc.id,
           id: sc.id,
           key: sc.id,
           name: sc.name,
@@ -498,11 +540,13 @@ class TimelineDataService {
           assignedTo: cr?.assignedTo || null,
           assignedEmployee: cr?.assignedTo || null,
           completionDate: cr?.completionDate || null,
+          dueDate: cr?.dueDate || null,
           remarks: cr?.remarks || '',
           formData: cr?.formData || {},
           formSchema: sc.formSchema ? { fields: sc.formSchema.fields || sc.formSchema } : null,
           parent: sc.parent_id,
-          dependencies: sc.dependencies || [],
+          dependentOn: sc.dependentOn || [],
+          dependencies: sc.dependentOn || sc.dependencies || [],
           children: []
         };
       });
@@ -527,7 +571,7 @@ class TimelineDataService {
     const childRuntimes = await TimelineData.find({
       projectId: targetProjectId,
       nodeId: { $in: childKeys }
-    }).populate('assignedTo', 'name email employeeCode designation').lean();
+    }).populate('assignedTo', 'name email designation').lean();
 
     const childRuntimeMap = new Map();
     for (const cr of childRuntimes) {
@@ -537,7 +581,7 @@ class TimelineDataService {
     return staticChildren.map((sc) => {
       const cr = childRuntimeMap.get(sc.id);
       return {
-        _id: cr?.id || `TLD_${targetProjectId}_${sc.id}`,
+        _id: cr?._id ? String(cr._id) : sc.id,
         id: sc.id,
         key: sc.id,
         name: sc.name,
@@ -548,11 +592,13 @@ class TimelineDataService {
         assignedTo: cr?.assignedTo || null,
         assignedEmployee: cr?.assignedTo || null,
         completionDate: cr?.completionDate || null,
+          dueDate: cr?.dueDate || null,
         remarks: cr?.remarks || '',
         formData: cr?.formData || {},
         formSchema: sc.formSchema ? { fields: sc.formSchema.fields || sc.formSchema } : null,
         parent: sc.parent_id,
-        dependencies: sc.dependencies || []
+        dependentOn: sc.dependentOn || [],
+        dependencies: sc.dependentOn || sc.dependencies || []
       };
     });
   }
@@ -569,9 +615,9 @@ class TimelineDataService {
       assignedTo,
       status,
       completionDate,
+      dueDate,
       remarks,
       formData,
-      metadata
     } = payload;
 
     if (!projectId || !nodeId) {
@@ -580,7 +626,6 @@ class TimelineDataService {
 
     const projId = this._normalizeProjectId(projectId);
     const cleanKey = await this._resolveNodeKey(nodeId);
-    const customId = id || `TLD_${projId}_${cleanKey}`;
 
     const staticNode = await TimelineNodeStatic.findOne({ id: cleanKey }).lean();
 
@@ -588,11 +633,23 @@ class TimelineDataService {
     if (assignedTo !== undefined) updateFields.assignedTo = assignedTo || null;
     if (status !== undefined) updateFields.status = String(status).toUpperCase();
     if (completionDate !== undefined) updateFields.completionDate = completionDate;
+    if (dueDate !== undefined) updateFields.dueDate = dueDate ? new Date(dueDate) : null;
     if (remarks !== undefined) updateFields.remarks = String(remarks || '').trim();
     if (formData !== undefined) updateFields.formData = formData;
-    if (metadata !== undefined) updateFields.metadata = metadata;
     if (project !== undefined) updateFields.project = project;
     if (staticNode) updateFields.node = staticNode._id;
+
+    // Enforce required fields check: A subtask/stage CANNOT be COMPLETED if required fields are missing
+    if (updateFields.status === 'COMPLETED') {
+      const nodeStatusService = require('./node-status.service');
+      const fieldCheck = await nodeStatusService.validateRequiredFields(cleanKey, projId, updateFields.formData);
+      const childCheck = await nodeStatusService.validateChildSubtasks(cleanKey, projId);
+
+      if (!fieldCheck.valid || !childCheck.valid) {
+        updateFields.status = 'IN_PROGRESS';
+        updateFields.completionDate = null;
+      }
+    }
 
     if (updateFields.status === 'COMPLETED' && !updateFields.completionDate) {
       updateFields.completionDate = new Date();
@@ -604,12 +661,21 @@ class TimelineDataService {
       { projectId: projId, nodeId: cleanKey },
       {
         $set: updateFields,
-        $setOnInsert: { id: customId, projectId: projId, nodeId: cleanKey }
+        $setOnInsert: { projectId: projId, nodeId: cleanKey }
       },
       { upsert: true, new: true, runValidators: true }
     )
-      .populate('assignedTo', 'name email employeeCode designation')
+            .populate('assignedTo', 'name email designation')
       .populate('node');
+
+    if (updateFields.status === 'COMPLETED') {
+      try {
+        const timelineDependencyService = require('./timeline-dependency.service');
+        await timelineDependencyService.handleNodeCompletionCascade(cleanKey, projId);
+      } catch (cascadeErr) {
+        console.error('[DependencyCascade] Error in cascade handler:', cascadeErr.message);
+      }
+    }
 
     return record;
   }
@@ -618,80 +684,15 @@ class TimelineDataService {
    * Update node status with permissions and dependency checks
    */
   async updateNodeStatus(projectId, nodeId, newStatus, comment, employee, projectMembership) {
-    const project = await this._findProject(projectId);
-    const targetProjectId = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toUpperCase();
-    const cleanKey = await this._resolveNodeKey(nodeId);
-
-    // Dependency Gate Check: Stage 04 (EXECUTION requires Stage 03 ORDER_REQUIREMENT to be COMPLETED)
-    const execKeys = [
-      'EXECUTION',
-      'HARDWARE_STREAM',
-      'TECH_STREAM',
-      'CONTENT_STREAM',
-      'REQ_AND_STOCK_CHECK',
-      'PURCHASE_IF_NEEDED',
-      'CONSIGNMENT_TRACKING',
-      'HARDWARE_READY',
-      'PROJECT_CONFIG_AND_IMPLEMENTATION',
-      'TECH_TESTING',
-      'CONTENT_REVIEW_QA',
-      'SHEET_READINESS',
-      'DUMP_READINESS',
-      'CONTENT_READY'
-    ];
-    if (execKeys.includes(cleanKey) && (newStatus === 'IN_PROGRESS' || newStatus === 'COMPLETED')) {
-      const orderReq = await TimelineData.findOne({
-        projectId: targetProjectId,
-        nodeId: 'ORDER_REQUIREMENT'
-      }).lean();
-      if (orderReq && orderReq.status !== 'COMPLETED') {
-        throw new AppError('Order Requirement stage (Stage 03) must be completed before Execution phase (Stage 04) can start.', 422, 'ORDER_REQUIREMENT_NOT_COMPLETED');
-      }
-    }
-
-    const previousDoc = await TimelineData.findOne({ projectId: targetProjectId, nodeId: cleanKey }).lean();
-    const previousStatus = previousDoc?.status || 'NOT_STARTED';
-
-    const updatedRuntime = await this.saveNodeData({
-      projectId: targetProjectId,
-      nodeId: cleanKey,
-      status: newStatus,
-      remarks: comment !== undefined ? comment : (previousDoc?.remarks || '')
-    });
-
-    // Activity log
-    await Activity.create({
-      project: project?._id || targetProjectId,
-      actor: employee?._id || null,
-      action: 'STATUS_CHANGED',
-      resourceType: 'TimelineData',
-      resourceId: updatedRuntime._id,
-      metadata: { previousStatus, newStatus, comment }
-    }).catch(() => {});
-
-    // Notification
-    try {
-      const staticNode = await TimelineNodeStatic.findOne({ id: cleanKey }).lean();
-      const nodeName = staticNode?.name || cleanKey;
-      const readableStatus = String(newStatus).replace(/_/g, ' ');
-      await notificationService.notifyWithAdminsAndPMs({
-        assignedTo: updatedRuntime.assignedTo,
-        projectId: project?._id || targetProjectId,
-        title: `Stage Updated: ${nodeName} (${readableStatus})`,
-        message: `${employee?.name || 'Team member'} updated "${nodeName}" status to "${readableStatus}" in project ${targetProjectId}.`,
-        type: 'STAGE_UPDATED',
-        metadata: {
-          nodeId: updatedRuntime._id,
-          nodeKey: cleanKey,
-          previousStatus,
-          newStatus,
-          updatedBy: employee?._id
-        },
-        excludeUserIds: employee?._id ? [employee._id] : []
-      });
-    } catch (_) {}
-
-    return await this.getNodeById(targetProjectId, cleanKey);
+    const nodeStatusService = require('./node-status.service');
+    return await nodeStatusService.updateNodeStatus(
+      projectId,
+      nodeId,
+      newStatus,
+      comment,
+      employee,
+      projectMembership
+    );
   }
 
   /**
@@ -728,7 +729,7 @@ class TimelineDataService {
       resourceType: 'TimelineData',
       resourceId: updatedRuntime._id,
       metadata: { nodeId: cleanKey, employeeId: validEmpId }
-    }).catch(() => {});
+    }).catch(() => { });
 
     if (validEmpId) {
       try {
@@ -747,7 +748,7 @@ class TimelineDataService {
             projectId: targetProjectId
           }
         });
-      } catch (_) {}
+      } catch (_) { }
     }
 
     return await this.getNodeById(targetProjectId, cleanKey);
@@ -764,21 +765,72 @@ class TimelineDataService {
     const existingDoc = await TimelineData.findOne({ projectId: targetProjectId, nodeId: cleanKey }).lean();
     const mergedFormData = { ...(existingDoc?.formData || {}), ...formData };
 
+    // Validate compulsory fields and contact number fields against node schema
+    const schema = await formSchemasService.getSchema(cleanKey, targetProjectId);
+    const missingRequiredFields = [];
+
+    if (schema && Array.isArray(schema.fields)) {
+      for (const field of schema.fields) {
+        const k = field.key || field.name;
+        const val = mergedFormData[k];
+
+        // 1. Mandatory / Compulsory fields check
+        if (field.required) {
+          if ((k === 'projectName' || k === 'projectTitle') && (project?.projectName || project?.title)) {
+            // headline project title is auto-provided
+          } else {
+            const isEmpty = val === undefined || val === null || (typeof val === 'string' && val.trim() === '') || (Array.isArray(val) && val.length === 0);
+            if (isEmpty) {
+              missingRequiredFields.push(field.label || k);
+            }
+          }
+        }
+
+        // 2. Contact / Phone number fields validation: only numbers, strictly NO alphabets
+        const isContact = (
+          (field.type === 'tel' || field.type === 'phone' || /(phone|mobile|tel|contactno|contactnumber|poccontact|supportingorgcontact)/i.test(k) || /\b(phone|mobile|contact\s*no|contact\s*number)\b/i.test(field.label || '')) &&
+          !/(person|address|name)/i.test(k) &&
+          !/(person|address|name)/i.test(field.label || '') &&
+          field.type !== 'textarea'
+        );
+
+        if (isContact && val !== undefined && val !== null && String(val).trim() !== '') {
+          const strVal = String(val).trim();
+          if (/[a-zA-Z]/.test(strVal)) {
+            throw new AppError(`Field '${field.label || k}' must contain only numbers, no alphabets are allowed.`, 400, 'INVALID_CONTACT_NUMBER');
+          }
+        }
+      }
+    }
+
     const remarksToSave = formData.remarks !== undefined ? formData.remarks : (existingDoc?.remarks || '');
+
+    // Determine status: If any required field is missing, status MUST NOT be COMPLETED — it must be IN_PROGRESS
+    let calculatedStatus = existingDoc?.status || 'IN_PROGRESS';
+    if (missingRequiredFields.length > 0) {
+      calculatedStatus = 'IN_PROGRESS';
+    } else if (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(cleanKey)) {
+      if (formData.confirmed === 'YES' || formData.pmReviewStatus === 'APPROVED' || formData.projectReviewed === 'YES' || formData.projectCreated === 'YES' || formData.autoComplete === true) {
+        calculatedStatus = 'COMPLETED';
+      }
+    } else if (calculatedStatus === 'NOT_STARTED') {
+      calculatedStatus = 'IN_PROGRESS';
+    }
 
     const updatedRuntime = await this.saveNodeData({
       projectId: targetProjectId,
       nodeId: cleanKey,
       formData: mergedFormData,
+      status: calculatedStatus,
       remarks: remarksToSave
     });
 
     // Also update form_schemas collection
     await formSchemasService.saveFormData(cleanKey, targetProjectId, mergedFormData, employee);
 
-    // Auto-complete Stage 1 if confirmed
+    // Auto-complete Stage 1 if confirmed and all required fields are filled
     if (['PROJECT_CREATED', 'LEAD_CREATION', 'PROJECT_REVIEWER'].includes(cleanKey)) {
-      if (formData.confirmed === 'YES' || formData.pmReviewStatus === 'APPROVED' || formData.projectReviewed === 'YES' || formData.projectCreated === 'YES' || formData.autoComplete === true) {
+      if ((formData.confirmed === 'YES' || formData.pmReviewStatus === 'APPROVED' || formData.projectReviewed === 'YES' || formData.projectCreated === 'YES' || formData.autoComplete === true) && missingRequiredFields.length === 0) {
         await this.saveNodeData({
           projectId: targetProjectId,
           nodeId: cleanKey,
@@ -795,7 +847,7 @@ class TimelineDataService {
       resourceType: 'TimelineData',
       resourceId: updatedRuntime._id,
       metadata: { nodeId: cleanKey, keys: Object.keys(formData) }
-    }).catch(() => {});
+    }).catch(() => { });
 
     return await this.getNodeById(targetProjectId, cleanKey);
   }
@@ -836,6 +888,22 @@ class TimelineDataService {
   /**
    * Quick update remarks
    */
+    /**
+   * Update node due date
+   */
+  async updateDueDate(projectId, nodeId, dueDate) {
+    const projId = this._normalizeProjectId(projectId);
+    const cleanKey = await this._resolveNodeKey(nodeId);
+    const parsedDate = dueDate ? new Date(dueDate) : null;
+
+    const record = await TimelineData.findOneAndUpdate(
+      { projectId: projId, nodeId: cleanKey },
+      { $set: { dueDate: parsedDate } },
+      { new: true, upsert: true }
+    );
+    return record;
+  }
+
   async updateRemarks(projectId, nodeId, remarks) {
     return await this.saveNodeData({
       projectId,

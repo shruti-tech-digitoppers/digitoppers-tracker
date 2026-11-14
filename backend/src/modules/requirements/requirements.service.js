@@ -40,27 +40,10 @@ function deepMerge(target = {}, source = {}) {
 }
 
 /**
- * Resolve project directly from MongoDB first (instantaneous & offline safe),
- * falling back to coreApi only if not found.
+ * Resolve project strictly via Core Backend API
  */
 async function resolveProject(projectId) {
   if (!projectId) return null;
-  try {
-    const Project = mongoose.model('Project');
-    const code = projectId.toString().trim().toLowerCase();
-    const isObjectId = mongoose.Types.ObjectId.isValid(projectId);
-
-    const conditions = [{ projectId: code }, { projectId: code.toUpperCase() }];
-    if (isObjectId) {
-      conditions.push({ _id: projectId });
-    }
-
-    const proj = await Project.findOne({ $or: conditions }).lean();
-    if (proj) return proj;
-  } catch (e) {
-    // Continue to coreApi
-  }
-
   try {
     return await coreApi.getProjectById(projectId);
   } catch (err) {

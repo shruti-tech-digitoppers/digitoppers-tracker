@@ -70,4 +70,19 @@ export const schoolsApi = {
     );
     return res.data.data;
   },
+
+  // Get live schools strictly from Core Backend API (Single Source of Truth)
+  getCoreSchools: async (projectId: string): Promise<Array<{ id: string; name: string; address: string; schoolId?: string; city?: string; state?: string }>> => {
+    try {
+      const res = await apiClient.get<{ success: boolean; data: any[] }>(`/schools/core/${encodeURIComponent(projectId)}`);
+      return res.data?.data || [];
+    } catch (_) {
+      try {
+        const altRes = await apiClient.get<{ success: boolean; data: any[] }>(`/projects/${encodeURIComponent(projectId)}/core-schools`);
+        return altRes.data?.data || [];
+      } catch {
+        return [];
+      }
+    }
+  },
 };

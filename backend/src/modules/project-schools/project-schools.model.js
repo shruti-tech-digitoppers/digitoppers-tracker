@@ -224,4 +224,4 @@ projectSchoolsSchema.index({ 'schools.school': 1 });
 projectSchoolsSchema.index({ 'schools.schoolId': 1 });
 projectSchoolsSchema.index({ 'schools.installation.assignedEngineer': 1 });
 
-module.exports = mongoose.models.ProjectSchools || mongoose.model('ProjectSchools', projectSchoolsSchema, 'projectschools');
+module.exports = mongoose.models.ProjectSchools || mongoose.model('ProjectSchools', projectSchoolsSchema, 'project_schools');

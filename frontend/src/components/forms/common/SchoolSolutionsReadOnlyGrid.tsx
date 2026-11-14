@@ -10,6 +10,8 @@ export interface ReadOnlySolutionItem {
   targetClasses?: string[];
   board?: string;
   icon?: string;
+  platform?: string;
+  licenseCount?: number;
 }
 
 interface SchoolSolutionsReadOnlyGridProps {
@@ -71,9 +73,21 @@ export function SchoolSolutionsReadOnlyGrid({
                     </span>
                   </div>
                 </div>
-                <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4] shrink-0">
-                  {sol.quantity} Unit{sol.quantity > 1 ? 's' : ''}
-                </span>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#f0f8f9] text-[#2d6b73] border border-[#b6e0e4]">
+                    {sol.quantity} Unit{sol.quantity > 1 ? 's' : ''}
+                  </span>
+                  {typeof sol.licenseCount === 'number' && sol.licenseCount > 0 && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200">
+                      {sol.licenseCount} Lic
+                    </span>
+                  )}
+                  {sol.platform && (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-slate-100 text-slate-700 border border-slate-200">
+                      {sol.platform}
+                    </span>
+                  )}
+                </div>
               </div>
 
               <div className="pt-1.5 border-t border-slate-100 flex flex-wrap items-center justify-between text-[10px] text-slate-500">

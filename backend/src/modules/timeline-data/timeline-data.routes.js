@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router({ mergeParams: true });
 const controller = require('./timeline-data.controller');
+const nodeStatusController = require('./node-status.controller');
 const { protect, optionalProtect } = require('../../core/auth');
 const { verifyProjectPermission } = require('../../core/authorization');
 const { DESIGNATIONS } = require('../../core/constants');
@@ -31,13 +32,16 @@ router.get('/nodes/:nodeId/children', (req, res, next) => controller.getChildren
 router.patch('/nodes/:nodeId/assignment', (req, res, next) => controller.assignNode(req, res, next));
 router.patch('/nodes/:nodeId/assign', (req, res, next) => controller.assignNode(req, res, next));
 
-// Node status update
-router.patch('/nodes/:nodeId/status', (req, res, next) => controller.updateStatus(req, res, next));
+// Node status update & eligibility check
+router.get('/nodes/:nodeId/dependencies', (req, res, next) => nodeStatusController.checkDependencies(req, res, next));
+router.get('/nodes/:nodeId/status-check', (req, res, next) => nodeStatusController.checkEligibility(req, res, next));
+router.patch('/nodes/:nodeId/status', (req, res, next) => nodeStatusController.updateStatus(req, res, next));
 
 // Node form & data
 router.get('/nodes/:nodeId/form', (req, res, next) => controller.getForm(req, res, next));
 router.put('/nodes/:nodeId/form', (req, res, next) => controller.updateForm(req, res, next));
 router.patch('/nodes/:nodeId/form-data', (req, res, next) => controller.updateFormData(req, res, next));
+router.patch('/nodes/:nodeId/due-date', (req, res, next) => controller.updateDueDate(req, res, next));
 router.patch('/nodes/:nodeId/remarks', (req, res, next) => controller.updateRemarks(req, res, next));
 
 // Generic save

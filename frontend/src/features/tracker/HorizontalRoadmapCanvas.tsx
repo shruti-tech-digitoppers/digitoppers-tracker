@@ -159,8 +159,8 @@ export function HorizontalRoadmapCanvas({
       if (isPost) return false;
 
       // Otherwise if executionStage exists, check order or default to pre
-      if (executionStage && (n.metadata as any)?.order && (executionStage.metadata as any)?.order) {
-        return (n.metadata as any).order < (executionStage.metadata as any).order;
+      if (executionStage && n.order && executionStage.order) {
+        return n.order < executionStage.order;
       }
       return true;
     });

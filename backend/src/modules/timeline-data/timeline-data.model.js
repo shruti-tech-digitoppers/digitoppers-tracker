@@ -2,13 +2,6 @@ const mongoose = require('mongoose');
 
 
 const timelineDataSchema = new mongoose.Schema({
-  id: {
-    type: String,
-    required: [true, 'Custom ID is required'],
-    unique: true,
-    trim: true,
-    index: true
-  },
   nodeId: {
     type: String,
     required: [true, 'Static node ID (nodeId) is required'],
@@ -42,8 +35,8 @@ const timelineDataSchema = new mongoose.Schema({
   status: {
     type: String,
     enum: {
-      values: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'BLOCKED', 'PENDING'],
-      message: '{VALUE} is not a valid status. Choose NOT_STARTED, IN_PROGRESS, COMPLETED, or BLOCKED.'
+      values: ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED', 'ON_HOLD', 'BLOCKED', 'CANCELLED', 'PENDING'],
+      message: '{VALUE} is not a valid status. Choose PENDING, NOT_STARTED, IN_PROGRESS, COMPLETED, ON_HOLD, or BLOCKED.'
     },
     default: 'NOT_STARTED',
     uppercase: true,
@@ -54,16 +47,16 @@ const timelineDataSchema = new mongoose.Schema({
     type: Date,
     default: null
   },
+  dueDate: {
+    type: Date,
+    default: null
+  },
   remarks: {
     type: String,
     default: '',
     trim: true
   },
   formData: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  },
-  metadata: {
     type: mongoose.Schema.Types.Mixed,
     default: {}
   }
@@ -79,19 +72,12 @@ timelineDataSchema.pre('validate', function(next) {
   // Normalize status to uppercase
   if (this.status) {
     this.status = this.status.toUpperCase();
-    if (this.status === 'BLOCKED') this.status = 'BLOCKED';
+    if (this.status === 'BLOCKED' || this.status === 'CANCELLED') this.status = 'BLOCKED';
     if (this.status === 'COMPLETE') this.status = 'COMPLETED';
     if (this.status === 'INPROGRESS' || this.status === 'IN-PROGRESS') this.status = 'IN_PROGRESS';
     if (this.status === 'NOTSTARTED' || this.status === 'NOT-STARTED') this.status = 'NOT_STARTED';
-  }
-
-  // Auto-generate id if not supplied: TLD_<projectId>_<nodeId>
-  if (!this.id && this.projectId && this.nodeId) {
-    const cleanProj = this.projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    const cleanNode = this.nodeId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    this.id = `TLD_${cleanProj}_${cleanNode}`;
-  } else if (!this.id) {
-    this.id = `TLD_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+    if (this.status === 'ONHOLD' || this.status === 'ON-HOLD' || this.status === 'ON HOLD') this.status = 'ON_HOLD';
+    if (this.status === 'PENDING') this.status = 'PENDING';
   }
 
   // Handle completionDate automatically

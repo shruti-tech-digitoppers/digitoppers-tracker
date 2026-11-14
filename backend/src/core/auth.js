@@ -10,7 +10,6 @@ const generateToken = (employee) => {
       email: employee.email,
       globalRole: employee.globalRole,
       name: employee.name,
-      employeeCode: employee.employeeCode,
       canRequestNewProject: Boolean(employee.canRequestNewProject || employee.permissions?.canRequestNewProject),
       permissions: employee.permissions || { canRequestNewProject: Boolean(employee.canRequestNewProject) }
     },

@@ -4,8 +4,6 @@ const mongoose = require('mongoose');
 // Ensure referenced models are registered in Mongoose
 try {
   require('../schools/school.model');
-  require('../solutions/solution.model');
-  require('../hardware/hardware.model');
   require('../content/content-section/content-section.model');
   require('../content/language/language.model');
   require('../content/grade/grade.model');
@@ -201,6 +199,11 @@ const solutionRequirementSchema = new mongoose.Schema(
     solutionKey: { type: String, trim: true, uppercase: true },
     solutionName: { type: String, trim: true },
     label: { type: String, trim: true },
+    licenseRequired: { type: Boolean, default: false },
+    isLicenseRequired: { type: Boolean, default: false },
+    platform: { type: String, trim: true, default: null },
+    platforms: { type: [String], default: [] },
+    licenseCount: { type: Number, default: 0, min: 0 },
     quantity: { type: Number, default: 1, min: 0 },
     description: { type: String, default: '' },
     remarks: { type: String, default: '' },

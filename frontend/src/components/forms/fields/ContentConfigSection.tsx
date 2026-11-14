@@ -649,7 +649,7 @@ export function ContentConfigSection({
   // Extract initial Medium-to-Classes map
   const initialMediumClasses = useMemo(() => {
     const map: Record<string, string[]> = {};
-    const defaultClasses = [...DEFAULT_STANDARD_CLASSES];
+    const defaultClasses: string[] = [];
 
     if (value?.mediumClasses && typeof value.mediumClasses === 'object') {
       Object.entries(value.mediumClasses).forEach(([med, clsList]) => {
@@ -679,8 +679,8 @@ export function ContentConfigSection({
     }
 
     initialMediums.forEach((m: string) => {
-      if (!map[m] || map[m].length === 0) {
-        map[m] = [...defaultClasses];
+      if (!map[m]) {
+        map[m] = [];
       }
     });
 
@@ -857,8 +857,8 @@ export function ContentConfigSection({
 
     const nextMap: Record<string, string[]> = { ...mediumClasses };
     nextMediums.forEach((m) => {
-      if (!nextMap[m] || nextMap[m].length === 0) {
-        nextMap[m] = [...DEFAULT_STANDARD_CLASSES];
+      if (!nextMap[m]) {
+        nextMap[m] = [];
       }
     });
 
@@ -874,7 +874,7 @@ export function ContentConfigSection({
     nextMediums.forEach((m) => {
       if (!nextMap[m] || nextMap[m].length === 0) {
         const firstExistingMedium = selectedMediums[0];
-        const seedClasses = (firstExistingMedium && mediumClasses[firstExistingMedium]) || DEFAULT_STANDARD_CLASSES;
+        const seedClasses = (firstExistingMedium && mediumClasses[firstExistingMedium]) || [];
         nextMap[m] = [...seedClasses];
       }
     });

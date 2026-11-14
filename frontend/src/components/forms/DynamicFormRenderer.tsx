@@ -28,9 +28,12 @@ import { TrainingExecutionSection } from './fields/TrainingExecutionSection';
 import { TrainingCompletedSection } from './fields/TrainingCompletedSection';
 import { InstallationPlanningSection, TrainingPlanningSection } from './fields/InstallationPlanningSection';
 import { SchoolLicenseListSection } from './fields/SchoolLicenseListSection';
+import { SchoolAndLicenseCreationSection } from './fields/SchoolAndLicenseCreationSection';
 import { AppBuildUploadSection } from './fields/AppBuildUploadSection';
+import { TechProjectConfigSection } from './fields/TechProjectConfigSection';
 import { FileText, Save, Check, AlertCircle, Loader2, User, Building2 } from 'lucide-react';
 import { showReadOnlyToast } from '../shell/ReadOnlyToast';
+import { isContactNumberField, sanitizeContactNumber } from './utils/formHelpers';
 
 interface DynamicFormRendererProps {
   schema: FormSchemaType;
@@ -43,8 +46,14 @@ interface DynamicFormRendererProps {
   currentUser?: IUser | null;
   onStatusChange?: (status: TimelineNodeStatus) => Promise<void>;
   onDirtyChange?: (isDirty: boolean) => void;
-  formRef?: React.MutableRefObject<{ submitForm: () => Promise<void>; isDirty: () => boolean; getFormData: () => Record<string, any> } | null>;
+  formRef?: React.MutableRefObject<{
+    submitForm: () => Promise<void>;
+    validateForm?: () => { isValid: boolean; errors: Record<string, string>; missingFields: string[] };
+    isDirty: () => boolean;
+    getFormData: () => Record<string, any>;
+  } | null>;
   hideFooter?: boolean;
+  nodeStatus?: string;
 }
 
 export function DynamicFormRenderer({
@@ -60,8 +69,10 @@ export function DynamicFormRenderer({
   onDirtyChange,
   formRef,
   hideFooter = false,
+  nodeStatus,
 }: DynamicFormRendererProps) {
   const [formData, setFormData] = useState<Record<string, any>>(initialData || {});
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [justSaved, setJustSaved] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -115,14 +126,42 @@ export function DynamicFormRenderer({
       if (Array.isArray((schema as any).fields)) list = (schema as any).fields;
       else list = Object.values(schema);
     }
-    return list.filter(
-      (f) =>
-        f &&
-        f.key !== 'assignedTechLead' &&
-        f.key !== 'assignedContentLead' &&
-        f.name !== 'assignedTechLead' &&
-        f.name !== 'assignedContentLead'
-    );
+
+    const isSchoolAndLicenseForm =
+      (schema as any)?.code === 'SCHOOL_AND_LICENSE_CREATION' ||
+      (schema as any)?.id === 'SCHOOL_AND_LICENSE_CREATION' ||
+      (schema as any)?.nodeId === 'SCHOOL_AND_LICENSE_CREATION' ||
+      list.some(
+        (f) =>
+          f &&
+          (f.type === 'schoolAndLicenseSection' ||
+            f.type === 'schoolAndLicenseCreationSection' ||
+            f.key === 'schoolAndLicenseSection' ||
+            f.type === 'schoolLicenseSection' ||
+            f.key === 'schoolLicenseSection' ||
+            f.name === 'schoolAndLicenseSection')
+      );
+
+    return list.filter((f) => {
+      if (!f) return false;
+      const k = f.key || f.name;
+      if (k === 'assignedTechLead' || k === 'assignedContentLead') {
+        return false;
+      }
+      if (isSchoolAndLicenseForm) {
+        if (
+          k === 'licenseStatus' ||
+          k === 'creationDate' ||
+          k === 'licenseCreationDate' ||
+          k === 'remarks' ||
+          k === 'licenseRemarks' ||
+          k === 'licenseNotes'
+        ) {
+          return false;
+        }
+      }
+      return true;
+    });
   }, [schema]);
 
   const isProjectReviewForm = useMemo(() => {
@@ -242,6 +281,72 @@ export function DynamicFormRenderer({
     );
   }, [schema, fieldsArray]);
 
+  const isTechConfigForm = useMemo(() => {
+    const schemaKey = (schema as any)?.key || (schema as any)?.nodeKey || (schema as any)?.code || (schema as any)?.id;
+    if (schemaKey === 'PROJECT_CONFIG_AND_IMPLEMENTATION') return true;
+    return (
+      fieldsArray.some((f) => f.key === 'licenseCreation' || f.name === 'licenseCreation') &&
+      fieldsArray.some((f) => f.key === 'apkFileUrl' || f.name === 'apkFileUrl' || f.key === 'appFileUrl')
+    );
+  }, [schema, fieldsArray]);
+
+
+  // Validation function: checks compulsory fields & contact numbers (digits only, no alphabets)
+  const validateForm = (dataToValidate: Record<string, any>): {
+    isValid: boolean;
+    errors: Record<string, string>;
+    missingFields: string[];
+  } => {
+    const errors: Record<string, string> = {};
+    const missingFields: string[] = [];
+
+    for (const field of fieldsArray) {
+      const fieldKey = field.name || field.key;
+      if (!fieldKey) continue;
+
+      // Project title / headline virtual check
+      if (fieldKey === 'projectName' || fieldKey === 'projectTitle' || fieldKey === 'projectCreation') {
+        if (field.required && !project?.projectName && !project?.title && !dataToValidate[fieldKey]) {
+          errors[fieldKey] = `${field.label || fieldKey} is compulsory.`;
+          missingFields.push(field.label || fieldKey);
+        }
+        continue;
+      }
+
+      const val = dataToValidate[fieldKey];
+      const isContact = isContactNumberField(field, fieldKey);
+
+      // 1. Mandatory / Compulsory fields validation
+      if (field.required) {
+        const isEmpty =
+          val === undefined ||
+          val === null ||
+          (typeof val === 'string' && val.trim() === '') ||
+          (Array.isArray(val) && val.length === 0);
+
+        if (isEmpty) {
+          errors[fieldKey] = `${field.label || fieldKey} is compulsory to fill.`;
+          missingFields.push(field.label || fieldKey);
+          continue;
+        }
+      }
+
+      // 2. Contact / Phone Number validation: only numbers, strictly NO alphabets
+      if (isContact && val !== undefined && val !== null && String(val).trim() !== '') {
+        const strVal = String(val).trim();
+        if (/[a-zA-Z]/.test(strVal)) {
+          errors[fieldKey] = `${field.label || fieldKey} must contain only numbers, no alphabets.`;
+          missingFields.push(`${field.label || fieldKey} (Numbers only)`);
+        }
+      }
+    }
+
+    return {
+      isValid: Object.keys(errors).length === 0,
+      errors,
+      missingFields
+    };
+  };
 
   const isDirty = useMemo(() => {
     return JSON.stringify(formData) !== lastSavedSnapshot;
@@ -257,26 +362,53 @@ export function DynamicFormRenderer({
     if (formRef) {
       formRef.current = {
         submitForm: async () => {
+          // Validate before saving
+          const validation = validateForm(formData);
+          const phoneErrors = Object.entries(validation.errors).filter(([_, msg]) => msg.includes('numbers'));
+          if (phoneErrors.length > 0) {
+            setFieldErrors(validation.errors);
+            const msg = phoneErrors.map(([_, msg]) => msg).join(' ');
+            setError(msg);
+            throw new Error(msg);
+          }
           await onSubmit(formData);
           setLastSavedSnapshot(JSON.stringify(formData));
           setJustSaved(true);
+          setFieldErrors({});
           if (onDirtyChange) onDirtyChange(false);
           setTimeout(() => setJustSaved(false), 3000);
         },
+        validateForm: () => validateForm(formData),
         isDirty: () => JSON.stringify(formData) !== lastSavedSnapshot,
         getFormData: () => formData
       };
     }
-  }, [formRef, formData, lastSavedSnapshot, onSubmit, onDirtyChange]);
+  }, [formRef, formData, lastSavedSnapshot, onSubmit, onDirtyChange, fieldsArray, project]);
 
   const handleChange = (fieldName: string, value: any) => {
     if (disabled) {
       showReadOnlyToast('🔒 Read-only access — you are not assigned to this task. Forms cannot be edited.');
       return;
     }
-    setFormData((prev) => ({ ...prev, [fieldName]: value }));
+
+    // If this is a contact number field, sanitize on the fly: only numbers (no alphabets)
+    const matchingField = fieldsArray.find((f) => f.key === fieldName || f.name === fieldName);
+    let finalVal = value;
+    if (matchingField && isContactNumberField(matchingField, fieldName)) {
+      finalVal = sanitizeContactNumber(value);
+    }
+
+    setFormData((prev) => ({ ...prev, [fieldName]: finalVal }));
     setSuccessMsg(null);
     setError(null);
+
+    // Clear error for this field if it is now valid
+    setFieldErrors((prev) => {
+      if (!prev[fieldName]) return prev;
+      const next = { ...prev };
+      delete next[fieldName];
+      return next;
+    });
   };
 
   const handleSubmit = async (e?: React.FormEvent) => {
@@ -286,6 +418,17 @@ export function DynamicFormRenderer({
       return;
     }
     if (submitting) return;
+
+    // Validate form fields
+    const validation = validateForm(formData);
+
+    // Only strictly block save if invalid phone number formats (alphabets in phone)
+    const phoneErrors = Object.entries(validation.errors).filter(([_, msg]) => msg.includes('numbers'));
+    if (phoneErrors.length > 0) {
+      setFieldErrors(validation.errors);
+      setError(phoneErrors.map(([_, msg]) => msg).join(' '));
+      return;
+    }
 
     const currentSnapshot = JSON.stringify(formData);
     // If the data hasn't changed since last save and a success message is already showing or was just saved
@@ -297,15 +440,20 @@ export function DynamicFormRenderer({
     try {
       setSubmitting(true);
       setError(null);
+      setFieldErrors({});
       setSuccessMsg(null);
       await onSubmit(formData);
       setLastSavedSnapshot(currentSnapshot);
       setJustSaved(true);
       if (onDirtyChange) onDirtyChange(false);
-      setSuccessMsg('Stage data saved successfully.');
+      if (validation.missingFields.length > 0) {
+        setSuccessMsg(`Draft saved. Status remains In Progress (${validation.missingFields.length} required field(s) pending: ${validation.missingFields.join(', ')}).`);
+      } else {
+        setSuccessMsg('Stage data saved successfully. All required fields are filled.');
+      }
       setTimeout(() => {
         setJustSaved(false);
-      }, 3000);
+      }, 4000);
     } catch (err: any) {
       setError(err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to save stage form data.');
       throw err;
@@ -323,6 +471,9 @@ export function DynamicFormRenderer({
       key === 'apkFileUrl' ||
       key === 'appFileUrl' ||
       type === 'schoolLicenseSection' ||
+      type === 'schoolAndLicenseSection' ||
+      type === 'schoolAndLicenseCreationSection' ||
+      key === 'schoolAndLicenseSection' ||
       type === 'projectConfigSection' ||
       type === 'multiPoSection' ||
       type === 'multiPiInvoiceSection' ||
@@ -588,6 +739,21 @@ export function DynamicFormRenderer({
           disabled={disabled || submitting}
           allFormData={allFormData}
         />
+      ) : isTechConfigForm ? (
+        <TechProjectConfigSection
+          value={formData}
+          onChange={(val) => {
+            setFormData((prev) => ({ ...prev, ...val }));
+            setSuccessMsg(null);
+            setError(null);
+          }}
+          disabled={disabled || submitting}
+          project={project}
+          allFormData={allFormData}
+          schools={effectiveProjectSchools}
+          onSuccessMsg={(msg) => setSuccessMsg(msg)}
+          onErrorMsg={(msg) => setError(msg)}
+        />
       ) : (
         /* Grid of Dynamic Form Fields */
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -626,38 +792,7 @@ export function DynamicFormRenderer({
               );
             }
 
-            if (fieldKey === 'projectCreation' || field.key === 'projectCreation') {
-              return null;
-            }
 
-            if (fieldKey === 'licenseCreation') {
-              return (
-                <React.Fragment key={fieldKey}>
-                  <div className="space-y-1 sm:col-span-1">
-                    <FormFieldSelect
-                      field={field}
-                      name={fieldKey}
-                      value={value}
-                      onChange={(val) => handleChange(fieldKey, val)}
-                      disabled={disabled || submitting}
-                    />
-                  </div>
-                  <div className="sm:col-span-2 space-y-1">
-                    <SchoolLicenseListSection
-                      value={formData}
-                      onChange={(val) => {
-                        setFormData((prev) => ({ ...prev, ...val }));
-                        setSuccessMsg(null);
-                        setError(null);
-                      }}
-                      disabled={disabled || submitting}
-                      project={project}
-                      allFormData={allFormData}
-                    />
-                  </div>
-                </React.Fragment>
-              );
-            }
 
             if (fieldKey === 'apkFileUrl' || field.key === 'apkFileUrl' || fieldKey === 'appFileUrl') {
               return (
@@ -935,6 +1070,40 @@ export function DynamicFormRenderer({
                       schools={effectiveProjectSchools}
                     />
                   </div>
+                ) : field.type === 'schoolAndLicenseSection' || field.type === 'schoolAndLicenseCreationSection' || field.key === 'schoolAndLicenseSection' ? (
+                  <div className="sm:col-span-2">
+                    <SchoolAndLicenseCreationSection
+                      value={formData}
+                      onChange={(val) => {
+                        setFormData((prev) => ({ ...prev, ...val }));
+                        setSuccessMsg(null);
+                        setError(null);
+                      }}
+                      disabled={disabled || submitting}
+                      project={project}
+                      allFormData={allFormData}
+                      schools={effectiveProjectSchools}
+                      onStatusChange={onStatusChange}
+                      nodeStatus={nodeStatus || (schema as any)?.nodeStatus || (schema as any)?.status}
+                      onSubmitAndComplete={async (data) => {
+                        try {
+                          setSubmitting(true);
+                          setError(null);
+                          setSuccessMsg(null);
+                          await onSubmit(data);
+                          if (onStatusChange) {
+                            await onStatusChange('COMPLETED');
+                          }
+                          setSuccessMsg('School & License Creation stage marked as Completed!');
+                        } catch (err: any) {
+                          setError(err.response?.data?.error?.message || err.response?.data?.message || err.message || 'Failed to complete stage.');
+                          throw err;
+                        } finally {
+                          setSubmitting(false);
+                        }
+                      }}
+                    />
+                  </div>
                 ) : field.type === 'schoolLicenseSection' || field.type === 'projectConfigSection' ? (
                   <div className="sm:col-span-2">
                     <SchoolLicenseListSection
@@ -947,6 +1116,7 @@ export function DynamicFormRenderer({
                       disabled={disabled || submitting}
                       project={project}
                       allFormData={allFormData}
+                      schools={effectiveProjectSchools}
                     />
                   </div>
                 ) : field.type === 'select' ? (
@@ -956,6 +1126,7 @@ export function DynamicFormRenderer({
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
+                    error={fieldErrors[fieldKey]}
                   />
                 ) : field.type === 'radio' ? (
                   <FormFieldRadio
@@ -972,6 +1143,7 @@ export function DynamicFormRenderer({
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
+                    error={fieldErrors[fieldKey]}
                   />
                 ) : field.type === 'file' ? (
                   <FormFieldUpload
@@ -980,6 +1152,7 @@ export function DynamicFormRenderer({
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
+                    error={fieldErrors[fieldKey]}
                   />
                 ) : (
                   <FormFieldInput
@@ -988,6 +1161,7 @@ export function DynamicFormRenderer({
                     value={value}
                     onChange={(val) => handleChange(fieldKey, val)}
                     disabled={disabled || submitting}
+                    error={fieldErrors[fieldKey]}
                   />
                 )}
               </div>

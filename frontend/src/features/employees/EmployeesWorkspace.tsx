@@ -92,9 +92,8 @@ export function EmployeesWorkspace() {
       const q = searchQuery.toLowerCase();
       const name = (emp.name || '').toLowerCase();
       const email = (emp.email || '').toLowerCase();
-      const code = (emp.employeeCode || '').toLowerCase();
 
-      return name.includes(q) || email.includes(q) || code.includes(q);
+      return name.includes(q) || email.includes(q);
     });
   }, [employees, searchQuery, statusFilter, roleFilter]);
 

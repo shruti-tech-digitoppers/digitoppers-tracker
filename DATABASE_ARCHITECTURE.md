@@ -28,7 +28,7 @@ Hamara architecture **Hybrid/Decoupled** model follow karta hai:
 ```
 
 > **Important Architecture Decision:**
-> - **Projects & Departments collections local MongoDB mein exist nahi karti.** Projects Core Backend API se fetch hote hain aur Department module completely removed hai (roles/functional ownership lightweight string codes se drive hoti hai bina kisi heavy separate collection ke).
+> - **Projects, Departments & Licenses collections local MongoDB mein exist nahi karti.** Projects aur Master Licenses dono strictly Core Backend API se live fetch hote hain (Single Source of Truth), aur Department module completely removed hai (roles/functional ownership lightweight string codes se drive hoti hai bina kisi heavy separate collection ke).
 > - Local MongoDB sirf **operational tracking**, **school deployments**, **timeline milestones**, **member assignments**, aur **audit logs** ko manage karta hai via `projectId` (e.g. `PRJ-2026-001`).
 
 ---
@@ -53,8 +53,8 @@ Portal ke users aur field staff ka account directory.
 ### B. Master Hardware, Solutions & Content
 * **`Solution` (`solutions`)**: Hamare 7 core offerings (`STEM_LAB`, `ASTRONOMY`, `LANGUAGE`, `SCIENCE_LEARNING`, `EPATHSHALA`, `ROBOTICS`, `SMART_SHAALA`).
 * **`Hardware` (`hardwares`)**: Physical equipment categories (e.g., `TELESCOPE`, `IFPD_PANEL`, `ROBOTICS_KIT`).
-* **`HardwareSpec` (`hardware-specs`)**: Detailed equipment models linked to Hardware via `hardwareId` (e.g. Brand, Model, Screen Size, Processor, RAM).
-* **`Grade` & `L0Category` & `Language`**: Content hierarchy — Nursery to Grade 12, subjects (Physics, Math, STEM, Robotics), aur delivery language (English, Hindi, Regional).
+* **`HardwareSpec` (`hardware_specs`)**: Detailed equipment models linked to Hardware via `hardwareId` (e.g. Brand, Model, Screen Size, Processor, RAM).
+* **`Grade` & `L0Category` (`l0_categories`) & `Language`**: Content hierarchy — Nursery to Grade 12, subjects (Physics, Math, STEM, Robotics), aur delivery language (English, Hindi, Regional).
 
 ### C. Master Static Timeline Nodes (`timeline_nodes`)
 Static roadmap blueprint jo define karta hai ki poore system mein kaun kaun se stages, substages, aur tasks hain. Yeh dynamic runtime timeline se alag, fixed reference blueprint hai.
@@ -71,7 +71,6 @@ Static roadmap blueprint jo define karta hai ki poore system mein kaun kaun se s
     - Task: Agar stage ke paas substages hain toh substage ki `id`; agar stage ke paas direct koi substage nahi hai (e.g. Stage 1) toh task ki `parent_id` mein direct stage ki `id` aayegi.
   - `has_substages`: Boolean flag (`true` if stage has children substages)
   - `formSchema`: Static input fields blueprint
-  - `metadata`: Custom config (branch, streamType, dependencies)
 
 ### D. Master Form Schemas (`form_schemas`)
 Form schema module jo har stage, substage, aur task ke input fields ko define karta hai. Yeh static blueprint ke roop mein (`projectId: 'DEFAULT'`) ya project-specific overrides ke roop mein exist karta hai.
@@ -182,7 +181,7 @@ Interactive Mindmap / Roadmap ki dynamic execution heartbeat. Yeh do collections
   - `src/modules/timeline-nodes/timeline-node.model.js` (`timeline_nodes`)
   - `src/modules/timeline-data/timeline-data.model.js` (`timeline_data`)
 * **What gets saved in `timeline_data`:**
-  - `id`: Custom unique string id (e.g. `TLD_PRJ-2026-001_PO_UPLOAD`)
+  - `_id`: Native MongoDB ObjectId
   - `nodeId`: String key referencing `timeline_nodes` (e.g. `PROJECT_REVIEWER`, `PO_UPLOAD`)
   - `node`: ObjectId ref `TimelineNodeStatic`
   - `projectId`: Target project identifier (e.g. `PRJ-2026-001`)
@@ -190,21 +189,12 @@ Interactive Mindmap / Roadmap ki dynamic execution heartbeat. Yeh do collections
   - `assignedTo`: ObjectId (`Employee` ref) — Jo user is particular stage/substage/task par assign hai
   - `status`: Execution state: `NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`, `BLOCKED`, `ON_HOLD`
   - `completionDate`: Date jab task/stage complete hua (auto-set on `COMPLETED`)
+  - `dueDate`: Due date for task/stage completion
   - `remarks`: Human notes, observations or delay/blocker explanations
   - `formData`: Dynamic form payload (dates, uploaded document URLs, remarks, checklists)
 
 > **Note on Architecture Evolution:**
-> Legacy `timelinenodes` collection aur legacy `src/modules/timeline` module ko completely decommission aur delete kar diya gaya hai. Ab saara system **`timeline_nodes`** (static catalog), **`timeline_data`** (runtime state), aur **`form_schemas`** (dynamic field definitions) par 100% dynamically chalta hai.
-  - `id`: Custom unique string id (e.g. `TLD_PRJ-2026-001_PO_UPLOAD`)
-  - `nodeId`: String key referencing `timeline_nodes` (e.g. `PROJECT_REVIEWER`, `PO_UPLOAD`)
-  - `node`: ObjectId ref `TimelineNodeStatic`
-  - `projectId`: Target project identifier (e.g. `PRJ-2026-001`)
-  - `project`: Core backend MongoDB project reference (`_id`)
-  - `assignedTo`: ObjectId (`Employee` ref) — Jo user is particular stage/substage/task par assign hai
-  - `status`: Execution state: `NOT_STARTED`, `IN_PROGRESS`, `COMPLETED`, `BLOCKED`
-  - `completionDate`: Date jab task/stage complete hua (auto-set on `COMPLETED`)
-  - `remarks`: Human notes, observations or delay/blocker explanations
-  - `formData`: Dynamic form payload (dates, uploaded document URLs, remarks, checklists)
+> Multi-word collection names ko clean aur consistent **snake_case format** (with underscores) mein standardize kar diya gaya hai: **`timeline_nodes`**, **`timeline_data`**, **`form_schemas`**, **`project_members`**, **`project_schools`**, **`project_requests`**, **`project_request_counters`**, **`school_hardware_licenses`**, **`hardware_specs`**, **`content_sections`**, aur **`l0_categories`**.
 
 ---
 
@@ -240,14 +230,15 @@ In-app notification system jo user ko real-time assignments aur review alerts de
 | Collection | Model File | Primary Identifiers | Kaam Kya Hai? |
 | :--- | :--- | :--- | :--- |
 | **`employees`** | `employee.model.js` | `_id`, `employeeCode`, `email` | Team members, logins, permissions, roles |
-| **`projectrequests`** | `project-request.model.js` | `_id`, `requestId` (`REQ-xxxx`) | Naye projects ka intake & approval pipeline |
-| **`projectmembers`** | `project-member.model.js` | `projectId` + `employee` | Project team assignments (PM / Contributor) |
+| **`project_requests`** | `project-request.model.js` | `_id`, `requestId` (`REQ-xxxx`) | Naye projects ka intake & approval pipeline |
+| **`project_members`** | `project-member.model.js` | `projectId` + `employee` | Project team assignments (PM / Contributor) |
 | **`schools`** | `school.model.js` | `projectId`, `schoolBranch` | Ground deployments (Schools, survey, readiness) |
-| **`projectschools`** | `project-schools.model.js` | `projectId` | Project ke saare schools ka performance aggregator |
+| **`project_schools`** | `project-schools.model.js` | `projectId` | Project ke saare schools ka performance aggregator |
 | **`requirements`** | `requirements.model.js` | `projectId` (1 per project) | 8-stage technical & hardware configuration payload |
 | **`timeline_nodes`** | `timeline-node.model.js` | `id`, `title`, `parent_id` | Static blueprint of stages, substages, and tasks |
 | **`form_schemas`** | `form-schema.model.js` | `id`, `nodeId`, `projectId` | Input fields definition (keys for form data) |
-| **`timeline_data`** | `timeline-data.model.js` | `id`, `projectId`, `nodeId` | Per-project live status, assignees, dates & form data |
+| **`timeline_data`** | `timeline-data.model.js` | `_id`, `projectId`, `nodeId` | Per-project live status, assignees, dates & form data |
+| **`hardware_specs`** | `hardware-spec.model.js` | `hardwareId`, `code` | Hardware models and component specs |
 | **`activities`** | `activity.model.js` | `projectId`, `performedBy` | System-wide audit log for compliance |
 | **`notifications`** | `notifications.model.js` | `recipient`, `isRead` | User specific notification inbox & alerts |
 
@@ -255,7 +246,7 @@ In-app notification system jo user ko real-time assignments aur review alerts de
 
 ## 6. Golden Rules for Developers Working on this DB
 
-1. **Never create a local `projects` model:** Project master record Core Backend API se aayega. Local DB mein hamesha `projectId` string match karke data link karein.
+1. **Never create local `projects` or `licenses` models:** Projects aur Licenses master records strictly Core Backend API se aayenge. Local DB mein kisi bhi local license table ya model ki zaroorat nahi hai.
 2. **Always query by case-insensitive `projectId`:** Different systems se `PRJ-001`, `prj-001` aa sakta hai. Code mein hamesha `.toUpperCase().trim()` use karein.
 3. **Keep `requirements` authoritative:** Frontend par solution ya hardware update hone par master form `requirements` document mein save hota hai, jahan se baaki timeline nodes sync rehte hain.
 4. **Lean indexing:** Heavy relations par `{ projectId: 1 }`, `{ employee: 1 }`, aur `{ isRead: 1 }` indexed hain taaki high traffic par MongoDB fast query return kare.

@@ -30,7 +30,6 @@ export const employeesApi = {
         email: e.email || '',
         role: e.globalRole || e.role || 'EMPLOYEE',
         globalRole: e.globalRole || e.role || 'EMPLOYEE',
-        employeeCode: e.employeeCode || '',
         isActive: e.isActive !== undefined ? e.isActive : true,
         canRequestNewProject: Boolean(e.canRequestNewProject || e.permissions?.canRequestNewProject),
         permissions: {
@@ -91,4 +90,4 @@ export const employeesApi = {
     return response.data;
   },
 };
-
+

@@ -21,7 +21,6 @@ function formatUser(rawEmp: any, fallbackEmail = ''): IUser {
     email: rawEmp.email || fallbackEmail,
     role,
     globalRole: role,
-    employeeCode: rawEmp.employeeCode || '',
     designation: rawEmp.designation || '',
     phone: rawEmp.phone || '',
     reportingManager: rawEmp.reportingManager || '',

@@ -1,79 +1,93 @@
-﻿const L0Category = require('./l0category.model');
-const Language = require('../language/language.model');
+const coreApi = require('../../../services/core-api.service');
 
 /**
- * Get all L0 categories (supports optional query filters: section, layout, language, isActive)
+ * Get all L0 categories strictly from Core Backend API
+ * (No local collection in Project Tracker)
+ * GET /api/v1/l0-categories
  */
 exports.getL0Categories = async (req, res) => {
   try {
     const { section, layout, language, isActive } = req.query;
-    const filter = {};
+
+    let coreCategories = [];
+    try {
+      coreCategories = await coreApi.getL0Categories(req.query);
+    } catch (e) {
+      console.warn('[L0CategoryController] coreApi.getL0Categories warning:', e.message);
+    }
+
+    if (!Array.isArray(coreCategories) || coreCategories.length === 0) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: [],
+      });
+    }
+
+    let filtered = coreCategories.map((c, idx) => ({
+      _id: String(c._id || c.id || `l0_${idx}`),
+      id: c.id || String(c._id || `l0_${idx}`),
+      name: c.name,
+      language: c.language,
+      icon: c.icon || '',
+      section: c.section || 'academic',
+      blg: c.blg || [],
+      isActive: c.isActive !== false,
+      layout: c.layout || 'subject',
+      source: 'CORE_BACKEND'
+    }));
 
     if (isActive !== undefined) {
-      filter.isActive = isActive === 'true';
+      const boolVal = isActive === 'true';
+      filtered = filtered.filter(c => c.isActive === boolVal);
     }
-    if (section) {
-      filter.section = section;
-    }
-    if (layout) {
-      filter.layout = layout;
-    }
-    if (language) {
-      // Allow searching by Language ObjectId or code
-      if (language.match(/^[0-9a-fA-F]{24}$/)) {
-        filter.language = language;
-      } else {
-        const langDoc = await Language.findOne({ code: language.toLowerCase() });
-        if (langDoc) {
-          filter.language = langDoc._id;
-        }
-      }
-    }
+    if (section) filtered = filtered.filter(c => c.section === section);
+    if (layout) filtered = filtered.filter(c => c.layout === layout);
 
-    const categories = await L0Category.find(filter)
-      .populate('language', 'name code id')
-      .sort({ createdAt: 1 });
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      count: categories.length,
-      data: categories,
+      count: filtered.length,
+      data: filtered,
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      message: 'Failed to retrieve L0 categories',
+      message: 'Failed to retrieve L0 categories from Core Backend',
       error: error.message,
     });
   }
 };
 
 /**
- * Get single L0 category by string ID or Mongo _id
+ * Get single L0 category by string ID or Mongo _id strictly from Core Backend API
+ * GET /api/v1/l0-categories/:id
  */
 exports.getL0CategoryById = async (req, res) => {
   try {
     const { id } = req.params;
-    let category = null;
 
-    if (id.match(/^[0-9a-fA-F]{24}$/)) {
-      category = await L0Category.findById(id).populate('language', 'name code id');
-    }
-
-    if (!category) {
-      category = await L0Category.findOne({ id }).populate('language', 'name code id');
-    }
-
-    if (!category) {
+    const coreCat = await coreApi.getL0CategoryById(id);
+    if (!coreCat) {
       return res.status(404).json({
         success: false,
-        message: `L0 category '${id}' not found`,
+        message: `L0 category '${id}' not found in Core Backend`,
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      data: category,
+      data: {
+        _id: String(coreCat._id || coreCat.id),
+        id: coreCat.id || String(coreCat._id),
+        name: coreCat.name,
+        language: coreCat.language,
+        icon: coreCat.icon || '',
+        section: coreCat.section || 'academic',
+        blg: coreCat.blg || [],
+        isActive: coreCat.isActive !== false,
+        layout: coreCat.layout || 'subject',
+        source: 'CORE_BACKEND'
+      }
     });
   } catch (error) {
     res.status(500).json({
@@ -85,114 +99,31 @@ exports.getL0CategoryById = async (req, res) => {
 };
 
 /**
- * Create a new L0 category
+ * Create a new L0 category - Read-Only in Project Tracker
  */
 exports.createL0Category = async (req, res) => {
-  try {
-    const { name, language, icon, section, blg, id, isActive, layout } = req.body;
-
-    let languageId = language;
-    if (typeof language === 'string' && !language.match(/^[0-9a-fA-F]{24}$/)) {
-      const langDoc = await Language.findOne({ code: language.toLowerCase() });
-      if (langDoc) {
-        languageId = langDoc._id;
-      }
-    }
-
-    const category = await L0Category.create({
-      name,
-      language: languageId,
-      icon,
-      section,
-      blg,
-      id,
-      isActive,
-      layout,
-    });
-
-    res.status(201).json({
-      success: true,
-      message: 'L0 category created successfully',
-      data: category,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Failed to create L0 category',
-      error: error.message,
-    });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Master L0 categories are managed directly by Core Backend. Project Tracker only has read-only access (GET APIs).'
+  });
 };
 
 /**
- * Update an existing L0 category
+ * Update an existing L0 category - Read-Only in Project Tracker
  */
 exports.updateL0Category = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updateData = { ...req.body };
-
-    if (updateData.language && typeof updateData.language === 'string' && !updateData.language.match(/^[0-9a-fA-F]{24}$/)) {
-      const langDoc = await Language.findOne({ code: updateData.language.toLowerCase() });
-      if (langDoc) {
-        updateData.language = langDoc._id;
-      }
-    }
-
-    const query = id.match(/^[0-9a-fA-F]{24}$/ ? { _id: id } : { id });
-    const category = await L0Category.findOneAndUpdate(query, updateData, {
-      new: true,
-      runValidators: true,
-    }).populate('language', 'name code id');
-
-    if (!category) {
-      return res.status(404).json({
-        success: false,
-        message: `L0 category '${id}' not found`,
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'L0 category updated successfully',
-      data: category,
-    });
-  } catch (error) {
-    res.status(400).json({
-      success: false,
-      message: 'Failed to update L0 category',
-      error: error.message,
-    });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Master L0 categories are managed directly by Core Backend. Project Tracker only has read-only access (GET APIs).'
+  });
 };
 
 /**
- * Delete an L0 category
+ * Delete an L0 category - Read-Only in Project Tracker
  */
 exports.deleteL0Category = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const query = id.match(/^[0-9a-fA-F]{24}$/ ? { _id: id } : { id });
-    const category = await L0Category.findOneAndDelete(query);
-
-    if (!category) {
-      return res.status(404).json({
-        success: false,
-        message: `L0 category '${id}' not found`,
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      message: 'L0 category deleted successfully',
-      data: category,
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to delete L0 category',
-      error: error.message,
-    });
-  }
+  return res.status(403).json({
+    success: false,
+    message: 'Master L0 categories are managed directly by Core Backend. Project Tracker only has read-only access (GET APIs).'
+  });
 };
-

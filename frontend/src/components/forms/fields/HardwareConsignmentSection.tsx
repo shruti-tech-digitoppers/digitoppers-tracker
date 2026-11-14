@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { extractEffectiveHardwareItems, extractEffectiveSchools, DEFAULT_HARDWARE_ITEMS } from '../utils/formHelpers';
+import { extractEffectiveHardwareItems, extractEffectiveSchools } from '../utils/formHelpers';
 import { 
   Truck, 
   MapPin, 
@@ -541,7 +541,7 @@ export function HardwareConsignmentSection({
                   <div className="min-w-0">
                     <h4 className="text-xs sm:text-[13px] font-bold text-[#333333] font-heading flex items-center gap-1.5 truncate">
                       <Layers className="w-3.5 h-3.5 text-[#51a8b1] flex-shrink-0" />
-                      {DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey || d.label === itemKey)?.label || itemKey}
+                      {itemData.itemName || itemKey}
                     </h4>
                     {itemData.specNotes && (
                       <p className="text-[10.5px] text-[#4a5462] truncate mt-0.5">

@@ -30,7 +30,12 @@ export default function LoginPage() {
         setError('Login failed: Token not received from server.');
       }
     } catch (err: any) {
-      setError(err.response?.data?.message || err.message || 'Login failed. Please check your credentials.');
+      const msg = err.response?.data?.message || err.message;
+      if (err.response?.status === 500 || (typeof msg === 'string' && msg.includes('500'))) {
+        setError('Cannot connect to Backend (Port 5000). Please start backend with: cd backend && npm run dev');
+      } else {
+        setError(msg || 'Login failed. Please check your credentials.');
+      }
     } finally {
       setLoading(false);
     }
@@ -55,7 +60,12 @@ export default function LoginPage() {
           setError('Login failed: Token not received from server.');
         }
       } catch (err: any) {
-        setError(err.response?.data?.message || err.message || 'Login failed. Please check credentials.');
+        const msg = err.response?.data?.message || err.message;
+        if (err.response?.status === 500 || (typeof msg === 'string' && msg.includes('500'))) {
+          setError('Cannot connect to Backend (Port 5000). Please start backend with: cd backend && npm run dev');
+        } else {
+          setError(msg || 'Login failed. Please check credentials.');
+        }
       } finally {
         setLoading(false);
       }

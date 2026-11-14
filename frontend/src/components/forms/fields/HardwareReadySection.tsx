@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { extractEffectiveSchools, extractEffectiveHardwareItems, EffectiveSchoolItem, DEFAULT_HARDWARE_ITEMS } from '../utils/formHelpers';
+import { extractEffectiveSchools, extractEffectiveHardwareItems, EffectiveSchoolItem } from '../utils/formHelpers';
 import { InstitutionalSchoolSelector } from '../common/InstitutionalSchoolSelector';
 import {
   PackageCheck,
@@ -286,7 +286,7 @@ export function HardwareReadySection({
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="text-xs font-bold text-[#333333] font-heading">
-                          {DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey || d.label === itemKey)?.label || itemKey}
+                          {hwItem.itemName || itemKey}
                         </span>
                         <span className="text-[10px] font-bold text-[#465b1c] bg-[#eff8d0] px-2.5 py-0.5 rounded-full border border-[#dfefa6]">
                           Allocated Qty: {qty}

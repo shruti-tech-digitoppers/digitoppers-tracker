@@ -7,7 +7,6 @@ export interface IUser {
   email: string;
   role: GlobalRole;
   globalRole?: GlobalRole;
-  employeeCode?: string;
   designation?: string;
   phone?: string;
   reportingManager?: string;
@@ -36,7 +35,6 @@ export interface IMeResponse {
   user: IUser;
 }
 
-
 export interface IEmployeeProjectSummary {
   _id: string;
   projectId?: string;
@@ -58,7 +56,6 @@ export interface IEmployeeProjectsResponse {
       _id: string;
       name: string;
       email: string;
-      employeeCode: string;
       globalRole: GlobalRole;
     };
     projectRoles: IEmployeeProjectRole[];
@@ -69,7 +66,6 @@ export interface ICreateEmployeePayload {
   name: string;
   email: string;
   password: string;
-  employeeCode: string;
   globalRole: GlobalRole;
   isActive?: boolean;
   canRequestNewProject?: boolean;
@@ -79,12 +75,10 @@ export interface ICreateEmployeePayload {
   projectRoles?: Array<{ projectId: string; designation: ProjectDesignation }>;
 }
 
-
 export interface IUpdateEmployeePayload {
   name?: string;
   email?: string;
   password?: string;
-  employeeCode?: string;
   globalRole?: GlobalRole;
   isActive?: boolean;
   canRequestNewProject?: boolean;
@@ -92,4 +86,3 @@ export interface IUpdateEmployeePayload {
     canRequestNewProject?: boolean;
   };
 }
-

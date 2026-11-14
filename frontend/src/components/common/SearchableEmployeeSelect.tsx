@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { User, Search, Check, ChevronDown, X, UserX, Sparkles } from 'lucide-react';
+import { User, Search, Check, ChevronDown, X, UserX } from 'lucide-react';
 import { IUser } from '../../types/auth';
 
 export interface SearchableEmployeeSelectProps {
@@ -51,21 +51,18 @@ export function SearchableEmployeeSelect({
 
   // Check if an employee is the currently logged in user
   const isMe = useCallback(
-    (emp: IUser | { id?: string; _id?: string; name?: string; employeeCode?: string; email?: string }) => {
+    (emp: IUser | { id?: string; _id?: string; name?: string; email?: string }) => {
       if (!effectiveCurrentUser) return false;
       const myId = String(effectiveCurrentUser._id || (effectiveCurrentUser as any).id || '').toLowerCase().trim();
       const myEmail = (effectiveCurrentUser.email || '').toLowerCase().trim();
-      const myCode = (effectiveCurrentUser.employeeCode || '').toLowerCase().trim();
       const myName = (effectiveCurrentUser.name || '').toLowerCase().trim();
 
       const empId = String((emp as any)._id || (emp as any).id || '').toLowerCase().trim();
       const empEmail = ((emp as any).email || '').toLowerCase().trim();
-      const empCode = ((emp as any).employeeCode || '').toLowerCase().trim();
       const empName = (emp.name || '').toLowerCase().trim();
 
       if (myId && empId && myId === empId) return true;
       if (myEmail && empEmail && myEmail === empEmail) return true;
-      if (myCode && empCode && myCode === empCode) return true;
       if (myName && empName && myName === empName) return true;
       return false;
     },
@@ -79,24 +76,22 @@ export function SearchableEmployeeSelect({
     return (
       employees.find((e) => {
         const id = String(e._id || (e as any).id || '').toLowerCase();
-        const code = String(e.employeeCode || '').toLowerCase();
         const name = String(e.name || '').toLowerCase();
-        return id === vStr || (code && code === vStr) || name === vStr;
+        return id === vStr || name === vStr;
       }) || null
     );
   }, [employees, value]);
 
-  // Real-time search filter matching Name, Code, Email, or Designation
+  // Real-time search filter matching Name, Email, or Designation
   const filteredEmployees = useMemo(() => {
     if (!searchQuery.trim()) return employees;
     const q = searchQuery.toLowerCase().trim();
     return employees.filter((emp) => {
       const name = (emp.name || '').toLowerCase();
-      const code = (emp.employeeCode || '').toLowerCase();
       const email = (emp.email || '').toLowerCase();
       const role = (emp.designation || (emp as any).role || emp.globalRole || '').toLowerCase();
       const isMeMatch = q === 'me' && isMe(emp);
-      return name.includes(q) || code.includes(q) || email.includes(q) || role.includes(q) || isMeMatch;
+      return name.includes(q) || email.includes(q) || role.includes(q) || isMeMatch;
     });
   }, [employees, searchQuery, isMe]);
 
@@ -105,7 +100,6 @@ export function SearchableEmployeeSelect({
     const list: Array<{
       id: string;
       name: string;
-      employeeCode?: string;
       designation?: string;
       isUnassigned?: boolean;
       isMe?: boolean;
@@ -141,7 +135,6 @@ export function SearchableEmployeeSelect({
       list.push({
         id: String(emp._id || (emp as any).id || ''),
         name: emp.name,
-        employeeCode: emp.employeeCode,
         designation: emp.designation || (emp as any).role || emp.globalRole,
         isUnassigned: false,
         isMe: true,
@@ -154,7 +147,6 @@ export function SearchableEmployeeSelect({
       list.push({
         id: String(emp._id || (emp as any).id || ''),
         name: emp.name,
-        employeeCode: emp.employeeCode,
         designation: emp.designation || (emp as any).role || emp.globalRole,
         isUnassigned: false,
         isMe: false,
@@ -244,9 +236,6 @@ export function SearchableEmployeeSelect({
                   Me
                 </span>
               )}
-              {selectedEmployee.employeeCode ? (
-                <span className="text-[10px] font-mono opacity-75">[{selectedEmployee.employeeCode}]</span>
-              ) : null}
             </span>
           ) : (
             <span className="text-[#94a3b8] font-medium">{placeholder}</span>
@@ -276,7 +265,7 @@ export function SearchableEmployeeSelect({
                 setHighlightIndex(0);
               }}
               onKeyDown={handleKeyDown}
-              placeholder="Type employee name or code..."
+              placeholder="Type employee name or email..."
               className="w-full pl-8 pr-7 py-1.5 text-xs bg-[#f8fafb] border border-[#b6e0e4] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#51a8b1] text-[#1e293b] font-medium placeholder:text-slate-400"
             />
             {searchQuery && (
@@ -332,11 +321,6 @@ export function SearchableEmployeeSelect({
                           {opt.isMe && (
                             <span className="px-1.5 py-0.2 rounded-full bg-[#51a8b1]/20 text-[#3a7d84] font-black text-[9px] uppercase tracking-wide border border-[#51a8b1]/30">
                               Me
-                            </span>
-                          )}
-                          {opt.employeeCode && (
-                            <span className="text-[10px] font-mono text-slate-500 font-normal">
-                              [{opt.employeeCode}]
                             </span>
                           )}
                         </div>

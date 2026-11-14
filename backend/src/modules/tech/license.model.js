@@ -6,7 +6,7 @@ const licenseSchema = new mongoose.Schema(
       type: String,
       required: [true, 'License key is required'],
       unique: true,
-      trim: true, // format: lic{partOfSchId}1, lic{partOfSchId}2 or LIC-xxxx
+      trim: true,
     },
     status: {
       type: String,
@@ -25,7 +25,7 @@ const licenseSchema = new mongoose.Schema(
     },
     registeredTo: {
       type: String,
-      default: null, // Device identifier
+      default: null,
       trim: true,
     },
     schoolId: {
@@ -41,13 +41,12 @@ const licenseSchema = new mongoose.Schema(
     },
   },
   {
-    timestamps: true, // Automatically provides createdAt and updatedAt
+    timestamps: true,
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
   }
 );
 
-// Composite index for fast querying by project and school
 licenseSchema.index({ projectId: 1, schoolId: 1 });
 licenseSchema.index({ licenseKey: 1, status: 1 });
 
@@ -57,3 +56,4 @@ module.exports = License;
 module.exports.License = License;
 module.exports.licenseSchema = licenseSchema;
 module.exports.default = License;
+

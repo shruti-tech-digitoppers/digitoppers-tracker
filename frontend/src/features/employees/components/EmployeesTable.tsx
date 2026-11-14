@@ -62,7 +62,6 @@ export function EmployeesTable({
           <thead>
             <tr className="border-b border-[#f1f3f6] bg-[#f8fafb]/80 text-[#4a5462] font-semibold select-none">
               <th className="py-3 px-4">Employee</th>
-              <th className="py-3 px-4">Employee Code</th>
               <th className="py-3 px-4">Email</th>
               <th className="py-3 px-4">Global Role</th>
               <th className="py-3 px-4">Status</th>
@@ -110,12 +109,6 @@ export function EmployeesTable({
                     </div>
                   </td>
 
-                  {/* Employee Code */}
-                  <td className="py-3 px-4">
-                    <span className="font-mono font-bold text-xs text-[#3a7d84] px-2 py-0.5 rounded bg-[#f0f8f9] border border-[#b6e0e4]">
-                      {emp.employeeCode || 'N/A'}
-                    </span>
-                  </td>
 
                   {/* Email */}
                   <td className="py-3 px-4 text-[#4a5462] font-medium">

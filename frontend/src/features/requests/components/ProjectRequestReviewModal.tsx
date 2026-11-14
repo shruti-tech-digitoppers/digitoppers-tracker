@@ -127,7 +127,7 @@ export function ProjectRequestReviewModal({
 
   const pmEmp = typeof request.projectManager === 'object' && request.projectManager !== null
     ? (request.projectManager as any)
-    : { name: 'Assigned PM', email: '' };
+    : { name: 'Unassigned', email: '' };
 
   const reqToEmp = typeof request.requestedTo === 'object' && request.requestedTo !== null
     ? (request.requestedTo as any)

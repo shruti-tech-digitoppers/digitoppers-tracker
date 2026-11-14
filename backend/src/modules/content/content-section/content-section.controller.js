@@ -1,7 +1,6 @@
 const ContentSection = require('./content-section.model');
 const Language = require('../language/language.model');
-const Grade = require('../grade/grade.model');
-const L0Category = require('../category/l0category.model');
+const coreApi = require('../../../services/core-api.service');
 
 /**
  * 1. Get all ContentSections with rich filtering
@@ -208,10 +207,11 @@ exports.upsertContentSection = async (req, res) => {
 
       let resolvedGradeRef = gradeId || null;
       if (!resolvedGradeRef && grade) {
-        const grDoc = await Grade.findOne({
-          $or: [{ name: grade }, { grade: grade }, { id: grade.toLowerCase().replace(/\s+/g, '_') }],
-        });
-        if (grDoc) resolvedGradeRef = grDoc._id;
+        try {
+          const coreGrades = await coreApi.getGrades({ search: grade });
+          const matched = Array.isArray(coreGrades) ? coreGrades.find(g => (g.name === grade || g.grade === grade)) : null;
+          if (matched && matched._id) resolvedGradeRef = matched._id;
+        } catch (_) {}
       }
 
       const updateData = {
@@ -252,10 +252,11 @@ exports.upsertContentSection = async (req, res) => {
 
       let resolvedCategoryRef = categoryId || null;
       if (!resolvedCategoryRef && targetCategoryName) {
-        const catDoc = await L0Category.findOne({
-          $or: [{ name: new RegExp(`^${targetCategoryName}$`, 'i') }, { id: targetCategoryName.toLowerCase().replace(/\s+/g, '_') }],
-        });
-        if (catDoc) resolvedCategoryRef = catDoc._id;
+        try {
+          const coreCats = await coreApi.getL0Categories({ search: targetCategoryName });
+          const matched = Array.isArray(coreCats) ? coreCats.find(c => (c.name && c.name.toLowerCase() === targetCategoryName.toLowerCase())) : null;
+          if (matched && matched._id) resolvedCategoryRef = matched._id;
+        } catch (_) {}
       }
 
       if (!computedKey) {

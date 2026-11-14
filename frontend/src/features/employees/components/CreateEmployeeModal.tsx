@@ -35,8 +35,7 @@ export function CreateEmployeeModal({ isOpen, onClose, onSubmit }: CreateEmploye
     name: '',
     email: '',
     password: '',
-    employeeCode: '',
-    globalRole: 'EMPLOYEE',
+        globalRole: 'EMPLOYEE',
     isActive: true,
   });
 
@@ -81,7 +80,7 @@ export function CreateEmployeeModal({ isOpen, onClose, onSubmit }: CreateEmploye
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name.trim() || !formData.email.trim() || !formData.password || !formData.employeeCode.trim()) {
+    if (!formData.name.trim() || !formData.email.trim() || !formData.password) {
       setError('Please fill in all required fields.');
       return;
     }
@@ -104,8 +103,7 @@ export function CreateEmployeeModal({ isOpen, onClose, onSubmit }: CreateEmploye
         name: '',
         email: '',
         password: '',
-        employeeCode: '',
-        globalRole: 'EMPLOYEE',
+                globalRole: 'EMPLOYEE',
         isActive: true,
       });
       setProjectRoles({});
@@ -192,21 +190,6 @@ export function CreateEmployeeModal({ isOpen, onClose, onSubmit }: CreateEmploye
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g. Rahul Sharma"
                   className="w-full px-3.5 py-2.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:bg-white transition"
-                />
-              </div>
-
-              {/* Employee Code */}
-              <div>
-                <label className="block text-xs font-semibold text-[#333333] mb-1.5">
-                  Employee Code <span className="text-rose-500">*</span>
-                </label>
-                <input
-                  type="text"
-                  required
-                  value={formData.employeeCode}
-                  onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value.toUpperCase() })}
-                  placeholder="e.g. DT-104"
-                  className="w-full px-3.5 py-2.5 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:bg-white uppercase font-mono transition"
                 />
               </div>
 

@@ -10,7 +10,6 @@ const trainerItemSchema = new mongoose.Schema(
     },
     name: { type: String, default: '', trim: true },
     phone: { type: String, default: '', trim: true },
-    employeeCode: { type: String, default: '', trim: true },
     designation: { type: String, default: '', trim: true },
     role: { type: String, default: 'Lead Trainer', trim: true },
     email: { type: String, default: '', trim: true }

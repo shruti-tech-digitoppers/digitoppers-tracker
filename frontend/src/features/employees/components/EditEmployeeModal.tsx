@@ -19,8 +19,7 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onSubmit }: EditE
   const [formData, setFormData] = useState<IUpdateEmployeePayload>({
     name: '',
     email: '',
-    employeeCode: '',
-    globalRole: 'EMPLOYEE',
+        globalRole: 'EMPLOYEE',
     isActive: true,
     password: '',
   });
@@ -33,8 +32,7 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onSubmit }: EditE
       setFormData({
         name: employee.name || '',
         email: employee.email || '',
-        employeeCode: employee.employeeCode || '',
-        globalRole: (employee.globalRole || employee.role || 'EMPLOYEE') as GlobalRole,
+                globalRole: (employee.globalRole || employee.role || 'EMPLOYEE') as GlobalRole,
         isActive: employee.isActive !== undefined ? employee.isActive : true,
         canRequestNewProject: canReq,
         permissions: { canRequestNewProject: canReq },
@@ -49,7 +47,7 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onSubmit }: EditE
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.name?.trim() || !formData.email?.trim() || !formData.employeeCode?.trim()) {
+    if (!formData.name?.trim() || !formData.email?.trim()) {
       setError('Please fill in all required fields.');
       return;
     }
@@ -118,20 +116,7 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onSubmit }: EditE
               />
             </div>
 
-            {/* Employee Code */}
-            <div>
-              <label className="block text-xs font-semibold text-[#333333] mb-1.5">
-                Employee Code <span className="text-rose-500">*</span>
-              </label>
-              <input
-                type="text"
-                required
-                value={formData.employeeCode}
-                onChange={(e) => setFormData({ ...formData, employeeCode: e.target.value.toUpperCase() })}
-                className="w-full px-3 py-2 text-xs bg-[#f8fafb] border border-[#b9c0cb]/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:border-transparent uppercase transition"
-              />
             </div>
-          </div>
 
           {/* Email */}
           <div>

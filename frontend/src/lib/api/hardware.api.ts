@@ -6,6 +6,9 @@ export interface HardwareItem {
   key: string;
   label: string;
   name?: string;
+  spec?: string;
+  specs?: string[] | any;
+  specification?: string;
   desc?: string;
   description?: string;
   icon?: string;

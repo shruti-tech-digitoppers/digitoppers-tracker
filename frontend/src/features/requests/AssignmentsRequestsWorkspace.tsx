@@ -541,7 +541,7 @@ export function AssignmentsRequestsWorkspace() {
                 const reqToId = reqToObj?._id || req.requestedTo;
 
                 const pmObj = typeof req.projectManager === 'object' && req.projectManager !== null ? (req.projectManager as any) : null;
-                const pmName = pmObj?.name || 'Unassigned PM';
+                const pmName = pmObj?.name || 'Unassigned';
 
                 const isPending = req.status === 'PENDING';
                 const isApproved = req.status === 'APPROVED';
@@ -777,7 +777,7 @@ export function AssignmentsRequestsWorkspace() {
             ) : (
               filteredAssignments.map((p) => {
                 const pmObj = typeof p.projectManager === 'object' && p.projectManager !== null ? (p.projectManager as any) : null;
-                const pmName = pmObj?.name || (typeof p.projectManager === 'string' ? p.projectManager : 'Unassigned PM');
+                const pmName = pmObj?.name || (typeof p.projectManager === 'string' && p.projectManager ? p.projectManager : 'Unassigned');
                 const pmId = pmObj?._id || p.projectManager;
                 const isMyProject = pmId === currentUserId;
 

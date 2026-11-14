@@ -33,7 +33,6 @@ export interface ISchoolTrainer {
   id?: string;
   trainerId?: string; // Foreign key / employee ID (MongoDB _id)
   name: string;
-  employeeCode?: string;
   role?: string; // e.g. "Trainer 1 (Lead Field Engineer)", "Assistant Trainer"
   phone?: string;
   email?: string;
@@ -261,17 +260,16 @@ export function InstallationPlanningSection({
             installationEmployees[sIdx % (installationEmployees.length || 1)] ||
             allEmployeesList[0];
 
-          // For Training context: start empty if nothing in DB. For Installation: use defaultEmp fallback.
-          const tName = dbTrainerName || (isTrainingContext ? '' : defaultEmp?.name || 'Rahul Yadav');
+          // For Training context: start empty if nothing in DB. For Installation: use defaultEmp from DB if present.
+          const tName = dbTrainerName || (isTrainingContext ? '' : defaultEmp?.name || '');
           const tId = dbTrainerId || (isTrainingContext ? '' : defaultEmp?._id || '');
-          const tPhone = dbTrainerPhone || (isTrainingContext ? '' : defaultEmp?.phone || '9811001105');
-          const tCode = isTrainingContext ? '' : defaultEmp?.employeeCode || 'EMP014';
+          const tPhone = dbTrainerPhone || (isTrainingContext ? '' : defaultEmp?.phone || '');
 
           map[sch.id] = {
             schoolId: sch.id,
             schoolName: sch.name,
-            address: sch.address || 'Campus Location',
-            contactPerson: sch.pocName || sch.contactPerson || 'Site Principal',
+            address: sch.address || '',
+            contactPerson: sch.pocName || sch.contactPerson || '',
             contactPhone: sch.pocContact || '',
             technicalPersonId: tId,
             technicalPersonName: tName,
@@ -288,7 +286,6 @@ export function InstallationPlanningSection({
                       id: `trainer_1_${sch.id}`,
                       trainerId: tId,
                       name: tName,
-                      employeeCode: tCode,
                       phone: tPhone,
                       role: isTrainingContext ? 'Trainer 1 (Lead Trainer)' : 'Trainer 1 (Lead Field Engineer)'
                     },
@@ -411,7 +408,6 @@ export function InstallationPlanningSection({
     const tName = dbTrainerName || (isTrainingContext ? '' : defaultEmp?.name || '');
     const tId = dbTrainerId || (isTrainingContext ? '' : defaultEmp?._id || '');
     const tPhone = dbTrainerPhone || (isTrainingContext ? '' : defaultEmp?.phone || '');
-    const tCode = isTrainingContext ? '' : defaultEmp?.employeeCode || '';
 
     return {
       schoolId: currentSchool.id,
@@ -433,7 +429,6 @@ export function InstallationPlanningSection({
                 id: `trainer_1_${currentSchool.id}`,
                 trainerId: tId,
                 name: tName,
-                employeeCode: tCode,
                 phone: tPhone,
                 role: isTrainingContext ? 'Trainer 1 (Lead Trainer)' : 'Trainer 1 (Lead Field Engineer)'
               },
@@ -456,7 +451,6 @@ export function InstallationPlanningSection({
                 id: `trainer_1_${currentSchool.id}`,
                 trainerId: matchedEmp._id,
                 name: matchedEmp.name,
-                employeeCode: matchedEmp.employeeCode || '',
                 phone: matchedEmp.phone || '',
                 role: matchedEmp.designation || 'Lead Field Engineer',
               },
@@ -477,11 +471,12 @@ export function InstallationPlanningSection({
   // Handle direct contact number change
   const handleUpdateContactNumber = useCallback(
     (phoneVal: string) => {
+      const cleanPhone = phoneVal.replace(/[^0-9]/g, '');
       const nextPlan: ISchoolInstallationPlan = {
         ...currentSchoolPlan,
-        contactNumber: phoneVal,
+        contactNumber: cleanPhone,
         trainers: (currentSchoolPlan.trainers || []).map((t, idx) =>
-          idx === 0 ? { ...t, phone: phoneVal } : t
+          idx === 0 ? { ...t, phone: cleanPhone } : t
         ),
       };
 
@@ -542,7 +537,6 @@ export function InstallationPlanningSection({
           ...currentTrainers[trainerIndex],
           trainerId: '',
           name: '',
-          employeeCode: '',
           phone: '',
           email: '',
         };
@@ -558,7 +552,6 @@ export function InstallationPlanningSection({
             ...currentTrainers[trainerIndex],
             trainerId: matchedEmp._id,
             name: matchedEmp.name,
-            employeeCode: matchedEmp.employeeCode || '',
             phone: matchedEmp.phone || currentTrainers[trainerIndex].phone || '',
             email: matchedEmp.email || currentTrainers[trainerIndex].email || '',
             designation: matchedEmp.designation || '',
@@ -591,16 +584,18 @@ export function InstallationPlanningSection({
       const currentTrainers = [...(currentSchoolPlan.trainers || [])];
       if (!currentTrainers[trainerIndex]) return;
 
+      const finalVal = field === 'phone' && typeof val === 'string' ? val.replace(/[^0-9]/g, '') : val;
+
       currentTrainers[trainerIndex] = {
         ...currentTrainers[trainerIndex],
-        [field]: val,
+        [field]: finalVal,
       };
 
       const nextPlan: ISchoolInstallationPlan = {
         ...currentSchoolPlan,
         trainers: currentTrainers,
-        ...(trainerIndex === 0 && field === 'phone' ? { contactNumber: val } : {}),
-        ...(trainerIndex === 0 && field === 'name' ? { technicalPersonName: val } : {}),
+        ...(trainerIndex === 0 && field === 'phone' ? { contactNumber: finalVal } : {}),
+        ...(trainerIndex === 0 && field === 'name' ? { technicalPersonName: finalVal } : {}),
       };
 
       const nextMap = {
@@ -632,7 +627,6 @@ export function InstallationPlanningSection({
       id: `trainer_${Date.now()}_${trainerNumber}`,
       trainerId: nextEmp?._id || '',
       name: nextEmp?.name || '',
-      employeeCode: nextEmp?.employeeCode || '',
       designation: nextEmp?.designation || '',
       phone: nextEmp?.phone || '',
       email: nextEmp?.email || '',
@@ -893,9 +887,16 @@ export function InstallationPlanningSection({
               </label>
               <input
                 type="tel"
+                inputMode="numeric"
+                pattern="[0-9]*"
                 value={currentSchoolPlan.contactNumber || ''}
                 onChange={(e) => handleUpdateContactNumber(e.target.value)}
-                placeholder="e.g. 9811001105"
+                onKeyDown={(e) => {
+                  if (/^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                    e.preventDefault();
+                  }
+                }}
+                placeholder="e.g. 9811001105 (Numbers only)"
                 disabled={disabled}
                 className="w-full text-xs font-medium py-2 px-3 bg-white border border-slate-300 rounded-xl focus:outline-hidden focus:ring-2 focus:ring-[#51a8b1] focus:border-transparent text-slate-900 shadow-2xs"
               />
@@ -1051,10 +1052,17 @@ export function InstallationPlanningSection({
                       <div className="flex items-center gap-1.5 sm:w-44 shrink-0">
                         <input
                           type="tel"
+                          inputMode="numeric"
+                          pattern="[0-9]*"
                           disabled={disabled}
                           value={trainer.phone || ''}
                           onChange={(e) => handleUpdateTrainerField(tIdx, 'phone', e.target.value)}
-                          placeholder="Contact No / Phone"
+                          onKeyDown={(e) => {
+                            if (/^[a-zA-Z]$/.test(e.key) && !e.ctrlKey && !e.metaKey) {
+                              e.preventDefault();
+                            }
+                          }}
+                          placeholder="Contact No (Numbers only)"
                           className="w-full text-xs font-medium py-1.5 px-2.5 bg-white border border-slate-300 hover:border-[#51a8b1] rounded-lg text-slate-800 placeholder:text-slate-400 focus:outline-hidden focus:ring-2 focus:ring-[#51a8b1] transition"
                         />
                       </div>

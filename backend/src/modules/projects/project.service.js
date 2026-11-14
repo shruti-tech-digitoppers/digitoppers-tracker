@@ -26,31 +26,13 @@ class ProjectService {
     }
 
     if (!coreProjects || coreProjects.length === 0) {
-      // Graceful fallback to local MongoDB projects cache when Core Backend is cold starting or unreachable
-      const fallbackList = await mongoose.connection.collection('projects').find({ isActive: { $ne: false } }).toArray().catch(() => []);
-      if (Array.isArray(fallbackList) && fallbackList.length > 0) {
-        coreProjects = fallbackList;
-      } else {
-        return [];
-      }
+      return [];
     }
-
-    // Fetch local tracker overrides (status, custom metadata) from local MongoDB if present
-    const localProjects = await mongoose.connection.collection('projects').find({}).toArray().catch(() => []);
-    const localProjectMap = new Map();
-    localProjects.forEach(lp => {
-      if (lp.projectId) {
-        localProjectMap.set(String(lp.projectId).toLowerCase(), lp);
-        localProjectMap.set(String(lp.projectId).toUpperCase(), lp);
-      }
-      if (lp._id) localProjectMap.set(String(lp._id), lp);
-    });
 
     // Map Core Backend projects into canonical Tracker format
     const allProjectsList = coreProjects.map(cp => {
       const code = (cp.projectId || String(cp._id)).toLowerCase();
       const cpIdStr = String(cp._id);
-      const localDoc = localProjectMap.get(code) || localProjectMap.get(cpIdStr);
 
       return {
         _id: cpIdStr,
@@ -61,14 +43,14 @@ class ProjectService {
         email: cp.email || '',
         phone: cp.phone || '',
         address: cp.address || '',
-        numberOfSchools: localDoc?.numberOfSchools || cp.numberOfSchools || 0,
-        numberOfLicenses: localDoc?.numberOfLicenses || cp.numberOfLicenses || 0,
-        budget: localDoc?.budget || cp.budget || 0,
+        numberOfSchools: cp.numberOfSchools || 0,
+        numberOfLicenses: cp.numberOfLicenses || 0,
+        budget: cp.budget || 0,
         country: typeof cp.country === 'object' && cp.country ? cp.country.name : (cp.country || ''),
-        status: localDoc?.status || cp.status || 'ACTIVE',
+        status: cp.status || 'ACTIVE',
         projectManager: null,
         isActive: cp.isActive !== false,
-        clientPoAndPi: localDoc?.clientPoAndPi || cp.clientPoAndPi || { purchaseOrders: [], proformaInvoices: [] },
+        clientPoAndPi: cp.clientPoAndPi || { purchaseOrders: [], proformaInvoices: [] },
         createdAt: cp.createdAt || new Date(),
         updatedAt: cp.updatedAt || new Date(),
         source: 'CORE_BACKEND'
@@ -76,7 +58,7 @@ class ProjectService {
     });
 
     // Automatically ensure timeline is created for newly discovered projects
-    const timelineService = require('../timeline/timeline.service');
+    const timelineService = require('../timeline-data/timeline-data.service');
     for (const cp of allProjectsList) {
       if (!initializedProjectTimelines.has(cp.projectId)) {
         initializedProjectTimelines.add(cp.projectId);
@@ -100,7 +82,7 @@ class ProjectService {
         { project: { $in: [...allProjectMongoIds, ...allProjectIds] } }
       ],
       isActive: true
-    }).populate('employee', 'name email employeeCode globalRole designation phone departmentCode').lean().catch(() => []);
+    }).populate('employee', 'name email globalRole designation phone departmentCode').lean().catch(() => []);
 
     const membersMap = new Map();
     allMembers.forEach(m => {
@@ -187,7 +169,7 @@ class ProjectService {
       ].filter(Boolean),
       designation: DESIGNATIONS.PROJECT_MANAGER,
       isActive: true
-    }).populate('employee', 'name email employeeCode globalRole designation');
+    }).populate('employee', 'name email globalRole designation');
 
     let pm = (pmMember && pmMember.employee) ? pmMember.employee : (project.projectManager || null);
     if (!pm) {
@@ -199,7 +181,7 @@ class ProjectService {
           { projectId: rawId },
           { title: project.projectName }
         ].filter(Boolean)
-      }).populate('projectManager', 'name email employeeCode globalRole designation');
+      }).populate('projectManager', 'name email globalRole designation');
       if (reqDoc && reqDoc.projectManager) {
         pm = reqDoc.projectManager;
       }
@@ -215,7 +197,7 @@ class ProjectService {
         School.find({
           $or: [
             { projectId: code },
-        { projectId: code.toUpperCase() },
+            { projectId: code.toUpperCase() },
             { projectId: String(rawId) },
             { projectId: rawId }
           ].filter(Boolean),
@@ -228,7 +210,7 @@ class ProjectService {
         ProjectSchools.findOne({
           $or: [
             { projectId: code },
-        { projectId: code.toUpperCase() },
+            { projectId: code.toUpperCase() },
             { projectId: String(rawId) },
             { project: rawId }
           ].filter(Boolean)
@@ -237,6 +219,30 @@ class ProjectService {
 
       let formattedSchools = [];
       if (dbSchools && dbSchools.length > 0) {
+        formattedSchools = dbSchools.map((s) => ({
+          id: String(s._id),
+          _id: String(s._id),
+          schoolId: s.schoolId || String(s._id),
+          schoolName: s.name,
+          name: s.name,
+          schoolCode: s.schoolId || String(s._id),
+          address: s.address || '',
+          addressContact: s.address ? `${s.address}\nContact: ${s.contactPerson?.phone || ''}` : '',
+          principalName: s.survey?.principalName || s.contactPerson?.name || '',
+          principalDetails: s.survey?.principalDetails || `${s.contactPerson?.name || ''} (${s.contactPerson?.phone || ''})`,
+          pocName: s.survey?.pocName || s.contactPerson?.name || s.survey?.principalName || '',
+          pocDesignation: s.survey?.pocDesignation || s.contactPerson?.designation || (s.survey?.principalName ? 'Principal' : ''),
+          pocContact: s.survey?.pocContact || s.contactPerson?.phone || '',
+          phone: s.contactPerson?.phone || s.survey?.pocContact || '',
+          email: s.contactPerson?.email || s.survey?.email || '',
+          classes: s.classes || s.survey?.classes || [],
+          installation: s.installation || {},
+          training: s.training || {},
+          survey: s.survey || {},
+          school: s._id,
+          ...(s.survey || {})
+        }));
+      } else if (psDoc?.schools && psDoc.schools.length > 0) {
         formattedSchools = dbSchools.map((s) => ({
           id: String(s._id),
           _id: String(s._id),
@@ -400,7 +406,7 @@ class ProjectService {
       };
 
       try {
-        const timelineService = require('../timeline/timeline.service');
+        const timelineService = require('../timeline-data/timeline-data.service');
         timelineService.createTimelineForProject(resolvedP).catch(() => {});
       } catch (_) {}
 
@@ -415,7 +421,7 @@ class ProjectService {
         isObjectId
           ? { $or: [{ _id: idStr }, { requestId: idStr }, { requestId: idStr.toUpperCase() }, { dashboardProjectId: idStr.toLowerCase() }, { dashboardProjectId: idStr.toUpperCase() }] }
           : { $or: [{ requestId: idStr }, { requestId: idStr.toUpperCase() }, { dashboardProjectId: idStr.toLowerCase() }, { dashboardProjectId: idStr.toUpperCase() }] }
-      ).populate('projectManager', 'name email employeeCode globalRole designation').lean().catch(() => null);
+      ).populate('projectManager', 'name email globalRole designation').lean().catch(() => null);
 
       if (reqDoc && reqDoc.projectId) {
         return await this._findProject(reqDoc.projectId);
@@ -442,7 +448,7 @@ class ProjectService {
       ].filter(Boolean),
       isActive: true
     })
-      .populate('employee', 'name email employeeCode globalRole designation departmentCode phone');
+      .populate('employee', 'name email globalRole designation departmentCode phone');
   }
 
   async getMembersGroupedByDepartment(projectId) {
@@ -459,7 +465,7 @@ class ProjectService {
       ].filter(Boolean),
       isActive: true
     })
-      .populate('employee', 'name email employeeCode phone designation globalRole departmentCode')
+      .populate('employee', 'name email phone designation globalRole departmentCode')
       .lean();
 
     const teamByDept = members.reduce((acc, m) => {

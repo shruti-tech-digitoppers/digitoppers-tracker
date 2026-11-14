@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { IFormFieldSchema } from '../../../types/timeline';
-import { Upload, FileCheck, Loader2, X } from 'lucide-react';
+import { Upload, FileCheck, Loader2, X, AlertCircle } from 'lucide-react';
 import { ConfirmDeleteFileModal } from '../common/ConfirmDeleteFileModal';
 
 interface FormFieldUploadProps {
@@ -13,6 +13,7 @@ interface FormFieldUploadProps {
   disabled?: boolean;
   onSuccessMsg?: (msg: string) => void;
   onErrorMsg?: (msg: string) => void;
+  error?: string;
 }
 
 export function FormFieldUpload({
@@ -23,6 +24,7 @@ export function FormFieldUpload({
   disabled = false,
   onSuccessMsg,
   onErrorMsg,
+  error,
 }: FormFieldUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
@@ -87,7 +89,7 @@ export function FormFieldUpload({
       <div className="flex items-center gap-2">
         <label className={`
           flex-1 border-2 border-dashed rounded-lg p-2.5 flex items-center justify-center gap-2 text-xs font-medium cursor-pointer transition
-          ${value ? 'border-[#a8cf45] bg-[#f7fbe9] text-[#465b1c]' : 'border-[#b9c0cb]/60 bg-[#f8fafb] hover:bg-[#f0f8f9] text-[#4a5462]'}
+          ${error ? 'border-rose-400 bg-rose-50/40 text-rose-800' : value ? 'border-[#a8cf45] bg-[#f7fbe9] text-[#465b1c]' : 'border-[#b9c0cb]/60 bg-[#f8fafb] hover:bg-[#f0f8f9] text-[#4a5462]'}
           ${uploading ? 'opacity-60 pointer-events-none' : ''}
           ${disabled ? 'opacity-50 pointer-events-none' : ''}
         `}>
@@ -130,6 +132,13 @@ export function FormFieldUpload({
           </button>
         )}
       </div>
+
+      {error && (
+        <p className="text-[11px] text-rose-600 font-medium flex items-center gap-1 animate-in fade-in duration-150">
+          <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+          <span>{error}</span>
+        </p>
+      )}
 
       <ConfirmDeleteFileModal
         isOpen={showConfirmDelete}

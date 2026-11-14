@@ -21,7 +21,6 @@ const {
 } = require('./modules/content');
 const solutionRouter = require('./modules/solutions/solution.routes');
 const hardwareRouter = require('./modules/hardware/hardware.routes');
-const hardwareSpecRoutes = require('./modules/hardware-specs/hardware-spec.routes');
 const schoolRoutes = require('./modules/schools/school.routes');
 const { licenseRoutes } = require('./modules/tech');
 const trainingRoutes = require('./modules/training/training.routes');
@@ -80,8 +79,6 @@ app.use('/api/v1/upload', uploadRouter);
 app.use('/api/v1/grades', gradeRoutes);
 app.use('/api/v1/solutions', solutionRouter);
 app.use('/api/v1/hardware', hardwareRouter);
-app.use('/api/v1/hardware-specs', hardwareSpecRoutes);
-app.use('/api/v1/specs', hardwareSpecRoutes);
 app.use('/api/v1/l0-categories', l0categoryRoutes);
 app.use('/api/v1/licenses', licenseRoutes);
 app.use('/api/v1/tech/licenses', licenseRoutes);

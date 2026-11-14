@@ -5,6 +5,8 @@ const { protect } = require('../../core/auth');
 
 // Public/Read-Only routes
 router.get('/', schoolController.getSchools);
+router.get('/core', schoolController.getCoreSchools);
+router.get('/core/:projectId', schoolController.getCoreSchools);
 router.get('/summary', schoolController.getProjectSchoolProgress);
 router.get('/execution', schoolController.getProjectSchoolsExecution);
 router.get('/engineer/:engineerId', schoolController.getFieldEngineerSchools);

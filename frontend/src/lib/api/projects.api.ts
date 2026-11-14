@@ -28,10 +28,18 @@ function normalizeProject(p: any): IProject {
   const name = p.projectName || p.title || 'Untitled Project';
 
   return {
+    ...p,
     _id: p._id || p.id || p.projectId || '',
-    projectId: code,
+    projectId: p.projectId || code,
     projectName: name,
     title: name,
+    email: p.email || '',
+    phone: p.phone || '',
+    address: p.address || '',
+    country: p.country || '',
+    numberOfSchools: p.numberOfSchools !== undefined ? Number(p.numberOfSchools) : undefined,
+    numberOfLicenses: p.numberOfLicenses !== undefined ? Number(p.numberOfLicenses) : undefined,
+    schools: p.schools || [],
     description: p.description || p.purpose || '',
     status: p.status || (p.isActive ? 'ACTIVE' : 'ARCHIVED'),
     projectManager: p.projectManager,

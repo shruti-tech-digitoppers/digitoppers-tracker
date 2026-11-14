@@ -126,8 +126,8 @@ const requestCounterSchema = new mongoose.Schema({
   seq: { type: Number, default: 0 }
 }, { timestamps: true });
 
-const ProjectRequest = mongoose.models.ProjectRequest || mongoose.model('ProjectRequest', projectRequestSchema, 'projectrequests');
-const ProjectRequestCounter = mongoose.models.ProjectRequestCounter || mongoose.model('ProjectRequestCounter', requestCounterSchema, 'projectrequestcounters');
+const ProjectRequest = mongoose.models.ProjectRequest || mongoose.model('ProjectRequest', projectRequestSchema, 'project_requests');
+const ProjectRequestCounter = mongoose.models.ProjectRequestCounter || mongoose.model('ProjectRequestCounter', requestCounterSchema, 'project_request_counters');
 
 ProjectRequest.ProjectRequest = ProjectRequest;
 ProjectRequest.ProjectRequestCounter = ProjectRequestCounter;

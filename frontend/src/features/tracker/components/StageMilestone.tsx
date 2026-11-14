@@ -53,7 +53,7 @@ export function StageMilestone({
             {orderNumber}
           </span>
           <span className={`text-[9.5px] font-heading font-black uppercase tracking-wider ${theme.badgeText}`}>
-            Phase {orderNumber}
+            {(stage.type || 'STAGE').toUpperCase()} {stage.order || orderNumber}
           </span>
           {stage.status === 'ON_HOLD' && (
             <span className="px-1.5 py-0.2 rounded-full bg-orange-500 text-white font-mono text-[8px] font-black uppercase animate-pulse shadow-2xs flex items-center gap-1">

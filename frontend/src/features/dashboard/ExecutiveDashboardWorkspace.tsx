@@ -223,8 +223,7 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
     const uid = String(user._id || (user as any).id || '');
     const uName = (user.name || '').toLowerCase().trim();
     const uEmail = (user.email || '').toLowerCase().trim();
-    const uCode = ((user as any).employeeCode || '').toLowerCase().trim();
-
+    
     // 1. Project Manager check
     if (project.projectManager) {
       if (typeof project.projectManager === 'object') {
@@ -232,18 +231,15 @@ export function ExecutiveDashboardWorkspace({ hideSidePanel = false }: Executive
         const pmId = String(pm._id || pm.id || '');
         const pmName = (pm.name || '').toLowerCase().trim();
         const pmEmail = (pm.email || '').toLowerCase().trim();
-        const pmCode = (pm.employeeCode || '').toLowerCase().trim();
-        if (pmId && pmId === uid) return true;
+                if (pmId && pmId === uid) return true;
         if (uEmail && pmEmail && pmEmail === uEmail) return true;
         if (uName && pmName && (pmName === uName || pmName.includes(uName) || uName.includes(pmName))) return true;
-        if (uCode && pmCode && pmCode === uCode) return true;
-      } else if (typeof project.projectManager === 'string') {
+              } else if (typeof project.projectManager === 'string') {
         const pmStr = project.projectManager.toLowerCase().trim();
         if (project.projectManager === uid) return true;
         if (pmStr === uName || pmStr.includes(uName) || uName.includes(pmStr)) return true;
         if (pmStr === uEmail) return true;
-        if (uCode && pmStr === uCode) return true;
-      }
+              }
     }
 
     // 2. Project Members / Team

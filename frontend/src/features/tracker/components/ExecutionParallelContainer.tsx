@@ -69,10 +69,10 @@ export function ExecutionParallelContainer({
         {/* Stage Number Tag */}
         <div className="flex items-center gap-1 mb-1.5 flex-wrap justify-center">
           <span className={`flex items-center justify-center w-4 h-4 rounded-full text-[9px] font-mono font-bold border ${theme.numberBg} ${theme.numberText} ${theme.numberBorder}`}>
-            04
+            {executionStage.order || 4}
           </span>
           <span className={`font-heading text-[9.5px] font-black uppercase tracking-wider ${theme.badgeText}`}>
-            Execution Stage
+            {(executionStage.type || 'STAGE').toUpperCase()} {executionStage.order || 4}
           </span>
           {inProgressStreams.length >= 2 && (
             <span className="px-1.5 py-0.2 rounded-full bg-[#51a8b1] text-white font-mono text-[8px] font-black uppercase animate-pulse shadow-2xs flex items-center gap-1">

@@ -63,7 +63,7 @@ class ActivityService {
 
     const [activities, total] = await Promise.all([
       Activity.find(filter)
-        .populate('actor', 'name email employeeCode department role designation')
+        .populate('actor', 'name email department role designation')
 
         .sort({ createdAt: -1 })
         .skip(skip)
@@ -143,7 +143,7 @@ class ActivityService {
 
     const [activities, total] = await Promise.all([
       Activity.find(filter)
-        .populate('actor', 'name email employeeCode department role designation')
+        .populate('actor', 'name email department role designation')
 
         .sort({ createdAt: -1 })
         .skip(skip)

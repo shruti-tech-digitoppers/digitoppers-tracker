@@ -11,7 +11,6 @@ import {
   ChevronDown, 
   ChevronUp, 
   User, 
-  Lock, 
   Layers, 
   PlayCircle,
   Cpu,
@@ -108,6 +107,7 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
           headerBg: 'bg-gradient-to-r from-orange-500 to-amber-500 animate-pulse',
           label: 'On Hold'
         };
+      case 'BLOCKED':
       case 'CANCELLED':
         return {
           badgeBg: 'bg-rose-50 text-rose-700 border-rose-200',
@@ -184,7 +184,6 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
           (currentAssigneeId && (
             e._id === currentAssigneeId ||
             (e as any).id === currentAssigneeId ||
-            e.employeeCode === currentAssigneeId ||
             e.phone === currentAssigneeId
           )) ||
           (assigneeObj?.email && e.email === assigneeObj.email) ||
@@ -194,7 +193,7 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
 
   const rawAssigneeName = assigneeObj?.name || matchedEmp?.name || null;
   const currentAssigneeName =
-    typeof rawAssigneeName === 'string' && rawAssigneeName.trim() !== '' && rawAssigneeName.toLowerCase() !== 'unassigned'
+    typeof rawAssigneeName === 'string' && rawAssigneeName.trim() !== '' && rawAssigneeName.toLowerCase() !== 'unassigned' && rawAssigneeName.toLowerCase() !== 'assigned pm'
       ? rawAssigneeName.trim()
       : null;
 
@@ -225,8 +224,8 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
         className={`
           relative w-52 rounded-xl transition-all duration-200 select-none text-left
           border shadow-xs overflow-hidden
-          ${node.status === 'ON_HOLD' ? 'border-orange-400 bg-orange-50/20 ring-1 ring-orange-400/40' : node.status === 'IN_PROGRESS' ? 'border-[#51a8b1] ring-1 ring-[#51a8b1]/30' : cardBgClass}
-          ${node.status === 'ON_HOLD' ? 'border-orange-400' : cardBorderClass}
+          ${node.status === 'ON_HOLD' ? 'border-orange-400 bg-orange-50/20 ring-1 ring-orange-400/40' : (node.status === 'BLOCKED' || node.status === 'CANCELLED') ? 'border-rose-400 bg-rose-50/20 ring-1 ring-rose-400/40' : node.status === 'IN_PROGRESS' ? 'border-[#51a8b1] ring-1 ring-[#51a8b1]/30' : cardBgClass}
+          ${node.status === 'ON_HOLD' ? 'border-orange-400' : (node.status === 'BLOCKED' || node.status === 'CANCELLED') ? 'border-rose-400' : cardBorderClass}
           ${isClickable ? 'cursor-pointer' : 'cursor-default'}
           ${isGateLocked ? 'opacity-70 saturate-50' : isClickable ? 'hover:shadow-md hover:-translate-y-0.5' : ''}
         `}
@@ -239,18 +238,19 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
           {/* Header Row: Stage/Task Theme Badge + Status Badge */}
           <div className="flex items-center justify-between gap-1">
             <div className="flex items-center gap-1 min-w-0">
-              {streamCfg ? (
-                <span className={`inline-flex items-center gap-1 text-[9px] font-bold px-1.5 py-0.5 rounded border ${streamCfg.badgeCls}`}>
-                  {streamCfg.icon}
-                  <span className="truncate">{streamType}</span>
-                </span>
-              ) : isStageRoot ? (
+              {isStageRoot ? (
                 <span className={`font-heading font-black text-[9px] px-1.5 py-0.5 rounded border ${stageTheme.badgeBg} ${stageTheme.badgeText} ${stageTheme.badgeBorder}`}>
-                  PHASE {orderNumber || node.order || stageTheme.stageNumber}
+                  {(node.type || 'STAGE').toUpperCase()} {node.order || orderNumber || stageTheme.stageNumber}
+                </span>
+              ) : streamCfg && level === 1 ? (
+                <span className={`inline-flex items-center gap-1 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded border ${streamCfg.badgeCls}`}>
+                  {streamCfg.icon}
+                  <span>{(node.type || 'SUBSTAGE').toUpperCase()} {node.order || orderNumber || 1}</span>
                 </span>
               ) : (
-                <span className={`font-mono text-[9px] font-bold px-1.5 py-0.5 rounded border ${stageTheme.taskBadgeBg} ${stageTheme.taskBadgeText} ${stageTheme.taskBadgeBorder}`}>
-                  TASK #{orderNumber || node.order || 1}
+                <span className={`inline-flex items-center gap-1 font-mono text-[9px] font-bold px-1.5 py-0.5 rounded border ${streamCfg ? streamCfg.badgeCls : `${stageTheme.taskBadgeBg} ${stageTheme.taskBadgeText} ${stageTheme.taskBadgeBorder}`}`}>
+                  {streamCfg ? streamCfg.icon : null}
+                  <span>TASK {orderNumber || node.order || 1}</span>
                 </span>
               )}
             </div>
@@ -267,13 +267,6 @@ export const MindmapNode = React.memo<MindmapNodeProps>(function MindmapNode({
             {node.name}
           </h4>
 
-          {/* Quality / Dependency Gate Alert Banner */}
-          {isGateLocked && (
-            <div className="bg-amber-50 border border-amber-200 text-amber-800 px-1.5 py-0.5 rounded text-[9px] flex items-center gap-1 font-semibold">
-              <Lock className="w-2.5 h-2.5 text-amber-600 flex-shrink-0" />
-              <span>Gate Locked (Awaiting pre-reqs)</span>
-            </div>
-          )}
 
           {/* Progress bar if node has sub-tasks */}
           {hasChildren && (

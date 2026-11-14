@@ -16,7 +16,6 @@ const DEMO_USERS = [
     designation: 'CEO',
     email: 'growth@digitoppers.com',
     password: 'Digitoppers@123',
-    code: 'EMP001',
     badgeColor: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
     borderColor: 'hover:border-amber-400/60',
     iconBg: 'bg-gradient-to-tr from-amber-600 to-amber-400 text-white',
@@ -29,7 +28,6 @@ const DEMO_USERS = [
     designation: 'CTO',
     email: 'tech@digitoppers.com',
     password: 'Digitoppers@123',
-    code: 'EMP003',
     badgeColor: 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30',
     borderColor: 'hover:border-cyan-400/60',
     iconBg: 'bg-gradient-to-tr from-cyan-600 to-teal-400 text-white',
@@ -42,7 +40,6 @@ const DEMO_USERS = [
     designation: 'Associate PM',
     email: 'soumay@digitoppers.com',
     password: 'Digitoppers@123',
-    code: 'EMP005',
     badgeColor: 'bg-lime-500/20 text-lime-300 border-lime-500/30',
     borderColor: 'hover:border-lime-400/60',
     iconBg: 'bg-gradient-to-tr from-emerald-600 to-lime-400 text-white',
@@ -55,7 +52,6 @@ const DEMO_USERS = [
     designation: 'Tech Intern',
     email: 'shruti@digitoppers.com',
     password: 'Digitoppers@123',
-    code: 'EMP013',
     badgeColor: 'bg-sky-500/20 text-sky-300 border-sky-500/30',
     borderColor: 'hover:border-sky-400/60',
     iconBg: 'bg-gradient-to-tr from-indigo-600 to-sky-400 text-white',
@@ -99,9 +95,6 @@ export function QuickDemoAccounts({ onSelectAccount, disabled = false }: QuickDe
               <div className="flex items-center justify-between gap-1">
                 <span className={`inline-flex items-center text-[9.5px] font-bold px-1.5 py-0.5 rounded border ${user.badgeColor}`}>
                   {user.designation}
-                </span>
-                <span className="text-[9.5px] font-mono text-slate-400">
-                  {user.code}
                 </span>
               </div>
 

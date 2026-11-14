@@ -1,115 +1,87 @@
-const Solution = require('./solution.model');
+const coreApi = require('../../services/core-api.service');
 
 /**
- * Get all solutions from Database
+ * Get all solutions exclusively from Core Backend API (Single Source of Truth)
  */
 const getSolutions = async (req, res) => {
   try {
-    const includeInactive = req.query.includeInactive === 'true';
-    const filter = includeInactive ? {} : { isActive: true };
-    const solutions = await Solution.find(filter).sort({ index: 1, createdAt: 1 });
-
-    res.status(200).json({
+    const coreSolutions = await coreApi.getSolutions(req.query);
+    return res.status(200).json({
       success: true,
-      data: solutions,
+      source: 'CORE_BACKEND',
+      count: Array.isArray(coreSolutions) ? coreSolutions.length : 0,
+      data: coreSolutions || [],
     });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.status || 500).json({ success: false, message: err.message });
   }
 };
 
 /**
- * Get solution by ID
+ * Get solution by ID or Key exclusively from Core Backend API
  */
 const getSolutionById = async (req, res) => {
   try {
-    const solution = await Solution.findById(req.params.id);
-    if (!solution) {
-      return res.status(404).json({ success: false, message: 'Solution not found' });
+    const coreSol = await coreApi.getSolutionById(req.params.id);
+    if (!coreSol) {
+      return res.status(404).json({ success: false, message: 'Solution not found in Core Backend' });
     }
-    res.status(200).json({ success: true, data: solution });
+    return res.status(200).json({
+      success: true,
+      source: 'CORE_BACKEND',
+      data: coreSol,
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.status || 500).json({ success: false, message: err.message });
   }
 };
 
 /**
- * Create a new dynamic solution
+ * Create solution on Core Backend API
  */
 const createSolution = async (req, res) => {
   try {
-    const { key, label, name, icon, desc, description, index, isActive } = req.body;
-    
-    if (!key || (!label && !name)) {
-      return res.status(400).json({ success: false, message: 'Key and label/name are required' });
-    }
-
-    const existing = await Solution.findOne({ key: key.trim().toUpperCase() });
-    if (existing) {
-      return res.status(409).json({ success: false, message: `Solution with key '${key}' already exists` });
-    }
-
-    const solution = await Solution.create({
-      key: key.trim().toUpperCase(),
-      label: label || name,
-      name: name || label,
-      icon: icon || '🔬',
-      desc: desc || description || '',
-      description: description || desc || '',
-      index: index !== undefined ? Number(index) : 0,
-      isActive: isActive !== undefined ? isActive : true,
+    const created = await coreApi.createSolution(req.body);
+    const data = created.data || created.solution || created;
+    return res.status(201).json({
+      success: true,
+      message: 'Solution created successfully in Core Backend',
+      data,
     });
-
-    res.status(201).json({ success: true, data: solution });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.status || 500).json({ success: false, message: err.message });
   }
 };
 
 /**
- * Update solution
+ * Update solution on Core Backend API
  */
 const updateSolution = async (req, res) => {
   try {
-    const updateData = { ...req.body };
-    if (updateData.key) {
-      updateData.key = updateData.key.trim().toUpperCase();
-    }
-    if (updateData.label && !updateData.name) {
-      updateData.name = updateData.label;
-    }
-    if (updateData.name && !updateData.label) {
-      updateData.label = updateData.name;
-    }
-
-    const solution = await Solution.findByIdAndUpdate(
-      req.params.id,
-      updateData,
-      { new: true, runValidators: true }
-    );
-
-    if (!solution) {
-      return res.status(404).json({ success: false, message: 'Solution not found' });
-    }
-
-    res.status(200).json({ success: true, data: solution });
+    const updated = await coreApi.updateSolution(req.params.id, req.body);
+    const data = updated.data || updated.solution || updated;
+    return res.status(200).json({
+      success: true,
+      message: 'Solution updated successfully in Core Backend',
+      data,
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.status || 500).json({ success: false, message: err.message });
   }
 };
 
 /**
- * Delete solution
+ * Delete solution on Core Backend API
  */
 const deleteSolution = async (req, res) => {
   try {
-    const solution = await Solution.findByIdAndDelete(req.params.id);
-    if (!solution) {
-      return res.status(404).json({ success: false, message: 'Solution not found' });
-    }
-    res.status(200).json({ success: true, message: 'Solution deleted successfully' });
+    await coreApi.deleteSolution(req.params.id);
+    return res.status(200).json({
+      success: true,
+      message: 'Solution deleted successfully in Core Backend',
+    });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    res.status(err.status || 500).json({ success: false, message: err.message });
   }
 };
 

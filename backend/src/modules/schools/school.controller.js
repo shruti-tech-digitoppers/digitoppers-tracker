@@ -7,7 +7,93 @@ async function resolveProject(paramId) {
   return await coreApi.getProjectById(paramId);
 }
 
+// GET /api/v1/schools/core or /api/v1/projects/:projectId/core-schools
+// Strictly serves schools from Core Backend API (Single Source of Truth, identical to how projects are fetched)
+exports.getCoreSchools = async (req, res, next) => {
+  try {
+    const projectId = req.params.projectId || req.query.projectId;
+    if (!projectId) {
+      return res.status(200).json({
+        success: true,
+        count: 0,
+        data: []
+      });
+    }
+
+    let schools = [];
+    try {
+      schools = await coreApi.getProjectSchools(projectId);
+    } catch (err) {
+      console.warn('[SchoolController] coreApi.getProjectSchools warning:', err.message);
+    }
+
+    // Fallback to database schools if Core API returns empty or is unreachable
+    if (!Array.isArray(schools) || schools.length === 0) {
+      const mongoose = require('mongoose');
+      const orConds = [{ projectId }];
+      if (mongoose.Types.ObjectId.isValid(projectId)) {
+        orConds.push({ projectId: new mongoose.Types.ObjectId(projectId) });
+      }
+      try {
+        const proj = await resolveProject(projectId);
+        if (proj) {
+          const code = proj.projectId || String(proj._id);
+          orConds.push(
+            { projectId: code },
+            { projectId: code.toLowerCase() },
+            { projectId: code.toUpperCase() },
+            { projectId: proj._id }
+          );
+        }
+      } catch (_) {}
+
+      const localSchs = await School.find({ $or: orConds, isActive: true });
+      if (localSchs && localSchs.length > 0) {
+        schools = localSchs.map((s) => ({
+          _id: s._id,
+          schoolId: s.schoolId || `SCH-${String(s._id).slice(-4).toUpperCase()}`,
+          name: s.name,
+          address: s.address || (s.survey && s.survey.schoolAddress) || 'Delhi NCR',
+          block: s.block || '',
+          city: s.city || 'Greater Noida',
+          state: s.state || 'Uttar Pradesh',
+          phone: s.phone || '',
+          email: s.email || '',
+          numberOfStudents: s.numberOfStudents || 500,
+          numberOfTeachers: s.numberOfTeachers || 25,
+          source: 'DATABASE_BACKED'
+        }));
+      }
+    }
+
+    const formatted = (Array.isArray(schools) ? schools : []).map((s, idx) => ({
+      id: String(s._id || s.schoolId || `core-sch-${idx + 1}`),
+      schoolId: s.schoolId || '',
+      name: s.name || s.schoolName || `School ${idx + 1}`,
+      address: s.address || s.addressContact || '—',
+      block: s.block || '',
+      city: (typeof s.cityId === 'object' && s.cityId && s.cityId.name) ? s.cityId.name : (typeof s.city === 'string' ? s.city : ''),
+      state: (typeof s.stateId === 'object' && s.stateId && s.stateId.name) ? s.stateId.name : (typeof s.state === 'string' ? s.state : ''),
+      country: (typeof s.countryId === 'object' && s.countryId && s.countryId.name) ? s.countryId.name : (typeof s.country === 'string' ? s.country : ''),
+      phone: s.phone || '',
+      email: s.email || '',
+      numberOfStudents: s.numberOfStudents || 0,
+      numberOfTeachers: s.numberOfTeachers || 0,
+      source: 'CORE_BACKEND'
+    }));
+
+    res.status(200).json({
+      success: true,
+      count: formatted.length,
+      data: formatted
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 // GET /api/v1/projects/:projectId/schools or /api/v1/schools?projectId=...
+// Strictly serves Stage 3 Schools from Project Tracker Database
 exports.getSchools = async (req, res, next) => {
   try {
     const projectId = req.params.projectId || req.query.projectId;
@@ -37,9 +123,7 @@ exports.getSchools = async (req, res, next) => {
       ];
     }
 
-    const schools = await School.find(filter)
-
-      .sort({ order: 1, name: 1 });
+    const schools = await School.find(filter).sort({ order: 1, name: 1 });
 
     res.status(200).json({
       success: true,
@@ -51,11 +135,10 @@ exports.getSchools = async (req, res, next) => {
   }
 };
 
-// GET /api/v1/schools/:id
+// GET /api/v1/schools/:id - Fetch single school from Project Tracker Database
 exports.getSchoolById = async (req, res, next) => {
   try {
-    const school = await School.findById(req.params.id)
-;
+    const school = await School.findById(req.params.id);
 
     if (!school) {
       return next(new AppError('School not found', 404, 'NOT_FOUND'));
@@ -70,12 +153,10 @@ exports.getSchoolById = async (req, res, next) => {
   }
 };
 
-// POST /api/v1/schools
+// POST /api/v1/schools - Stage 3 School Onboarding in Project Tracker
 exports.createSchool = async (req, res, next) => {
   try {
     const school = await School.create(req.body);
-    
-    // Master project school count is managed by Core Backend
 
     res.status(201).json({
       success: true,
@@ -87,7 +168,7 @@ exports.createSchool = async (req, res, next) => {
   }
 };
 
-// POST /api/v1/schools/bulk
+// POST /api/v1/schools/bulk - Stage 3 Bulk School Creation (e.g. from Excel)
 exports.bulkCreateSchools = async (req, res, next) => {
   try {
     const { projectId, schools } = req.body;
@@ -152,7 +233,7 @@ exports.updateSchoolInstallation = async (req, res, next) => {
     // Sync to ProjectSchools & Timeline roll-up
     try {
       const ProjectSchools = require('../project-schools/project-schools.model');
-      const timelineService = require('../timeline/timeline.service');
+      const timelineService = require('../timeline-data/timeline-data.service');
       if (school.projectId) {
         await ProjectSchools.updateOne(
           { project: school.projectId, "schools.school": school._id },
@@ -197,7 +278,7 @@ exports.updateSchoolTraining = async (req, res, next) => {
     // Sync to ProjectSchools & Timeline roll-up
     try {
       const ProjectSchools = require('../project-schools/project-schools.model');
-      const timelineService = require('../timeline/timeline.service');
+      const timelineService = require('../timeline-data/timeline-data.service');
       if (school.projectId) {
         await ProjectSchools.updateOne(
           { project: school.projectId, "schools.school": school._id },

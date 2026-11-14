@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState } from 'react';
-import { extractEffectiveHardwareItems, extractEffectiveSchools, DEFAULT_HARDWARE_ITEMS } from '../utils/formHelpers';
+import { extractEffectiveHardwareItems, extractEffectiveSchools } from '../utils/formHelpers';
 import { IUser } from '../../../types/auth';
 import { SearchableEmployeeSelect } from '../../common/SearchableEmployeeSelect';
 import {
@@ -226,9 +226,8 @@ export function HardwareStockCheck({
         if (NON_HARDWARE_KEYS.has(k)) return;
         const totalQty = Number(v.quantity) || 1;
         const existing = savedItems[k] || {};
-        const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === k || d.label === k);
         entriesMap[k] = resolveItem(existing, totalQty, k, {
-          itemName: defObj?.label || k,
+          itemName: v?.itemName || k,
           specNotes: existing.specNotes !== undefined ? existing.specNotes : (v.specNotes || ''),
           schoolBreakdown: v.schoolBreakdown || existing.schoolBreakdown || []
         });
@@ -240,9 +239,8 @@ export function HardwareStockCheck({
       if (NON_HARDWARE_KEYS.has(k) || entriesMap[k]) return;
       if (typeof v !== 'object' || v === null || Array.isArray(v)) return;
       const totalQty = Number(v.quantity) || 1;
-      const defObj = DEFAULT_HARDWARE_ITEMS.find((d) => d.key === k || d.label === k);
       entriesMap[k] = resolveItem(v, totalQty, k, {
-        itemName: defObj?.label || k,
+        itemName: v?.itemName || k,
         specNotes: v.specNotes || '',
         schoolBreakdown: v.schoolBreakdown || []
       });
@@ -695,282 +693,279 @@ export function HardwareStockCheck({
   return (
     <div className="space-y-3 font-sans">
       <div className="space-y-3">
-          {activeEntries.map(([itemKey, itemData]: [string, any]) => {
-            const totalQty = Number(itemData.quantity) || 1;
-            const mode: StockMode = itemData.stockDecision || 'IN_STOCK';
-            const splits: HardwareStockSplit[] = itemData.splits || [];
+        {activeEntries.map(([itemKey, itemData]: [string, any]) => {
+          const totalQty = Number(itemData.quantity) || 1;
+          const mode: StockMode = itemData.stockDecision || 'IN_STOCK';
+          const splits: HardwareStockSplit[] = itemData.splits || [];
 
-            const currentInStock = splits
-              .filter((s) => s.mode === 'IN_STOCK')
-              .reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
-            const currentPurchase = splits
-              .filter((s) => s.mode === 'PURCHASE_REQUIRED')
-              .reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
-            const totalAllocated = currentInStock + currentPurchase;
+          const currentInStock = splits
+            .filter((s) => s.mode === 'IN_STOCK')
+            .reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
+          const currentPurchase = splits
+            .filter((s) => s.mode === 'PURCHASE_REQUIRED')
+            .reduce((acc, s) => acc + (Number(s.quantity) || 0), 0);
+          const totalAllocated = currentInStock + currentPurchase;
 
-            return (
-              <div
-                key={itemKey}
-                className="p-3.5 rounded-2xl border border-[#51a8b1]/35 bg-white space-y-3 shadow-xs"
-              >
-                {/* Product Header Row with Clean Dropdown on Right */}
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                  <div className="min-w-0 flex-1">
-                    <h4 className="text-xs sm:text-[13px] font-bold text-[#333333] font-heading flex items-center gap-1.5 truncate">
-                      <Layers className="w-3.5 h-3.5 text-[#51a8b1]" />
-                      {DEFAULT_HARDWARE_ITEMS.find((d) => d.key === itemKey || d.label === itemKey)?.label || itemKey}
-                    </h4>
-                    <div className="flex items-center gap-1.5 mt-1 max-w-xl">
-                      <span className="text-[10.5px] font-bold text-[#556987] shrink-0">Spec:</span>
-                      <input
-                        type="text"
-                        disabled={disabled}
-                        value={itemData.specNotes || ''}
-                        onChange={(e) => updateSpecNotes(itemKey, e.target.value, totalQty, itemData)}
-                        placeholder="Enter item specifications..."
-                        className="w-full text-[11px] text-[#333333] bg-[#f8fafb] hover:bg-white focus:bg-white border border-[#b9c0cb]/60 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:border-[#51a8b1] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                      />
-                    </div>
-                    {itemData.schoolBreakdown && itemData.schoolBreakdown.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-                        <span className="text-[9.5px] font-bold text-[#556987] flex items-center gap-1">
-                          <Building2 className="w-3 h-3 text-[#51a8b1]" /> School Allocation:
-                        </span>
-                        {itemData.schoolBreakdown.map((sb: any, idx: number) => (
-                          <span
-                            key={idx}
-                            className="inline-flex items-center gap-1 text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-[#f8fafb] border border-[#b9c0cb]/40 text-[#333333]"
-                          >
-                            <span className="font-bold text-[#1e293b]">{sb.schoolName || sb.schoolId}:</span>
-                            <strong className="text-[#3a7d84]">{sb.quantity} Units</strong>
-                            {sb.serialNotes && <span className="text-slate-500 italic">({sb.serialNotes})</span>}
-                            {sb.solutionName && (
-                              <span className="text-purple-700 bg-purple-50 px-1 py-0.2 rounded text-[8.5px] font-semibold border border-purple-200/50">
-                                {sb.solutionName}
-                              </span>
-                            )}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Right: Total Units Badge + Clean Dropdown */}
-                  <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
-                    <span className="text-[10.5px] font-bold text-[#3a7d84] bg-[#f0f8f9] px-2.5 py-1.5 rounded-xl border border-[#b6e0e4]">
-                      Required: {totalQty} Units
-                    </span>
-
-                    <select
+          return (
+            <div
+              key={itemKey}
+              className="p-3.5 rounded-2xl border border-[#51a8b1]/35 bg-white space-y-3 shadow-xs"
+            >
+              {/* Product Header Row with Clean Dropdown on Right */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                <div className="min-w-0 flex-1">
+                  <h4 className="text-xs sm:text-[13px] font-bold text-[#333333] font-heading flex items-center gap-1.5 truncate">
+                    <Layers className="w-3.5 h-3.5 text-[#51a8b1]" />
+                    {itemData?.itemName || itemKey}
+                  </h4>
+                  <div className="flex items-center gap-1.5 mt-1 max-w-xl">
+                    <span className="text-[10.5px] font-bold text-[#556987] shrink-0">Spec:</span>
+                    <input
+                      type="text"
                       disabled={disabled}
-                      value={mode}
-                      onChange={(e) => handleModeChange(itemKey, e.target.value as StockMode, totalQty, itemData)}
-                      className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer focus:outline-none focus:ring-1 ${
-                        mode === 'IN_STOCK'
-                          ? 'border-[#a8cf45] bg-[#f7fbe9] text-[#465b1c] focus:ring-[#759724]'
-                          : mode === 'PURCHASE_REQUIRED'
+                      value={itemData.specNotes || ''}
+                      onChange={(e) => updateSpecNotes(itemKey, e.target.value, totalQty, itemData)}
+                      placeholder="Enter item specifications..."
+                      className="w-full text-[11px] text-[#333333] bg-[#f8fafb] hover:bg-white focus:bg-white border border-[#b9c0cb]/60 rounded-lg px-2.5 py-1 focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:border-[#51a8b1] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                    />
+                  </div>
+                  {itemData.schoolBreakdown && itemData.schoolBreakdown.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                      <span className="text-[9.5px] font-bold text-[#556987] flex items-center gap-1">
+                        <Building2 className="w-3 h-3 text-[#51a8b1]" /> School Allocation:
+                      </span>
+                      {itemData.schoolBreakdown.map((sb: any, idx: number) => (
+                        <span
+                          key={idx}
+                          className="inline-flex items-center gap-1 text-[9.5px] font-medium px-2 py-0.5 rounded-md bg-[#f8fafb] border border-[#b9c0cb]/40 text-[#333333]"
+                        >
+                          <span className="font-bold text-[#1e293b]">{sb.schoolName || sb.schoolId}:</span>
+                          <strong className="text-[#3a7d84]">{sb.quantity} Units</strong>
+                          {sb.serialNotes && <span className="text-slate-500 italic">({sb.serialNotes})</span>}
+                          {sb.solutionName && (
+                            <span className="text-purple-700 bg-purple-50 px-1 py-0.2 rounded text-[8.5px] font-semibold border border-purple-200/50">
+                              {sb.solutionName}
+                            </span>
+                          )}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Right: Total Units Badge + Clean Dropdown */}
+                <div className="flex items-center gap-2 flex-shrink-0 self-start sm:self-center">
+                  <span className="text-[10.5px] font-bold text-[#3a7d84] bg-[#f0f8f9] px-2.5 py-1.5 rounded-xl border border-[#b6e0e4]">
+                    Required: {totalQty} Units
+                  </span>
+
+                  <select
+                    disabled={disabled}
+                    value={mode}
+                    onChange={(e) => handleModeChange(itemKey, e.target.value as StockMode, totalQty, itemData)}
+                    className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border transition cursor-pointer focus:outline-none focus:ring-1 ${mode === 'IN_STOCK'
+                        ? 'border-[#a8cf45] bg-[#f7fbe9] text-[#465b1c] focus:ring-[#759724]'
+                        : mode === 'PURCHASE_REQUIRED'
                           ? 'border-[#51a8b1] bg-[#f0f8f9] text-[#3a7d84] focus:ring-[#51a8b1]'
                           : 'border-purple-300 bg-purple-50/80 text-purple-800 focus:ring-purple-400'
                       }`}
-                    >
-                      <option value="IN_STOCK">📦 100% In Stock</option>
-                      <option value="PURCHASE_REQUIRED">🛒 100% Purchase</option>
-                      <option value="SPLIT">🔀 Split (Both)</option>
-                    </select>
-                  </div>
+                  >
+                    <option value="IN_STOCK">📦 100% In Stock</option>
+                    <option value="PURCHASE_REQUIRED">🛒 100% Purchase</option>
+                    <option value="SPLIT">🔀 Split (Both)</option>
+                  </select>
                 </div>
+              </div>
 
-                {/* Form Content: SPLIT vs SINGLE */}
-                {mode === 'SPLIT' ? (
-                  <div className="space-y-2.5 pt-1">
-                    {splits.map((split: HardwareStockSplit, splitIdx: number) => {
-                      const isStock = split.mode === 'IN_STOCK';
-                      return (
-                        <div
-                          key={split.id || splitIdx}
-                          className={`p-2.5 rounded-xl border transition ${
-                            isStock
-                              ? 'border-[#dfefa6] bg-[#f7fbe9]/30'
-                              : 'border-[#b6e0e4] bg-[#f0f8f9]/30'
+              {/* Form Content: SPLIT vs SINGLE */}
+              {mode === 'SPLIT' ? (
+                <div className="space-y-2.5 pt-1">
+                  {splits.map((split: HardwareStockSplit, splitIdx: number) => {
+                    const isStock = split.mode === 'IN_STOCK';
+                    return (
+                      <div
+                        key={split.id || splitIdx}
+                        className={`p-2.5 rounded-xl border transition ${isStock
+                            ? 'border-[#dfefa6] bg-[#f7fbe9]/30'
+                            : 'border-[#b6e0e4] bg-[#f0f8f9]/30'
                           } space-y-2`}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2">
-                              <select
+                      >
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <select
+                              disabled={disabled}
+                              value={split.mode}
+                              onChange={(e) =>
+                                updateSplitField(
+                                  itemKey,
+                                  splitIdx,
+                                  'mode',
+                                  e.target.value as 'IN_STOCK' | 'PURCHASE_REQUIRED',
+                                  totalQty,
+                                  itemData
+                                )
+                              }
+                              className={`text-xs font-bold px-2 py-1 rounded-lg border bg-white cursor-pointer ${isStock
+                                  ? 'border-[#a8cf45] text-[#465b1c]'
+                                  : 'border-[#51a8b1] text-[#3a7d84]'
+                                }`}
+                            >
+                              <option value="IN_STOCK">📦 In Stock</option>
+                              <option value="PURCHASE_REQUIRED">🛒 To Purchase</option>
+                            </select>
+
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-[10.5px] font-bold text-slate-600">Qty:</span>
+                              <input
+                                type="number"
+                                min="0"
                                 disabled={disabled}
-                                value={split.mode}
+                                value={split.quantity === 0 ? '' : split.quantity}
+                                placeholder="0"
                                 onChange={(e) =>
                                   updateSplitField(
                                     itemKey,
                                     splitIdx,
-                                    'mode',
-                                    e.target.value as 'IN_STOCK' | 'PURCHASE_REQUIRED',
+                                    'quantity',
+                                    e.target.value,
                                     totalQty,
                                     itemData
                                   )
                                 }
-                                className={`text-xs font-bold px-2 py-1 rounded-lg border bg-white cursor-pointer ${
-                                  isStock
-                                    ? 'border-[#a8cf45] text-[#465b1c]'
-                                    : 'border-[#51a8b1] text-[#3a7d84]'
-                                }`}
-                              >
-                                <option value="IN_STOCK">📦 In Stock</option>
-                                <option value="PURCHASE_REQUIRED">🛒 To Purchase</option>
-                              </select>
-
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[10.5px] font-bold text-slate-600">Qty:</span>
-                                <input
-                                  type="number"
-                                  min="0"
-                                  disabled={disabled}
-                                  value={split.quantity === 0 ? '' : split.quantity}
-                                  placeholder="0"
-                                  onChange={(e) =>
-                                    updateSplitField(
-                                      itemKey,
-                                      splitIdx,
-                                      'quantity',
-                                      e.target.value,
-                                      totalQty,
-                                      itemData
-                                    )
-                                  }
-                                  className="w-18 border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-center bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#51a8b1]"
-                                />
-                                <span className="text-[10px] text-slate-500 font-medium">units</span>
-                              </div>
+                                className="w-18 border border-slate-200 rounded-lg px-2 py-1 text-xs font-bold text-center bg-white text-slate-800 focus:outline-none focus:ring-1 focus:ring-[#51a8b1]"
+                              />
+                              <span className="text-[10px] text-slate-500 font-medium">units</span>
                             </div>
-
-                            {splits.length > 1 && (
-                              <button
-                                type="button"
-                                disabled={disabled}
-                                onClick={() => removeSplitEntry(itemKey, splitIdx, totalQty, itemData)}
-                                title="Remove this entry"
-                                className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            )}
                           </div>
 
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            <SearchableEmployeeSelect
+                          {splits.length > 1 && (
+                            <button
+                              type="button"
                               disabled={disabled}
-                              value={split.assignedTo || ''}
-                              onChange={(empId) =>
-                                updateSplitField(itemKey, splitIdx, 'assignedTo', empId, totalQty, itemData)
-                              }
-                              employees={employees}
-                              placeholder="Select Member to Assign..."
-                              align="left"
-                              className="bg-white"
-                            />
-
-                            <input
-                              type="text"
-                              disabled={disabled}
-                              value={split.notes || ''}
-                              onChange={(e) =>
-                                updateSplitField(itemKey, splitIdx, 'notes', e.target.value, totalQty, itemData)
-                              }
-                              placeholder={
-                                isStock
-                                  ? 'Warehouse location / serial notes'
-                                  : 'Vendor quote / purchase notes'
-                              }
-                              className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1]"
-                            />
-                          </div>
+                              onClick={() => removeSplitEntry(itemKey, splitIdx, totalQty, itemData)}
+                              title="Remove this entry"
+                              className="p-1 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                         </div>
-                      );
-                    })}
 
-                    <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
-                      <button
-                        type="button"
-                        disabled={disabled}
-                        onClick={() => addSplitEntry(itemKey, totalQty, itemData)}
-                        className="text-xs font-bold text-[#3a7d84] hover:text-[#2d6268] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-[#51a8b1]/50 bg-[#f0f8f9]/60 hover:bg-[#f0f8f9] transition cursor-pointer"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                        Add Allocation
-                      </button>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          <SearchableEmployeeSelect
+                            disabled={disabled}
+                            value={split.assignedTo || ''}
+                            onChange={(empId) =>
+                              updateSplitField(itemKey, splitIdx, 'assignedTo', empId, totalQty, itemData)
+                            }
+                            employees={employees}
+                            placeholder="Select Member to Assign..."
+                            align="left"
+                            className="bg-white"
+                          />
 
-                      <div className="text-[10.5px] font-medium text-slate-600">
-                        Total Allocated:{' '}
-                        <strong className="text-[#465b1c]">{currentInStock} In Stock</strong> +{' '}
-                        <strong className="text-[#3a7d84]">{currentPurchase} To Purchase</strong> ={' '}
-                        <strong>{totalAllocated}</strong> / {totalQty} Units
-                        {totalAllocated === totalQty ? (
-                          <span className="text-emerald-700 font-bold ml-1.5">✓ Matched</span>
-                        ) : totalAllocated < totalQty ? (
-                          <span className="text-amber-700 font-bold ml-1.5">
-                            ({totalQty - totalAllocated} remaining)
-                          </span>
-                        ) : (
-                          <span className="text-red-600 font-bold ml-1.5">
-                            (+{totalAllocated - totalQty} extra)
-                          </span>
-                        )}
+                          <input
+                            type="text"
+                            disabled={disabled}
+                            value={split.notes || ''}
+                            onChange={(e) =>
+                              updateSplitField(itemKey, splitIdx, 'notes', e.target.value, totalQty, itemData)
+                            }
+                            placeholder={
+                              isStock
+                                ? 'Warehouse location / serial notes'
+                                : 'Vendor quote / purchase notes'
+                            }
+                            className="w-full border border-slate-200 rounded-lg px-2.5 py-1.5 text-xs bg-white text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1]"
+                          />
+                        </div>
                       </div>
+                    );
+                  })}
+
+                  <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-slate-100">
+                    <button
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => addSplitEntry(itemKey, totalQty, itemData)}
+                      className="text-xs font-bold text-[#3a7d84] hover:text-[#2d6268] flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-dashed border-[#51a8b1]/50 bg-[#f0f8f9]/60 hover:bg-[#f0f8f9] transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Add Allocation
+                    </button>
+
+                    <div className="text-[10.5px] font-medium text-slate-600">
+                      Total Allocated:{' '}
+                      <strong className="text-[#465b1c]">{currentInStock} In Stock</strong> +{' '}
+                      <strong className="text-[#3a7d84]">{currentPurchase} To Purchase</strong> ={' '}
+                      <strong>{totalAllocated}</strong> / {totalQty} Units
+                      {totalAllocated === totalQty ? (
+                        <span className="text-emerald-700 font-bold ml-1.5">✓ Matched</span>
+                      ) : totalAllocated < totalQty ? (
+                        <span className="text-amber-700 font-bold ml-1.5">
+                          ({totalQty - totalAllocated} remaining)
+                        </span>
+                      ) : (
+                        <span className="text-red-600 font-bold ml-1.5">
+                          (+{totalAllocated - totalQty} extra)
+                        </span>
+                      )}
                     </div>
                   </div>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-100">
-                    <div className="space-y-1">
-                      <label className="block text-[9.5px] font-bold text-[#3a7d84]">
-                        Assigned {mode === 'IN_STOCK' ? `Warehouse Dispatch (${totalQty} units)` : `Procurement (${totalQty} units)`}
-                      </label>
-                      <select
-                        disabled={disabled}
-                        value={mode === 'IN_STOCK' ? (itemData.inStockAssignedTo || itemData.assignedTo || '') : (itemData.purchaseAssignedTo || itemData.assignedTo || '')}
-                        onChange={(e) => {
-                          const empId = e.target.value;
-                          if (mode === 'IN_STOCK') {
-                            updateSingleField(itemKey, 'inStockAssignedTo', empId, totalQty, itemData);
-                          } else {
-                            updateSingleField(itemKey, 'purchaseAssignedTo', empId, totalQty, itemData);
-                          }
-                        }}
-                        className="w-full border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white cursor-pointer"
-                      >
-                        <option value="">👤 Select Member to Assign</option>
-                        {employees.map((emp) => (
-                          <option key={emp._id} value={emp._id}>
-                            {emp.name} {emp.employeeCode ? `[${emp.employeeCode}]` : ''} ({(emp as any).globalRole || 'Employee'})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-[9.5px] font-bold text-[#4a5462]">
-                        {mode === 'IN_STOCK' ? 'Warehouse Dispatch Note' : 'Vendor & Procurement Note'}
-                      </label>
-                      <input
-                        type="text"
-                        disabled={disabled}
-                        value={mode === 'IN_STOCK' ? (itemData?.inStockNotes ?? '') : (itemData?.purchaseNotes ?? '')}
-                        onChange={(e) => {
-                          const noteField = mode === 'IN_STOCK' ? 'inStockNotes' : 'purchaseNotes';
-                          updateSingleField(itemKey, noteField, e.target.value, totalQty, itemData);
-                        }}
-                        className="w-full border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white"
-                        placeholder={mode === 'IN_STOCK' ? 'e.g. Stock in Central Warehouse Rack B-12' : 'e.g. Recommended Vendor ABC Systems'}
-                      />
-                    </div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2 border-t border-slate-100">
+                  <div className="space-y-1">
+                    <label className="block text-[9.5px] font-bold text-[#3a7d84]">
+                      Assigned {mode === 'IN_STOCK' ? `Warehouse Dispatch (${totalQty} units)` : `Procurement (${totalQty} units)`}
+                    </label>
+                    <select
+                      disabled={disabled}
+                      value={mode === 'IN_STOCK' ? (itemData.inStockAssignedTo || itemData.assignedTo || '') : (itemData.purchaseAssignedTo || itemData.assignedTo || '')}
+                      onChange={(e) => {
+                        const empId = e.target.value;
+                        if (mode === 'IN_STOCK') {
+                          updateSingleField(itemKey, 'inStockAssignedTo', empId, totalQty, itemData);
+                        } else {
+                          updateSingleField(itemKey, 'purchaseAssignedTo', empId, totalQty, itemData);
+                        }
+                      }}
+                      className="w-full border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white cursor-pointer"
+                    >
+                      <option value="">👤 Select Member to Assign</option>
+                      {employees.map((emp) => (
+                        <option key={emp._id} value={emp._id}>
+                          {emp.name} ({emp.email || (emp as any).globalRole || 'Employee'})
+                        </option>
+                      ))}
+                    </select>
                   </div>
-                )}
 
-                {/* If purchase or split, render PO and PI arrays */}
-                {(mode === 'PURCHASE_REQUIRED' || mode === 'SPLIT') && renderPoAndPiSection(itemKey, itemData)}
-              </div>
-            );
-          })}
-        </div>
+                  <div className="space-y-1">
+                    <label className="block text-[9.5px] font-bold text-[#4a5462]">
+                      {mode === 'IN_STOCK' ? 'Warehouse Dispatch Note' : 'Vendor & Procurement Note'}
+                    </label>
+                    <input
+                      type="text"
+                      disabled={disabled}
+                      value={mode === 'IN_STOCK' ? (itemData?.inStockNotes ?? '') : (itemData?.purchaseNotes ?? '')}
+                      onChange={(e) => {
+                        const noteField = mode === 'IN_STOCK' ? 'inStockNotes' : 'purchaseNotes';
+                        updateSingleField(itemKey, noteField, e.target.value, totalQty, itemData);
+                      }}
+                      className="w-full border border-slate-200 rounded-xl px-2.5 py-1.5 text-xs bg-[#f8fafb] text-[#333333] focus:outline-none focus:ring-1 focus:ring-[#51a8b1] focus:bg-white"
+                      placeholder={mode === 'IN_STOCK' ? 'e.g. Stock in Central Warehouse Rack B-12' : 'e.g. Recommended Vendor ABC Systems'}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* If purchase or split, render PO and PI arrays */}
+              {(mode === 'PURCHASE_REQUIRED' || mode === 'SPLIT') && renderPoAndPiSection(itemKey, itemData)}
+            </div>
+          );
+        })}
+      </div>
 
       {/* Summary Metrics Bar at Bottom */}
       <div className="p-3 bg-white border border-[#b6e0e4] rounded-2xl shadow-xs space-y-2">

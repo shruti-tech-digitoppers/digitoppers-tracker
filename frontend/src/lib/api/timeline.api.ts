@@ -46,7 +46,6 @@ function normalizeNode(n: any): ITimelineNode {
       dependencies: [],
       formSchema: null,
       formData: {},
-      metadata: {},
       parent: null,
       children: [],
       createdAt: new Date().toISOString(),
@@ -54,33 +53,33 @@ function normalizeNode(n: any): ITimelineNode {
     };
   }
 
-    let rawAssignee = n.assignedTo || n.assignedEmployee || null;
-    if (rawAssignee && typeof rawAssignee === 'object') {
-      if (!rawAssignee._id && !rawAssignee.id && !rawAssignee.name) {
-        rawAssignee = null;
-      }
-    } else if (typeof rawAssignee === 'string') {
-      const trimmed = rawAssignee.trim();
-      if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === '[object Object]') {
-        rawAssignee = null;
-      }
+  let rawAssignee = n.assignedTo || n.assignedEmployee || null;
+  if (rawAssignee && typeof rawAssignee === 'object') {
+    if (!rawAssignee._id && !rawAssignee.id && !rawAssignee.name) {
+      rawAssignee = null;
     }
+  } else if (typeof rawAssignee === 'string') {
+    const trimmed = rawAssignee.trim();
+    if (!trimmed || trimmed === 'null' || trimmed === 'undefined' || trimmed === '[object Object]') {
+      rawAssignee = null;
+    }
+  }
 
-    return {
-      _id: n._id || n.id || '',
-      timeline: n.timeline || '',
-      key: n.key || '',
-      name: n.name || n.title || n.label || 'Stage / Task',
-      type: n.type || 'STAGE',
-      status: (n.status || 'PENDING') as TimelineNodeStatus,
-      assignedEmployee: rawAssignee,
-      assignedTo: rawAssignee,
-      completionDate: n.completionDate || null,
-      remarks: n.remarks || '',
+  return {
+    _id: n._id || n.id || '',
+    timeline: n.timeline || '',
+    key: n.key || '',
+    name: n.name || (n.title && !['stage', 'substage', 'tasks', 'task'].includes(n.title.toLowerCase()) ? n.title : null) || n.label || 'Stage / Task',
+    type: n.type || 'STAGE',
+    status: (n.status || 'PENDING') as TimelineNodeStatus,
+    assignedEmployee: rawAssignee,
+    assignedTo: rawAssignee,
+    completionDate: n.completionDate || null,
+    dueDate: n.dueDate || null,
+    remarks: n.remarks || '',
     dependencies: Array.isArray(n.dependencies) ? n.dependencies : [],
     formSchema: n.formSchema || null,
     formData: n.formData || {},
-    metadata: n.metadata || {},
     parent: n.parentNode || n.parent || null,
     children: Array.isArray(n.children) ? n.children.map(normalizeNode) : [],
     createdAt: n.createdAt || new Date().toISOString(),
@@ -93,10 +92,10 @@ function mapTimelineToNodes(raw: any, projectId: string): ITimeline {
     return { _id: '', project: projectId, nodes: [], createdAt: '', updatedAt: '' };
   }
   const timelineData = raw.data || raw.timeline || raw;
-  const rawStructure = 
-    timelineData.structure || 
-    timelineData.nodes || 
-    timelineData.stages || 
+  const rawStructure =
+    timelineData.structure ||
+    timelineData.nodes ||
+    timelineData.stages ||
     (Array.isArray(timelineData) ? timelineData : []);
   const nodes: ITimelineNode[] = Array.isArray(rawStructure) ? rawStructure.map(normalizeNode) : [];
   const timelineObj = timelineData.timeline || timelineData;
@@ -177,26 +176,23 @@ export const timelineApi = {
       const data = response.data?.data || response.data;
       return {
         success: true,
-        formSchema: data.formSchema || [
-          { name: 'notes', type: 'textarea', label: 'Stage Notes & Requirements', placeholder: 'Enter details...' },
-          { name: 'expectedCompletionDate', type: 'date', label: 'Expected Completion Date' },
-        ],
-        formData: data.formData || {},
+        formSchema: data?.formSchema || null,
+        formData: data?.formData || {},
       };
-    } catch {
-      return {
-        success: true,
-        formSchema: [
-          { name: 'notes', type: 'textarea', label: 'Stage Notes & Requirements', placeholder: 'Enter details...' },
-          { name: 'expectedCompletionDate', type: 'date', label: 'Expected Completion Date' },
-        ],
-        formData: {},
-      };
+    } catch (err: any) {
+      console.error(`[timelineApi] Failed to fetch node form for node ${nodeId} from MongoDB:`, err);
+      throw err;
     }
   },
 
   updateNodeForm: async (projectId: string, nodeId: string, formData: Record<string, any>): Promise<INodeDetailResponse> => {
     const response = await apiClient.put<any>(`/projects/${projectId}/timeline/nodes/${nodeId}/form`, { formData });
+    const raw = response.data?.data?.node || response.data?.node || response.data?.data || response.data;
+    return { success: true, node: normalizeNode(raw) };
+  },
+
+  updateDueDate: async (projectId: string, nodeId: string, dueDate: string | null): Promise<INodeDetailResponse> => {
+    const response = await apiClient.patch<any>(`/projects/${projectId}/timeline/nodes/${nodeId}/due-date`, { dueDate });
     const raw = response.data?.data?.node || response.data?.node || response.data?.data || response.data;
     return { success: true, node: normalizeNode(raw) };
   },

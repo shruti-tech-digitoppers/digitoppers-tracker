@@ -265,10 +265,10 @@ class RequestService {
     }
 
     return await ProjectRequest.find(filter)
-      .populate('requestedBy', 'name email employeeCode globalRole')
-      .populate('requestedTo', 'name email employeeCode globalRole')
-      .populate('projectManager', 'name email employeeCode globalRole')
-      .populate('reviewedBy', 'name email employeeCode globalRole')
+      .populate('requestedBy', 'name email globalRole')
+      .populate('requestedTo', 'name email globalRole')
+      .populate('projectManager', 'name email globalRole')
+      .populate('reviewedBy', 'name email globalRole')
       .populate('projectId')
       .sort({ createdAt: -1 });
   }
@@ -289,10 +289,10 @@ class RequestService {
       : { requestId: idStr };
 
     const request = await ProjectRequest.findOne(query)
-      .populate('requestedBy', 'name email employeeCode globalRole')
-      .populate('requestedTo', 'name email employeeCode globalRole')
-      .populate('projectManager', 'name email employeeCode globalRole')
-      .populate('reviewedBy', 'name email employeeCode globalRole')
+      .populate('requestedBy', 'name email globalRole')
+      .populate('requestedTo', 'name email globalRole')
+      .populate('projectManager', 'name email globalRole')
+      .populate('reviewedBy', 'name email globalRole')
       .populate('projectId');
 
     if (!request) {
@@ -476,7 +476,7 @@ class RequestService {
 
       // ── Initialize Timeline for confirmed project (stages & tasks unassigned by default) ──
       try {
-        const timelineService = require('../timeline/timeline.service');
+        const timelineService = require('../timeline-data/timeline-data.service');
         coreProject.source = 'CORE_BACKEND';
         await timelineService.createTimelineForProject(coreProject, request.projectManager);
       } catch (timelineErr) {

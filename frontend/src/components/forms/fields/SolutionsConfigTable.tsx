@@ -2,8 +2,7 @@
 
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import {
-  DEFAULT_SOLUTIONS,
-  FOUNDATIONAL_CLASSES,
+    FOUNDATIONAL_CLASSES,
   MIDDLE_CLASSES,
   CLASS_11_STREAMS,
   CLASS_12_STREAMS,
@@ -31,8 +30,16 @@ import {
   Trash2,
   CheckCircle2,
   Sparkles,
-  Hash
+  Hash,
+  Monitor,
+  Key
 } from 'lucide-react';
+import {
+  PLATFORM_OPTIONS,
+  PLATFORM_LABELS,
+  LicensePlatform,
+  doesSolutionRequirePlatform
+} from '@/constants/platforms.constants';
 
 export {
   FOUNDATIONAL_CLASSES,
@@ -50,6 +57,11 @@ export interface SchoolSolutionItem {
   targetClasses: string[];
   board: string;
   notes: string;
+  platform?: string;
+  platforms?: string[];
+  licenseRequired?: boolean;
+  isLicenseRequired?: boolean;
+  licenseCount?: number;
 }
 
 interface SolutionsConfigTableProps {
@@ -452,7 +464,7 @@ interface SchoolSolutionsDropdownProps {
 function SchoolSolutionsMultiSelectDropdown({
   selectedKeys,
   schoolName,
-  solutions = DEFAULT_SOLUTIONS,
+  solutions = [],
   onToggleSolution,
   onSelectAll,
   onClearAll,
@@ -503,7 +515,7 @@ function SchoolSolutionsMultiSelectDropdown({
             </span>
           ) : (
             selectedKeys.map((key) => {
-              const sol = solutions.find((s) => s.key === key) || DEFAULT_SOLUTIONS.find((s) => s.key === key);
+              const sol = solutions.find((s) => s.key === key) ;
               return (
                 <span
                   key={key}
@@ -674,9 +686,12 @@ export function SolutionsConfigTable({
 
   const [activeSchoolIndex, setActiveSchoolIndex] = useState<number>(0);
 
-  const currentSchool =
-    effectiveSchools[Math.min(activeSchoolIndex, effectiveSchools.length - 1)] ||
-    effectiveSchools[0] || { id: 'school-1', name: 'Primary School' };
+  const currentSchool = useMemo(() => {
+    return (
+      effectiveSchools[Math.min(activeSchoolIndex, effectiveSchools.length - 1)] ||
+      effectiveSchools[0] || { id: 'school-1', name: 'Primary School' }
+    );
+  }, [effectiveSchools, activeSchoolIndex]);
 
   // 2. School-wise allocations state (CLEAN 0 DEFAULT - no hardcoded solutions!)
   const schoolAllocations = useMemo<Record<string, Record<string, SchoolSolutionItem>>>(() => {
@@ -698,11 +713,25 @@ export function SolutionsConfigTable({
             ? legacy.targetClasses.split(',').map((c: string) => c.trim()).filter(Boolean)
             : ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'];
 
-        const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+        const defObj = catalogSolutions.find((d) => d.key === solKey);
+        const isLic = defObj?.licenseRequired !== undefined
+          ? Boolean(defObj.licenseRequired)
+          : (defObj?.isLicenseRequired !== undefined
+            ? Boolean(defObj.isLicenseRequired)
+            : doesSolutionRequirePlatform(solKey || defObj?.label));
+        const qty = Number(legacy.quantity) || 1;
+        const licCount = legacy.licenseCount !== undefined
+          ? Number(legacy.licenseCount)
+          : (isLic ? qty : 0);
+
         initialMap[sch.id][solKey] = {
           solutionKey: solKey,
           solutionName: legacy.solutionName || defObj?.label || solKey,
-          quantity: Number(legacy.quantity) || 1,
+          quantity: qty,
+          licenseRequired: isLic,
+          isLicenseRequired: isLic,
+          platform: isLic ? (legacy.platform || '') : '',
+          licenseCount: isLic ? licCount : 0,
           targetClasses: classesArr,
           board: legacy.board || 'CBSE',
           notes: legacy.notes || '',
@@ -726,14 +755,27 @@ export function SolutionsConfigTable({
 
     const legacyTopLevel: Record<string, any> = {};
     allActiveKeys.forEach((solKey) => {
-      const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+      const defObj = catalogSolutions.find((d) => d.key === solKey);
+      const defaultIsLic = defObj?.isLicenseRequired !== undefined
+        ? Boolean(defObj.isLicenseRequired)
+        : doesSolutionRequirePlatform(solKey || defObj?.label);
       let aggregatedQty = 0;
+      let aggregatedLicenseCount = 0;
+      let aggregatedPlatform = '';
+      let aggregatedIsLicenseRequired = false;
       const allClassesSet = new Set<string>();
 
       Object.values(updatedSchoolMap).forEach((schMap) => {
         const item = schMap[solKey];
         if (item) {
-          aggregatedQty += Number(item.quantity) || 1;
+          const itemQty = Number(item.quantity) || 1;
+          aggregatedQty += itemQty;
+          const isItemLic = item.isLicenseRequired !== undefined ? item.isLicenseRequired : defaultIsLic;
+          if (isItemLic) {
+            aggregatedIsLicenseRequired = true;
+            aggregatedLicenseCount += (item.licenseCount !== undefined ? Number(item.licenseCount) : itemQty);
+            if (item.platform && !aggregatedPlatform) aggregatedPlatform = item.platform;
+          }
           (item.targetClasses || []).forEach((c) => allClassesSet.add(c));
         }
       });
@@ -742,6 +784,10 @@ export function SolutionsConfigTable({
         selected: true,
         solutionName: defObj?.label || solKey,
         quantity: aggregatedQty || 1,
+        licenseRequired: aggregatedIsLicenseRequired,
+        isLicenseRequired: aggregatedIsLicenseRequired,
+        licenseCount: aggregatedIsLicenseRequired ? aggregatedLicenseCount : 0,
+        platform: aggregatedIsLicenseRequired ? (aggregatedPlatform || undefined) : undefined,
         targetClasses: Array.from(allClassesSet).join(', ') || 'Class 6 to 10',
       };
     });
@@ -763,11 +809,20 @@ export function SolutionsConfigTable({
     if (nextSchoolMap[schoolId][solKey]) {
       delete nextSchoolMap[schoolId][solKey];
     } else {
-      const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+      const defObj = catalogSolutions.find((d) => d.key === solKey);
+      const isLic = defObj?.licenseRequired !== undefined
+        ? Boolean(defObj.licenseRequired)
+        : (defObj?.isLicenseRequired !== undefined
+          ? Boolean(defObj.isLicenseRequired)
+          : doesSolutionRequirePlatform(solKey || defObj?.label));
       nextSchoolMap[schoolId][solKey] = {
         solutionKey: solKey,
         solutionName: defObj?.label || solKey,
         quantity: 1,
+        licenseRequired: isLic,
+        isLicenseRequired: isLic,
+        platform: '',
+        licenseCount: isLic ? 1 : 0,
         targetClasses: ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'],
         board: 'CBSE',
         notes: '',
@@ -784,10 +839,19 @@ export function SolutionsConfigTable({
 
     catalogSolutions.forEach((sol) => {
       if (!nextSchoolMap[schoolId][sol.key]) {
+        const isLic = sol.licenseRequired !== undefined
+          ? Boolean(sol.licenseRequired)
+          : (sol.isLicenseRequired !== undefined
+            ? Boolean(sol.isLicenseRequired)
+            : doesSolutionRequirePlatform(sol.key || sol.label));
         nextSchoolMap[schoolId][sol.key] = {
           solutionKey: sol.key,
           solutionName: sol.label,
           quantity: 1,
+          licenseRequired: isLic,
+          isLicenseRequired: isLic,
+          platform: '',
+          licenseCount: isLic ? 1 : 0,
           targetClasses: ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'],
           board: 'CBSE',
           notes: '',
@@ -813,24 +877,39 @@ export function SolutionsConfigTable({
   ) => {
     const nextSchoolMap = { ...schoolAllocations };
     nextSchoolMap[schoolId] = { ...(nextSchoolMap[schoolId] || {}) };
-    const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+    const defObj = catalogSolutions.find((d) => d.key === solKey);
+    const isLic = defObj?.licenseRequired !== undefined
+      ? Boolean(defObj.licenseRequired)
+      : (defObj?.isLicenseRequired !== undefined
+        ? Boolean(defObj.isLicenseRequired)
+        : doesSolutionRequirePlatform(solKey || defObj?.label));
 
     const existing = nextSchoolMap[schoolId][solKey] || {
       solutionKey: solKey,
       solutionName: defObj?.label || solKey,
       quantity: 1,
+      licenseRequired: isLic,
+      isLicenseRequired: isLic,
+      platform: '',
+      licenseCount: isLic ? 1 : 0,
       targetClasses: ['Class 6', 'Class 7', 'Class 8'],
       board: 'CBSE',
       notes: '',
     };
 
+    // If updating quantity and licenseCount was matching old quantity, keep in sync
+    const shouldSyncLic = field === 'quantity' && isLic && (existing.licenseCount === undefined || existing.licenseCount === existing.quantity);
+
     nextSchoolMap[schoolId][solKey] = {
       ...existing,
+      licenseRequired: isLic,
+      isLicenseRequired: isLic,
       [field]: val,
+      ...(shouldSyncLic ? { licenseCount: val } : {}),
     };
 
     emitUpdate(nextSchoolMap);
-  }, [schoolAllocations, emitUpdate]);
+  }, [schoolAllocations, emitUpdate, catalogSolutions]);
 
   const handleRemoveSolutionFromSchool = useCallback((schoolId: string, solKey: string) => {
     const nextSchoolMap = { ...schoolAllocations };
@@ -879,6 +958,40 @@ export function SolutionsConfigTable({
     return total;
   }, [schoolAllocations]);
 
+  const totalLicensesAcrossSchools = useMemo(() => {
+    let total = 0;
+    Object.values(schoolAllocations).forEach((schMap) => {
+      Object.values(schMap || {}).forEach((item) => {
+        const defObj = catalogSolutions.find((d) => d.key === item.solutionKey);
+        const isLic = defObj?.licenseRequired !== undefined
+          ? Boolean(defObj.licenseRequired)
+          : (defObj?.isLicenseRequired !== undefined
+            ? Boolean(defObj.isLicenseRequired)
+            : (item.licenseRequired ?? item.isLicenseRequired ?? doesSolutionRequirePlatform(item.solutionKey || item.solutionName)));
+        if (isLic) {
+          total += Number(item.licenseCount !== undefined ? item.licenseCount : item.quantity) || 0;
+        }
+      });
+    });
+    return total;
+  }, [schoolAllocations, catalogSolutions]);
+
+  const activeSchoolLicenseCount = useMemo(() => {
+    let total = 0;
+    Object.values(activeSchoolSolutions).forEach((item) => {
+      const defObj = catalogSolutions.find((d) => d.key === item.solutionKey);
+      const isLic = defObj?.licenseRequired !== undefined
+        ? Boolean(defObj.licenseRequired)
+        : (defObj?.isLicenseRequired !== undefined
+          ? Boolean(defObj.isLicenseRequired)
+          : (item.licenseRequired ?? item.isLicenseRequired ?? doesSolutionRequirePlatform(item.solutionKey || item.solutionName)));
+      if (isLic) {
+        total += Number(item.licenseCount !== undefined ? item.licenseCount : item.quantity) || 0;
+      }
+    });
+    return total;
+  }, [activeSchoolSolutions, catalogSolutions]);
+
   return (
     <div className="space-y-4 font-sans">
       {/* ── STEP 1: Institutional School Master-Card Selector ────── */}
@@ -888,7 +1001,7 @@ export function SolutionsConfigTable({
         onSelectIndex={setActiveSchoolIndex}
         activeItemCount={activeSchoolKeys.length}
         itemTypeLabel="Solutions"
-        totalAcrossSchoolsText={`Total Across Schools: ${totalUnitsAcrossSchools} Labs`}
+        totalAcrossSchoolsText={`Total Across Schools: ${totalUnitsAcrossSchools} Labs${totalLicensesAcrossSchools > 0 ? ` • ${totalLicensesAcrossSchools} Licenses` : ''}`}
         getItemCountForSchool={(schoolId) => Object.keys(schoolAllocations[schoolId] || {}).length}
         onApplyToAll={handleApplyToAllSchools}
         disabled={disabled}
@@ -921,7 +1034,7 @@ export function SolutionsConfigTable({
         <StepSectionHeader
           stepNumber={3}
           title="Solution Quantity (No.) & Class Details"
-          badgeText={`${activeSchoolKeys.length} Solutions Active`}
+          badgeText={`${activeSchoolKeys.length} Solutions Active${activeSchoolLicenseCount > 0 ? ` • ${activeSchoolLicenseCount} Licenses` : ''}`}
         />
 
         {/* If no solutions selected yet */}
@@ -935,17 +1048,31 @@ export function SolutionsConfigTable({
         ) : (
           <div className="space-y-3 pt-1">
             {activeSchoolKeys.map((solKey) => {
-              const defObj = catalogSolutions.find((d) => d.key === solKey) || DEFAULT_SOLUTIONS.find((d) => d.key === solKey);
+              const defObj = catalogSolutions.find((d) => d.key === solKey);
+              const isLicenseRequired = defObj?.licenseRequired !== undefined
+                ? Boolean(defObj.licenseRequired)
+                : (defObj?.isLicenseRequired !== undefined
+                  ? Boolean(defObj.isLicenseRequired)
+                  : doesSolutionRequirePlatform(solKey || defObj?.label));
+
               const item = activeSchoolSolutions[solKey] || {
                 solutionKey: solKey,
                 solutionName: defObj?.label || solKey,
                 quantity: 1,
+                licenseRequired: isLicenseRequired,
+                isLicenseRequired,
+                platform: '',
+                licenseCount: isLicenseRequired ? 1 : 0,
                 targetClasses: ['Class 6', 'Class 7', 'Class 8', 'Class 9', 'Class 10'],
                 board: 'CBSE',
                 notes: '',
               };
 
               const currentClasses = item.targetClasses || [];
+              const selectedPlatform = isLicenseRequired ? (item.platform || '') : '';
+              const currentLicenseCount = isLicenseRequired
+                ? (item.licenseCount !== undefined ? item.licenseCount : (item.quantity || 1))
+                : 0;
 
               return (
                 <div
@@ -965,6 +1092,30 @@ export function SolutionsConfigTable({
                       <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-md bg-[#f0f8f9] text-[#3a7d84] border border-[#b6e0e4]">
                         {item.quantity || 1} Unit(s)
                       </span>
+                      {isLicenseRequired ? (
+                        <>
+                          {currentLicenseCount > 0 && (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                              <Key className="w-2.5 h-2.5 text-amber-600" />
+                              <span>{currentLicenseCount} Lic</span>
+                            </span>
+                          )}
+                          {selectedPlatform ? (
+                            <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-white text-slate-700 border border-slate-200 shadow-2xs flex items-center gap-1">
+                              <Monitor className="w-2.5 h-2.5 text-[#51a8b1]" />
+                              <span>{PLATFORM_LABELS[selectedPlatform as LicensePlatform] || selectedPlatform}</span>
+                            </span>
+                          ) : (
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-amber-50/70 text-amber-700 border border-amber-200/80">
+                              No Platform Selected
+                            </span>
+                          )}
+                        </>
+                      ) : (
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-md bg-slate-100 text-slate-500 border border-slate-200">
+                          Hardware / No License
+                        </span>
+                      )}
                       {!disabled && (
                         <button
                           type="button"
@@ -978,9 +1129,13 @@ export function SolutionsConfigTable({
                     </div>
                   </div>
 
-                  {/* Quantity (No.) & Board Row */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {/* Quantity / Number Input */}
+                  {/* Fields Row: 4 cols for Licensed solutions, 2 cols for Non-Licensed */}
+                  <div
+                    className={`grid grid-cols-1 sm:grid-cols-2 ${
+                      isLicenseRequired ? 'lg:grid-cols-4' : ''
+                    } gap-3`}
+                  >
+                    {/* 1. Quantity / Labs Count Input */}
                     <div>
                       <label className="block text-[10.5px] font-bold text-slate-700 mb-1">
                         Quantity / Labs Count (Number) <span className="text-rose-500">*</span>
@@ -1002,7 +1157,74 @@ export function SolutionsConfigTable({
                       />
                     </div>
 
-                    {/* Board / Curriculum */}
+                    {/* 2 & 3. Platform and License Count Inputs (ONLY rendered when isLicenseRequired is true) */}
+                    {isLicenseRequired && (
+                      <>
+                        {/* Target Platform Selection */}
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <Monitor className="w-3 h-3 text-[#51a8b1]" />
+                              <span>Target Platform</span>
+                            </span>
+                            <span className="text-[9.5px] font-semibold text-[#3a7d84] bg-[#f0f8f9] px-1.5 py-0.5 rounded">
+                              Required
+                            </span>
+                          </label>
+                          <select
+                            disabled={disabled}
+                            value={selectedPlatform}
+                            onChange={(e) =>
+                              handleUpdateSchoolSolutionField(
+                                currentSchool.id,
+                                solKey,
+                                'platform',
+                                e.target.value
+                              )
+                            }
+                            className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-medium"
+                          >
+                            <option value="">Select Platform</option>
+                            {PLATFORM_OPTIONS.map((p) => (
+                              <option key={p.value} value={p.value}>
+                                {p.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {/* License Count (No.) Input */}
+                        <div>
+                          <label className="block text-[10.5px] font-bold text-slate-700 mb-1 flex items-center justify-between">
+                            <span className="flex items-center gap-1">
+                              <Key className="w-3 h-3 text-[#51a8b1]" />
+                              <span>License Count (No.)</span>
+                            </span>
+                            <span className="text-[9.5px] font-semibold text-[#3a7d84] bg-[#f0f8f9] px-1.5 py-0.5 rounded">
+                              Software
+                            </span>
+                          </label>
+                          <input
+                            type="number"
+                            min="1"
+                            disabled={disabled}
+                            value={currentLicenseCount}
+                            onChange={(e) =>
+                              handleUpdateSchoolSolutionField(
+                                currentSchool.id,
+                                solKey,
+                                'licenseCount',
+                                Math.max(1, Number(e.target.value) || 1)
+                              )
+                            }
+                            className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-bold"
+                            placeholder="e.g. 1"
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* 4. Board / Curriculum */}
                     <div>
                       <label className="block text-[10.5px] font-bold text-slate-700 mb-1 flex items-center gap-1">
                         <BookOpen className="w-3 h-3 text-[#51a8b1]" />
@@ -1062,7 +1284,7 @@ export function SolutionsConfigTable({
                         )
                       }
                       placeholder="Special customization / room allocation notes for this campus..."
-                      className="w-full text-xs px-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 font-medium placeholder:text-slate-400"
+                      className="w-full text-xs px-3 py-1.5 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-[#51a8b1]/30 focus:border-[#51a8b1] bg-white text-slate-900 f  ont-medium placeholder:text-slate-400"
                     />
                   </div>
                 </div>

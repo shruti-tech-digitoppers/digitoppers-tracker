@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const TimelineNodeStatic = require('./timeline-node.model');
 const timelineConfig = require('../../config/timeline');
 
@@ -111,8 +112,36 @@ class TimelineNodesService {
    *
    * @param {Object} nodeData
    */
+  /**
+   * Resolve node identifiers (string keys or ObjectIds) to MongoDB ObjectIds
+   * @param {Array<string|ObjectId>} deps
+   * @returns {Promise<Array<ObjectId>>}
+   */
+  async resolveDependentNodeIds(deps) {
+    if (!deps) return [];
+    const list = Array.isArray(deps) ? deps : [deps];
+    const resolved = [];
+    for (const dep of list) {
+      if (!dep) continue;
+      if (mongoose.isValidObjectId(dep)) {
+        const found = await TimelineNodeStatic.findById(dep).select('_id').lean();
+        if (found) {
+          resolved.push(found._id);
+          continue;
+        }
+      }
+      const foundByKey = await TimelineNodeStatic.findOne({
+        $or: [{ id: dep }, { id: String(dep).toUpperCase() }]
+      }).select('_id').lean();
+      if (foundByKey) {
+        resolved.push(foundByKey._id);
+      }
+    }
+    return resolved;
+  }
+
   async createNode(nodeData) {
-    const { id, name, title, order = 1, parent_id, stageId, substageId, formSchema, metadata } = nodeData;
+    const { id, name, title, order = 1, parent_id, stageId, substageId, formSchema } = nodeData;
 
     if (!id || !name || !title) {
       throw new Error("Fields 'id', 'name', and 'title' (stage/substage/tasks) are required.");
@@ -165,8 +194,8 @@ class TimelineNodesService {
       order: Number(order) || 1,
       parent_id: finalParentId,
       has_substages: hasSubstagesFlag,
-      formSchema: formSchema || null,
-      metadata: metadata || {}
+      dependentOn: await this.resolveDependentNodeIds(nodeData.dependentOn),
+      formSchema: formSchema || null
     });
 
     return newNode;
@@ -184,9 +213,9 @@ class TimelineNodesService {
     if (updateData.name) node.name = updateData.name;
     if (updateData.order !== undefined) node.order = Number(updateData.order);
     if (updateData.formSchema !== undefined) node.formSchema = updateData.formSchema;
-    if (updateData.metadata !== undefined) node.metadata = { ...node.metadata, ...updateData.metadata };
     if (updateData.parent_id !== undefined) node.parent_id = updateData.parent_id;
     if (updateData.has_substages !== undefined) node.has_substages = Boolean(updateData.has_substages);
+    if (updateData.dependentOn !== undefined) node.dependentOn = await this.resolveDependentNodeIds(updateData.dependentOn);
 
     await node.save();
     return node;
@@ -227,11 +256,6 @@ class TimelineNodesService {
    * @param {boolean} forceReset
    */
   async seedStaticTimelineNodes(forceReset = false) {
-    const existingCount = await TimelineNodeStatic.countDocuments();
-    if (existingCount > 0 && !forceReset) {
-      return { message: 'Static timeline nodes already initialized.', count: existingCount };
-    }
-
     if (forceReset) {
       await TimelineNodeStatic.deleteMany({});
     }
@@ -245,7 +269,12 @@ class TimelineNodesService {
       const stageId = stageDef.key;
       const stageName = stageDef.name;
       const stageOrder = stageDef.order || 1;
-      const hasSub = Array.isArray(stageDef.substages) && stageDef.substages.length > 0;
+      
+      // Determine if stage has substages:
+      // In our architecture, ONLY 'EXECUTION' (or explicit has_substages === true) has substages!
+      const hasSub = stageDef.has_substages !== undefined
+        ? Boolean(stageDef.has_substages)
+        : (stageId === 'EXECUTION');
 
       // 1. Create Stage Node
       await TimelineNodeStatic.findOneAndUpdate(
@@ -258,21 +287,25 @@ class TimelineNodesService {
           order: stageOrder,
           parent_id: null,
           has_substages: hasSub,
-          formSchema: stageDef.formSchema || null,
-          metadata: stageDef.metadata || {}
+          dependentOn: stageDef.dependentOn || [],
+          formSchema: stageDef.formSchema || null
         },
         { upsert: true, new: true }
       );
       createdStages++;
 
       if (hasSub) {
-        // Stage HAS substages
-        for (const subDef of stageDef.substages) {
+        // ==========================================
+        // Case 2: YES (Currently ONLY 'EXECUTION')
+        // Stage -> Substages -> Tasks
+        // ==========================================
+        const substages = stageDef.substages || [];
+        for (const subDef of substages) {
           const substageId = subDef.key;
           const substageName = subDef.name;
           const substageOrder = subDef.order || 1;
 
-          // 2. Create Substage Node: parent_id = stageId
+          // 2. Create Substage Node: parent_id = stageId ('EXECUTION')
           await TimelineNodeStatic.findOneAndUpdate(
             { id: substageId },
             {
@@ -283,52 +316,31 @@ class TimelineNodesService {
               order: substageOrder,
               parent_id: stageId,
               has_substages: false,
-              formSchema: subDef.formSchema || null,
-              metadata: subDef.metadata || {}
+              dependentOn: subDef.dependentOn || [],
+              formSchema: subDef.formSchema || null
             },
             { upsert: true, new: true }
           );
           createdSubstages++;
 
-          // 3. Check for nested tasks under this substage
-          if (Array.isArray(subDef.nested) && subDef.nested.length > 0) {
-            for (const taskDef of subDef.nested) {
-              const taskId = taskDef.key;
-              const taskName = taskDef.name;
-              const taskOrder = taskDef.order || 1;
+          // 3. Create Tasks under this Substage: parent_id = substageId
+          const nestedTasks = subDef.nested || subDef.tasks || [];
+          for (const taskDef of nestedTasks) {
+            const taskId = taskDef.key;
+            const taskName = taskDef.name;
+            const taskOrder = taskDef.order || 1;
 
-              // Task parent_id = substageId
-              await TimelineNodeStatic.findOneAndUpdate(
-                { id: taskId },
-                {
-                  id: taskId,
-                  name: taskName,
-                  title: 'tasks',
-                  type: 'tasks',
-                  order: taskOrder,
-                  parent_id: substageId,
-                  formSchema: taskDef.formSchema || null,
-                  metadata: taskDef.metadata || {}
-                },
-                { upsert: true, new: true }
-              );
-              createdTasks++;
-            }
-          } else {
-            // Even if no subDef.nested, the substage itself acts as the actionable task
-            // or we add a primary execution task under it
-            const defaultTaskId = `TASK_${substageId}`;
             await TimelineNodeStatic.findOneAndUpdate(
-              { id: defaultTaskId },
+              { id: taskId },
               {
-                id: defaultTaskId,
-                name: `${substageName} Execution`,
+                id: taskId,
+                name: taskName,
                 title: 'tasks',
                 type: 'tasks',
-                order: 1,
+                order: taskOrder,
                 parent_id: substageId,
-                formSchema: subDef.formSchema || null,
-                metadata: subDef.metadata || {}
+                dependentOn: taskDef.dependentOn || [],
+                formSchema: taskDef.formSchema || null
               },
               { upsert: true, new: true }
             );
@@ -336,25 +348,110 @@ class TimelineNodesService {
           }
         }
       } else {
-        // Stage has NO substages:
-        // Rule: "i not has stage then task ki parent mein aaega stageid."
-        // Task parent_id = stageId directly!
-        const directTaskId = `TASK_${stageId}`;
-        await TimelineNodeStatic.findOneAndUpdate(
-          { id: directTaskId },
-          {
-            id: directTaskId,
-            name: `${stageName} Execution & Sign-off`,
-            title: 'tasks',
-            type: 'tasks',
-            order: 1,
-            parent_id: stageId,
-            formSchema: stageDef.formSchema || null,
-            metadata: stageDef.metadata || {}
-          },
-          { upsert: true, new: true }
-        );
-        createdTasks++;
+        // ==========================================
+        // Case 1: NO (All Other Stages)
+        // Stage -> Tasks directly (parent_id = stageId)
+        // No substage documents created!
+        // ==========================================
+        const directTasks = stageDef.tasks || stageDef.substages || [];
+        if (directTasks.length > 0) {
+          for (const taskDef of directTasks) {
+            const taskId = taskDef.key;
+            const taskName = taskDef.name;
+            const taskOrder = taskDef.order || 1;
+
+            await TimelineNodeStatic.findOneAndUpdate(
+              { id: taskId },
+              {
+                id: taskId,
+                name: taskName,
+                title: 'tasks',
+                type: 'tasks',
+                order: taskOrder,
+                parent_id: stageId,
+                dependentOn: taskDef.dependentOn || [],
+                formSchema: taskDef.formSchema || null
+              },
+              { upsert: true, new: true }
+            );
+            createdTasks++;
+          }
+        } else {
+          // Single-task stage (e.g. PROJECT_REVIEWER)
+          const directTaskId = `TASK_${stageId}`;
+          await TimelineNodeStatic.findOneAndUpdate(
+            { id: directTaskId },
+            {
+              id: directTaskId,
+              name: `${stageName} Execution & Sign-off`,
+              title: 'tasks',
+              type: 'tasks',
+              order: 1,
+              parent_id: stageId,
+              dependentOn: stageDef.dependentOn || [],
+              formSchema: stageDef.formSchema || null
+            },
+            { upsert: true, new: true }
+          );
+          createdTasks++;
+        }
+      }
+    }
+
+    // ========================================================
+    // Resolve and update dependentOn with MongoDB _ids for all nodes
+    // ========================================================
+    const allDbNodes = await TimelineNodeStatic.find().select('_id id').lean();
+    const keyToMongoIdMap = new Map();
+    for (const n of allDbNodes) {
+      keyToMongoIdMap.set(n.id, n._id);
+    }
+
+    const resolveToMongoIds = (deps) => {
+      if (!Array.isArray(deps)) return [];
+      return deps.map(k => keyToMongoIdMap.get(k) || (mongoose.isValidObjectId(k) ? k : null)).filter(Boolean);
+    };
+
+    for (const stageDef of stagesDef) {
+      const stageId = stageDef.key;
+      await TimelineNodeStatic.updateOne(
+        { id: stageId },
+        { $set: { dependentOn: resolveToMongoIds(stageDef.dependentOn) } }
+      );
+
+      const hasSub = stageDef.has_substages !== undefined
+        ? Boolean(stageDef.has_substages)
+        : (stageId === 'EXECUTION');
+
+      if (hasSub) {
+        for (const subDef of (stageDef.substages || [])) {
+          await TimelineNodeStatic.updateOne(
+            { id: subDef.key },
+            { $set: { dependentOn: resolveToMongoIds(subDef.dependentOn) } }
+          );
+          for (const taskDef of (subDef.nested || subDef.tasks || [])) {
+            await TimelineNodeStatic.updateOne(
+              { id: taskDef.key },
+              { $set: { dependentOn: resolveToMongoIds(taskDef.dependentOn) } }
+            );
+          }
+        }
+      } else {
+        const directTasks = stageDef.tasks || stageDef.substages || [];
+        if (directTasks.length > 0) {
+          for (const taskDef of directTasks) {
+            await TimelineNodeStatic.updateOne(
+              { id: taskDef.key },
+              { $set: { dependentOn: resolveToMongoIds(taskDef.dependentOn) } }
+            );
+          }
+        } else {
+          const directTaskId = `TASK_${stageId}`;
+          await TimelineNodeStatic.updateOne(
+            { id: directTaskId },
+            { $set: { dependentOn: resolveToMongoIds(stageDef.dependentOn) } }
+          );
+        }
       }
     }
 

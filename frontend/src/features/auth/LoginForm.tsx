@@ -28,7 +28,7 @@ export function LoginForm({
           required
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          placeholder="admin@digitopper.com"
+          placeholder="growth@digitoppers.com"
           className="w-full border border-white/10 rounded-xl px-3.5 py-2.5 text-sm bg-white/5 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-[#51a8b1] focus:border-[#51a8b1] transition-all"
         />
       </div>

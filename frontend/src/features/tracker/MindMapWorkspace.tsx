@@ -245,6 +245,15 @@ export function MindMapWorkspace() {
     });
   };
 
+  const handleDueDateChange = (newDueDate: string | null, targetNodeId?: string) => {
+    const nodeIdToUpdate = targetNodeId || selectedNode?._id;
+    if (!nodeIdToUpdate) return;
+    setNodes((prev) => updateNodeInTree(prev, nodeIdToUpdate, { dueDate: newDueDate }));
+    if (selectedNode && selectedNode._id === nodeIdToUpdate) {
+      setSelectedNode((prev) => (prev ? { ...prev, dueDate: newDueDate } : null));
+    }
+  };
+
   const handleAssignmentChange = async (empId: string, targetNodeId?: string) => {
     if (!isAdmin) {
       showReadOnlyToast('🔒 Read-only access — contact an Admin to assign employees.');
@@ -526,6 +535,7 @@ export function MindMapWorkspace() {
               onClose={() => setSelectedNode(null)}
               onStatusChange={handleStatusChange}
               onAssignmentChange={handleAssignmentChange}
+              onDueDateChange={handleDueDateChange}
               onFormSubmit={handleFormSubmit}
               canModifyStatus={canModifyStatus}
               canModifyAssignment={canModifyAssignment}
