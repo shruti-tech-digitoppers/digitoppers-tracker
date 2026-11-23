@@ -1,11 +1,10 @@
 const mongoose = require('mongoose');
-const License = require('./license.model');
 const SchoolHardwareLicense = require('./school-hardware-license.model');
 const coreApi = require('../../services/core-api.service');
 
 /**
  * Get all licenses with optional filtering by project, school, status, isRegistered
- * Fetches strictly from Core Backend API (Single Source of Truth) with fallback to local collections
+ * Fetches strictly from Core Backend API (Single Source of Truth - NO LOCAL FALLBACK)
  * GET /api/v1/licenses
  */
 const getLicenses = async (req, res) => {
@@ -13,92 +12,17 @@ const getLicenses = async (req, res) => {
     const { projectId, schoolId, status, isRegistered, search } = req.query;
 
     // Fetch live licenses strictly from Core Backend API
+    const coreQuery = {};
+    if (projectId) coreQuery.projectId = projectId;
+    if (schoolId) coreQuery.schoolId = schoolId;
+    if (status) coreQuery.status = status;
+    if (isRegistered !== undefined) coreQuery.isRegistered = isRegistered;
+
     let coreLicenses = [];
     try {
-      const coreQuery = {};
-      if (projectId) coreQuery.projectId = projectId;
-      if (schoolId) coreQuery.schoolId = schoolId;
-      if (status) coreQuery.status = status;
-      if (isRegistered !== undefined) coreQuery.isRegistered = isRegistered;
-
       coreLicenses = await coreApi.getLicenses(coreQuery);
     } catch (e) {
       console.warn('[LicenseController] coreApi.getLicenses warning:', e.message);
-    }
-
-    // Fallback to database if Core API returned empty or is offline
-    if (!Array.isArray(coreLicenses) || coreLicenses.length === 0) {
-      const orConditions = [];
-      if (projectId) {
-        orConditions.push({ projectId });
-        if (mongoose.Types.ObjectId.isValid(projectId)) {
-          orConditions.push({ projectId: new mongoose.Types.ObjectId(projectId) });
-        }
-        try {
-          const proj = await coreApi.getProjectById(projectId);
-          if (proj) {
-            if (proj._id) {
-              orConditions.push({ projectId: proj._id });
-              if (mongoose.Types.ObjectId.isValid(proj._id)) {
-                orConditions.push({ projectId: new mongoose.Types.ObjectId(proj._id) });
-              }
-            }
-            if (proj.projectId) {
-              orConditions.push({ projectId: proj.projectId });
-              orConditions.push({ projectId: proj.projectId.toLowerCase() });
-              orConditions.push({ projectId: proj.projectId.toUpperCase() });
-            }
-          }
-        } catch (_) {}
-      }
-      const filter = orConditions.length > 0 ? { $or: orConditions } : {};
-      if (schoolId) filter.schoolId = schoolId;
-      if (status) filter.status = status;
-
-      // First check local License collection
-      const localLics = await License.find(filter).lean();
-      if (localLics && localLics.length > 0) {
-        coreLicenses = localLics.map((l) => ({
-          _id: l._id,
-          id: l._id,
-          licenseKey: l.licenseKey,
-          status: l.status || 'active',
-          isRegistered: !!l.isRegistered,
-          registeredAt: l.registeredAt || null,
-          registeredTo: l.registeredTo || null,
-          licenseDays: l.licenseDays || 365,
-          platform: l.platform || 'SmartShala',
-          solution: l.solution || 'SmartShala',
-          schoolId: l.schoolId,
-          schoolName: l.schoolName || '',
-          projectId: l.projectId,
-          createdAt: l.createdAt,
-          source: 'DATABASE_LICENSE'
-        }));
-      } else {
-        // Next check SchoolHardwareLicense allocations
-        const localAllocs = await SchoolHardwareLicense.find(filter).lean();
-        if (localAllocs && localAllocs.length > 0) {
-          coreLicenses = localAllocs.map((a) => ({
-            _id: a._id,
-            id: a._id,
-            licenseKey: a.licenseKey,
-            status: a.status || 'ACTIVE',
-            isRegistered: !!a.isRegistered,
-            registeredAt: a.registeredAt || null,
-            registeredTo: a.registeredTo || null,
-            licenseDays: 365,
-            platform: a.platform || a.hardwareKey || 'IFP',
-            solution: 'SmartShala',
-            hardwareName: a.hardwareName,
-            schoolId: a.schoolId,
-            schoolName: a.schoolName,
-            projectId: a.projectId,
-            createdAt: a.createdAt,
-            source: 'DATABASE_ALLOCATION'
-          }));
-        }
-      }
     }
 
     if (!Array.isArray(coreLicenses) || coreLicenses.length === 0) {
@@ -125,7 +49,7 @@ const getLicenses = async (req, res) => {
       projectId: lic.projectId,
       createdAt: lic.createdAt || new Date(),
       updatedAt: lic.updatedAt || new Date(),
-      source: lic.source || 'CORE_BACKEND'
+      source: 'CORE_BACKEND'
     }));
 
     if (search) {
@@ -275,12 +199,11 @@ const getHardwareAllocations = async (req, res) => {
       if (mongoose.Types.ObjectId.isValid(schoolId)) {
         filter.schoolId = schoolId;
       } else {
-        const School = require('../schools/school.model');
-        const sch = await School.findOne({ name: schoolId });
-        if (sch) {
+        const sch = await coreApi.getSchoolById(schoolId);
+        if (sch && sch._id) {
           filter.schoolId = sch._id;
         } else {
-          return res.status(200).json({ success: true, count: 0, data: [] });
+          filter.schoolId = schoolId;
         }
       }
     }
@@ -415,20 +338,12 @@ const syncProjectHardwareAllocations = async (req, res) => {
     const { projectId } = req.params;
     const mongoose = require('mongoose');
 
-    let filter = {};
-    if (mongoose.Types.ObjectId.isValid(projectId)) {
-      filter = { $or: [{ projectId: new mongoose.Types.ObjectId(projectId) }, { projectId }] };
-    } else {
-      filter = { projectId };
-    }
+    const schools = await coreApi.getProjectSchools(projectId);
 
-    const School = require('../schools/school.model');
-    const schools = await School.find(filter);
-
-    if (!schools || schools.length === 0) {
+    if (!Array.isArray(schools) || schools.length === 0) {
       return res.status(200).json({
         success: true,
-        message: 'No schools found for project',
+        message: 'No schools found for project in Core Backend',
         count: 0,
         data: [],
       });

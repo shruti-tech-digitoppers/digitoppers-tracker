@@ -45,15 +45,30 @@ interface HardwareRequirementsInputProps {
   allFormData?: Record<string, any>;
 }
 
-// Recommended hardware mapping per solution
+// Normalization helper for solution keys
+export const normalizeSolutionKey = (k: string): string => {
+  const upper = String(k || '').trim().toUpperCase();
+  if (upper === 'SMART_SHALA' || upper === 'SMART_SHAALA' || upper.includes('SMART_SHAALA') || upper.includes('SMART_SHALA')) return 'SMART_SHAALA';
+  if (upper === 'EPATHSHALA' || upper === 'EPATHSHALA_LAB' || upper.includes('EPATHSHALA')) return 'EPATHSHALA';
+  if (upper === 'STEM_LAB' || upper === 'STEM' || upper.includes('STEM')) return 'STEM_LAB';
+  if (upper === 'ROBOTICS' || upper === 'ROBOTICS_LAB' || upper.includes('ROBOTICS')) return 'ROBOTICS';
+  if (upper === 'ASTRONOMY' || upper === 'ASTRONOMY_LAB' || upper.includes('ASTRONOMY')) return 'ASTRONOMY';
+  if (upper === 'LANGUAGE' || upper === 'LANGUAGE_LAB' || upper.includes('LANGUAGE')) return 'LANGUAGE';
+  if (upper === 'SCIENCE_LEARNING' || upper.includes('SCIENCE')) return 'SCIENCE_LEARNING';
+  return upper;
+};
+
+// Recommended hardware mapping per solution (supports both Core Backend keys and generic aliases)
 export const DEFAULT_SOLUTION_HARDWARE_MAP: Record<string, string[]> = {
-  SMART_SHAALA: ['IFP', 'OPS', 'SCHOOL_BELL_PRO', 'CAMERA', 'PODIUM', 'WIRELESS_KEYBOARD_MOUSE', 'UPS'],
-  STEM_LAB: ['STEM_KIT', 'TABLET', 'ANDROID_LAPTOP', 'AR_VR', 'CHARGING_TROLLEY', 'COMPUTER_SYSTEM'],
-  ROBOTICS: ['ROBOTICS', 'STEM_KIT', 'ANDROID_LAPTOP', 'TABLET', 'CHARGING_TROLLEY', 'COMPUTER_SYSTEM'],
-  ASTRONOMY: ['ASTRONOMY_KIT', 'AR_VR', 'IFP', 'TABLET', 'CAMERA'],
-  LANGUAGE: ['TABLET', 'CHARGING_TROLLEY', 'ANDROID_LAPTOP', 'COMPUTER_SYSTEM', 'IFP', 'WIRELESS_KEYBOARD_MOUSE'],
-  EPATHSHALA: ['IFP', 'OPS', 'PENDRIVE', 'SD_CARD', 'ANDROID_LAPTOP', 'UPS'],
-  SCIENCE_LEARNING: ['STEM_KIT', 'TABLET', 'IFP', 'AR_VR', 'CHARGING_TROLLEY'],
+  SMART_SHAALA: ['IFP_75', 'OPS_I5', 'WALL_MOUNT', 'IFP', 'OPS', 'SCHOOL_BELL_PRO', 'CAMERA', 'PODIUM', 'WIRELESS_KEYBOARD_MOUSE', 'UPS'],
+  SMART_SHALA: ['IFP_75', 'OPS_I5', 'WALL_MOUNT', 'IFP', 'OPS', 'SCHOOL_BELL_PRO', 'CAMERA', 'PODIUM', 'WIRELESS_KEYBOARD_MOUSE', 'UPS'],
+  EPATHSHALA: ['TABLET_10', 'ANDROID_LAPTOP', 'PENDRIVE_64', 'TABLET', 'PENDRIVE', 'SD_CARD', 'CHARGING_TROLLEY'],
+  EPATHSHALA_LAB: ['TABLET_10', 'ANDROID_LAPTOP', 'PENDRIVE_64', 'TABLET', 'PENDRIVE', 'SD_CARD', 'CHARGING_TROLLEY'],
+  STEM_LAB: ['ROBOTICS_KIT', 'TABLET_10', 'ANDROID_LAPTOP', 'STEM_KIT', 'TABLET', 'AR_VR', 'CHARGING_TROLLEY', 'COMPUTER_SYSTEM'],
+  ROBOTICS: ['ROBOTICS_KIT', 'ROBOTICS', 'STEM_KIT', 'ANDROID_LAPTOP', 'TABLET_10', 'TABLET', 'CHARGING_TROLLEY', 'COMPUTER_SYSTEM'],
+  ASTRONOMY: ['ASTRONOMY_KIT', 'AR_VR', 'IFP_75', 'IFP', 'TABLET_10', 'TABLET', 'CAMERA'],
+  LANGUAGE: ['TABLET_10', 'TABLET', 'CHARGING_TROLLEY', 'ANDROID_LAPTOP', 'COMPUTER_SYSTEM', 'IFP_75', 'IFP', 'WIRELESS_KEYBOARD_MOUSE'],
+  SCIENCE_LEARNING: ['STEM_KIT', 'TABLET_10', 'TABLET', 'IFP_75', 'IFP', 'AR_VR', 'CHARGING_TROLLEY'],
 };
 
 // ─── ADD HARDWARE POPOVER SELECTOR (PER SOLUTION) ───
@@ -361,48 +376,112 @@ export function HardwareRequirementsInput({
     effectiveSchools[Math.min(activeSchoolIndex, effectiveSchools.length - 1)] ||
     effectiveSchools[0] || { id: 'school-1', name: 'Primary School' };
 
-  // 2. Extract ONLY CONFIGURED / SELECTED SOLUTIONS FOR THE CURRENT SCHOOL FROM DB / FORMDATA
-  const currentSchoolSolutions = useMemo(() => {
-    // Collect all possible schoolWiseSolutions maps from DB and cross-node payloads
-    const candidateMaps: Record<string, any>[] = [
+  // Normalization helper for hardware key aliases
+  const normalizeHwKey = useCallback((rawKey: string): string => {
+    if (!rawKey) return '';
+    const upper = rawKey.toUpperCase().trim();
+    if (upper === 'IFP_PANEL' || upper === 'IFP_75' || upper === 'IFP_65') return 'IFP_75';
+    if (upper === 'OPS' || upper === 'OPS_I5') return 'OPS_I5';
+    if (upper === 'STUDENT_TABLETS' || upper === 'TABLETS' || upper === 'TABLET_10') return 'TABLET_10';
+    if (upper === 'SERVER_MINI_PC' || upper === 'MINI_PC') return 'COMPUTER_SYSTEM';
+    if (upper === 'NETWORKING_ROUTER' || upper === 'ROUTER') return 'COMPUTER_SYSTEM';
+    return upper;
+  }, []);
+
+  // Helper to get recommended hardware keys for a solution (Core Backend & Default Maps)
+  const getRecommendedHardwareKeys = useCallback(
+    (solKey: string): string[] => {
+      const normSolKey = normalizeSolutionKey(solKey);
+
+      // 1. Direct match against catalogHardware solutions array
+      const mappedFromCatalog = catalogHardware
+        .filter((item) => {
+          if (!Array.isArray(item.solutions)) return false;
+          return item.solutions.some((s: any) => {
+            const raw = typeof s === 'object' && s !== null ? (s.key || s.label || s._id) : String(s);
+            return normalizeSolutionKey(raw) === normSolKey || String(raw).toUpperCase() === solKey.toUpperCase();
+          });
+        })
+        .map((item) => item.key);
+
+      if (mappedFromCatalog.length > 0) {
+        return Array.from(new Set(mappedFromCatalog));
+      }
+
+      // 2. Fallback to DEFAULT_SOLUTION_HARDWARE_MAP
+      const defaults = DEFAULT_SOLUTION_HARDWARE_MAP[normSolKey] || DEFAULT_SOLUTION_HARDWARE_MAP[solKey] || [];
+      const catalogKeys = catalogHardware.map((h) => h.key);
+      const filtered = defaults.filter((k) => catalogKeys.includes(k) || catalogKeys.includes(normalizeHwKey(k)));
+
+      return filtered.length > 0 ? Array.from(new Set(filtered)) : defaults;
+    },
+    [catalogHardware, normalizeHwKey]
+  );
+
+  // Helper to resolve school solution map candidates from any data shape
+  const allCandidateSolutionMaps = useMemo(() => {
+    const rawCandidates: any[] = [
       allFormData?.stage3SchoolWiseSolutions,
+      allFormData?.stage3SolutionsData?.solutions?.schoolWiseSolutions,
       allFormData?.stage3SolutionsData?.schoolWiseSolutions,
+      allFormData?.solutionSelection?.solutions?.schoolWiseSolutions,
       allFormData?.solutionSelection?.schoolWiseSolutions,
+      allFormData?.solutions?.schoolWiseSolutions,
+      allFormData?.orderRequirement?.solutionSelection?.solutions?.schoolWiseSolutions,
       allFormData?.orderRequirement?.solutionSelection?.schoolWiseSolutions,
+      allFormData?.project?.orderRequirement?.solutionSelection?.solutions?.schoolWiseSolutions,
       allFormData?.project?.orderRequirement?.solutionSelection?.schoolWiseSolutions,
       allFormData?.schoolWiseSolutions,
       value?.schoolWiseSolutions,
-    ].filter((m) => m && typeof m === 'object' && Object.keys(m).length > 0);
+    ];
+
+    const resolvedMaps: Record<string, any>[] = [];
+    rawCandidates.forEach((c) => {
+      if (!c) return;
+      if (Array.isArray(c)) {
+        const converted: Record<string, any> = {};
+        c.forEach((entry: any, eIdx: number) => {
+          const schKey = entry.schoolId || entry.id || entry._id || entry.schoolName || `school-${eIdx + 1}`;
+          converted[schKey] = entry.solutions || entry.solutionSelection || entry.items || entry;
+        });
+        resolvedMaps.push(converted);
+      } else if (typeof c === 'object' && Object.keys(c).length > 0) {
+        resolvedMaps.push(c);
+      }
+    });
+    return resolvedMaps;
+  }, [allFormData, value?.schoolWiseSolutions]);
+
+  // 2. Extract ONLY CONFIGURED / SELECTED SOLUTIONS FOR THE CURRENT SCHOOL FROM DB / FORMDATA
+  const currentSchoolSolutions = useMemo(() => {
+    const schoolIdentifiers = [
+      currentSchool.id,
+      (currentSchool as any)._id,
+      (currentSchool as any).schoolId,
+      (currentSchool as any).id,
+      `school-${activeSchoolIndex + 1}`,
+      `school_${activeSchoolIndex + 1}`,
+      String(activeSchoolIndex + 1),
+      String(activeSchoolIndex),
+    ].filter(Boolean).map((s) => String(s).trim().toLowerCase());
+
+    const schoolNameKey = (currentSchool.name || (currentSchool as any).schoolName || '').toLowerCase().trim();
 
     let schoolSolData: Record<string, any> | null = null;
 
-    for (const solMap of candidateMaps) {
-      // 1. Direct ID match
-      if (solMap[currentSchool.id]) {
-        schoolSolData = solMap[currentSchool.id];
+    for (const solMap of allCandidateSolutionMaps) {
+      // 1. Direct ID / identifier match in object keys
+      const matchingKey = Object.keys(solMap).find((k) => {
+        const kLower = k.toLowerCase().trim();
+        return schoolIdentifiers.includes(kLower) || (schoolNameKey && kLower === schoolNameKey);
+      });
+
+      if (matchingKey && solMap[matchingKey]) {
+        schoolSolData = solMap[matchingKey];
         break;
       }
-      // 2. Match by _id if different
-      if ((currentSchool as any)._id && solMap[(currentSchool as any)._id]) {
-        schoolSolData = solMap[(currentSchool as any)._id];
-        break;
-      }
-      // 3. Match by name or schoolName
-      const schoolNameKey = (currentSchool.name || (currentSchool as any).schoolName || '').toLowerCase().trim();
-      const matchingKeyByName = Object.keys(solMap).find(
-        (k) => k.toLowerCase().trim() === schoolNameKey
-      );
-      if (matchingKeyByName && solMap[matchingKeyByName]) {
-        schoolSolData = solMap[matchingKeyByName];
-        break;
-      }
-      // 4. Match by school-1, school-2 index key
-      const indexedKey = `school-${activeSchoolIndex + 1}`;
-      if (solMap[indexedKey]) {
-        schoolSolData = solMap[indexedKey];
-        break;
-      }
-      // 5. Positional index match if keys count matches schools
+
+      // 2. Positional match if keys count matches schools length
       const mapKeys = Object.keys(solMap);
       if (mapKeys[activeSchoolIndex] && solMap[mapKeys[activeSchoolIndex]]) {
         schoolSolData = solMap[mapKeys[activeSchoolIndex]];
@@ -412,15 +491,58 @@ export function HardwareRequirementsInput({
 
     // Convert matched solution entries
     const configuredList: any[] = [];
-    if (schoolSolData && typeof schoolSolData === 'object') {
-      Object.entries(schoolSolData).forEach(([solKey, item]: [string, any]) => {
-        // Skip if not an active/selected object or false
-        if (!item || item === false) return;
-        const defObj =
-          catalogSolutions.find((d) => d.key === solKey);
+    if (Array.isArray(schoolSolData)) {
+      schoolSolData.forEach((item: any) => {
+        if (!item) return;
+        const solKey = typeof item === 'string' ? item : (item.key || item.solutionKey || item.id || '');
+        if (!solKey || solKey === 'id' || solKey === '_id' || solKey === 'schoolId' || solKey === 'schoolName') return;
+
+        const normKey = normalizeSolutionKey(solKey);
+        const defObj = catalogSolutions.find(
+          (d) =>
+            normalizeSolutionKey(d.key) === normKey ||
+            d.key === solKey ||
+            (d.label && d.label.toLowerCase() === (item.solutionName || solKey || '').toLowerCase())
+        );
 
         configuredList.push({
           solutionKey: solKey,
+          normalizedKey: normKey,
+          solutionName: (typeof item === 'object' && item.solutionName) || defObj?.label || solKey,
+          icon: defObj?.icon || '🔬',
+          desc: defObj?.desc || '',
+          quantity: (typeof item === 'object' && Number(item.quantity)) || 1,
+          targetClasses: typeof item === 'object' && Array.isArray(item.targetClasses)
+            ? item.targetClasses
+            : typeof item === 'object' && typeof item.targetClasses === 'string' && item.targetClasses
+              ? item.targetClasses.split(',').map((s: string) => s.trim()).filter(Boolean)
+              : [],
+          board: (typeof item === 'object' && item.board) || 'CBSE',
+          licenseRequired: Boolean(
+            (typeof item === 'object' && (item.licenseRequired ?? item.isLicenseRequired)) ?? defObj?.licenseRequired ?? defObj?.isLicenseRequired
+          ),
+          platform: (typeof item === 'object' && item.platform) || defObj?.platform || '',
+          licenseCount: (typeof item === 'object' && Number(item.licenseCount)) || 0,
+          notes: (typeof item === 'object' && item.notes) || '',
+        });
+      });
+    } else if (schoolSolData && typeof schoolSolData === 'object') {
+      Object.entries(schoolSolData).forEach(([solKey, item]: [string, any]) => {
+        // Skip if not an active/selected object or false
+        if (!item || item === false) return;
+        if (solKey === 'id' || solKey === '_id' || solKey === 'schoolId' || solKey === 'schoolName') return;
+
+        const normKey = normalizeSolutionKey(solKey);
+        const defObj = catalogSolutions.find(
+          (d) =>
+            normalizeSolutionKey(d.key) === normKey ||
+            d.key === solKey ||
+            (d.label && d.label.toLowerCase() === (item.solutionName || '').toLowerCase())
+        );
+
+        configuredList.push({
+          solutionKey: solKey,
+          normalizedKey: normKey,
           solutionName: item.solutionName || defObj?.label || solKey,
           icon: defObj?.icon || '🔬',
           desc: defObj?.desc || '',
@@ -431,6 +553,11 @@ export function HardwareRequirementsInput({
               ? item.targetClasses.split(',').map((s: string) => s.trim()).filter(Boolean)
               : [],
           board: item.board || 'CBSE',
+          licenseRequired: Boolean(
+            item.licenseRequired ?? item.isLicenseRequired ?? defObj?.licenseRequired ?? defObj?.isLicenseRequired
+          ),
+          platform: item.platform || defObj?.platform || '',
+          licenseCount: Number(item.licenseCount) || 0,
           notes: item.notes || '',
         });
       });
@@ -439,8 +566,10 @@ export function HardwareRequirementsInput({
     // Top-level fallback IF no school-wise structure exists but top-level solutions exist
     if (configuredList.length === 0) {
       const topLevelKeys =
-        allFormData?.solutionSelection?.activeSolutionKeys ||
+        allFormData?.solutionSelection?.solutions?.activeSolutionKeys ||
+        allFormData?.stage3SolutionsData?.solutions?.activeSolutionKeys ||
         allFormData?.stage3SolutionsData?.activeSolutionKeys ||
+        allFormData?.solutionSelection?.activeSolutionKeys ||
         allFormData?.activeSolutionKeys ||
         (Array.isArray(allFormData?.project?.orderRequirement?.solutionSelection?.activeSolutionKeys)
           ? allFormData.project.orderRequirement.solutionSelection.activeSolutionKeys
@@ -449,15 +578,19 @@ export function HardwareRequirementsInput({
       if (Array.isArray(topLevelKeys) && topLevelKeys.length > 0) {
         topLevelKeys.forEach((solKey: string) => {
           const topData =
-            allFormData?.solutionSelection?.[solKey] ||
+            allFormData?.stage3SolutionsData?.solutions?.[solKey] ||
             allFormData?.stage3SolutionsData?.[solKey] ||
+            allFormData?.solutionSelection?.[solKey] ||
             allFormData?.[solKey] ||
             {};
-          const defObj =
-            catalogSolutions.find((d) => d.key === solKey);
+          const normKey = normalizeSolutionKey(solKey);
+          const defObj = catalogSolutions.find(
+            (d) => normalizeSolutionKey(d.key) === normKey || d.key === solKey
+          );
 
           configuredList.push({
             solutionKey: solKey,
+            normalizedKey: normKey,
             solutionName: topData.solutionName || defObj?.label || solKey,
             icon: defObj?.icon || '🔬',
             desc: defObj?.desc || '',
@@ -468,6 +601,11 @@ export function HardwareRequirementsInput({
                 ? topData.targetClasses.split(',').map((s: string) => s.trim()).filter(Boolean)
                 : [],
             board: topData.board || 'CBSE',
+            licenseRequired: Boolean(
+              topData.licenseRequired ?? topData.isLicenseRequired ?? defObj?.licenseRequired ?? defObj?.isLicenseRequired
+            ),
+            platform: topData.platform || defObj?.platform || '',
+            licenseCount: Number(topData.licenseCount) || 0,
             notes: topData.notes || '',
           });
         });
@@ -478,44 +616,37 @@ export function HardwareRequirementsInput({
     const localKeys = locallyAttachedSolutions[currentSchool.id] || [];
     localKeys.forEach((solKey) => {
       if (!configuredList.some((s) => s.solutionKey === solKey)) {
-        const defObj =
-          catalogSolutions.find((d) => d.key === solKey);
+        const normKey = normalizeSolutionKey(solKey);
+        const defObj = catalogSolutions.find(
+          (d) => normalizeSolutionKey(d.key) === normKey || d.key === solKey
+        );
         configuredList.push({
           solutionKey: solKey,
+          normalizedKey: normKey,
           solutionName: defObj?.label || solKey,
           icon: defObj?.icon || '🔬',
           desc: defObj?.desc || '',
           quantity: 1,
           targetClasses: ['Class 6', 'Class 7', 'Class 8'],
           board: 'CBSE',
+          licenseRequired: Boolean(defObj?.licenseRequired ?? defObj?.isLicenseRequired),
+          platform: defObj?.platform || '',
+          licenseCount: 0,
           notes: '',
         });
       }
     });
 
     // RETURN ONLY SELECTED/CONFIGURED SOLUTIONS FOR THIS PARTICULAR SCHOOL!
-    // (If none selected, returns empty array [] - does NOT dump all solutions)
     return configuredList;
   }, [
     allFormData,
-    currentSchool.id,
-    currentSchool.name,
+    currentSchool,
     activeSchoolIndex,
     catalogSolutions,
     locallyAttachedSolutions,
-    value?.schoolWiseSolutions
+    allCandidateSolutionMaps
   ]);
-
-  // Normalization helper for hardware key aliases
-  const normalizeHwKey = useCallback((rawKey: string): string => {
-    if (!rawKey) return '';
-    const upper = rawKey.toUpperCase().trim();
-    if (upper === 'IFP_PANEL' || upper === 'IFP_75' || upper === 'IFP_65') return 'IFP';
-    if (upper === 'STUDENT_TABLETS' || upper === 'TABLETS' || upper === 'TABLET_10') return 'TABLET';
-    if (upper === 'SERVER_MINI_PC' || upper === 'MINI_PC') return 'COMPUTER_SYSTEM';
-    if (upper === 'NETWORKING_ROUTER' || upper === 'ROUTER') return 'COMPUTER_SYSTEM';
-    return upper;
-  }, []);
 
   // 3. School-wise hardware allocations state
   const schoolAllocations = useMemo<Record<string, Record<string, SchoolHardwareItem>>>(() => {
@@ -553,19 +684,20 @@ export function HardwareRequirementsInput({
         initialMap[schoolId] = {};
       }
 
-      const itemKey = normalizeHwKey(rawItemKey);
-      const defObj =
-        catalogHardware.find((d) => d.key === itemKey || d.key === rawItemKey);
+      const itemKey = rawItemKey;
+      const defObj = catalogHardware.find(
+        (d) => d.key === itemKey || normalizeHwKey(d.key) === normalizeHwKey(rawItemKey)
+      );
 
       const qty = Number(rawVal?.quantity || rawVal?.qty || rawVal) || 1;
-      const spec = rawVal?.specNotes || rawVal?.specs || rawVal?.specifications || defObj?.desc || '';
+      const spec = rawVal?.specNotes || rawVal?.specs || rawVal?.specifications || defObj?.desc || defObj?.spec || '';
       const serial = rawVal?.serialNotes || rawVal?.room || '';
       const solKey = rawVal?.solutionKey || '';
       const solName = rawVal?.solutionName || '';
 
       initialMap[schoolId][itemKey] = {
         itemKey,
-        itemName: rawVal?.itemName || defObj?.label || itemKey,
+        itemName: rawVal?.itemName || defObj?.label || defObj?.name || itemKey,
         quantity: qty,
         specNotes: spec,
         serialNotes: serial,
@@ -587,11 +719,8 @@ export function HardwareRequirementsInput({
           });
         }
       });
-      return initialMap;
-    }
-
-    // 2. If rawSchoolWise is an Object (e.g. { 'SCH-DEL-0101': { 'IFP': { ... } } })
-    if (rawSchoolWise && typeof rawSchoolWise === 'object' && Object.keys(rawSchoolWise).length > 0) {
+    } else if (rawSchoolWise && typeof rawSchoolWise === 'object' && Object.keys(rawSchoolWise).length > 0) {
+      // 2. If rawSchoolWise is an Object (e.g. { 'school-1': { 'IFP_75': { ... } } })
       Object.entries(rawSchoolWise).forEach(([schKey, hwMap]) => {
         if (hwMap && typeof hwMap === 'object') {
           Object.entries(hwMap as Record<string, any>).forEach(([k, v]) => {
@@ -599,36 +728,109 @@ export function HardwareRequirementsInput({
           });
         }
       });
-      return initialMap;
+    } else {
+      // 3. Fallback to top-level items / activeHardwareKeys
+      const legacyItems = value?.hardware || value?.items || value || {};
+      const fallbackKeys = Array.isArray(value?.activeHardwareKeys)
+        ? value.activeHardwareKeys
+        : Object.keys(legacyItems).filter((k) => k !== 'schoolWiseHardware' && k !== 'activeHardwareKeys');
+
+      if (fallbackKeys.length > 0) {
+        effectiveSchools.forEach((sch) => {
+          fallbackKeys.forEach((rawItemKey: string) => {
+            const legacy = legacyItems[rawItemKey] || {};
+            const itemKey = rawItemKey;
+            const defObj = catalogHardware.find(
+              (d) => d.key === itemKey || normalizeHwKey(d.key) === normalizeHwKey(rawItemKey)
+            );
+
+            initialMap[sch.id][itemKey] = {
+              itemKey,
+              itemName: legacy.itemName || defObj?.label || defObj?.name || itemKey,
+              quantity: Number(legacy.quantity) || (itemKey.toUpperCase().includes('TABLET') ? 10 : 1),
+              specNotes: legacy.specNotes || legacy.specifications || defObj?.desc || defObj?.spec || '',
+              serialNotes: legacy.serialNotes || '',
+              solutionKey: legacy.solutionKey || '',
+              solutionName: legacy.solutionName || '',
+            };
+          });
+        });
+      }
     }
 
-    // 3. Fallback to top-level items / activeHardwareKeys
-    const legacyItems = value?.hardware || value?.items || value || {};
-    const fallbackKeys = Array.isArray(value?.activeHardwareKeys)
-      ? value.activeHardwareKeys
-      : Object.keys(legacyItems).filter((k) => k !== 'schoolWiseHardware' && k !== 'activeHardwareKeys');
+    // 4. AUTO-DERIVATION: If a school has 0 hardware items configured, auto-derive from its selected solutions
+    effectiveSchools.forEach((sch, schIdx) => {
+      if (Object.keys(initialMap[sch.id] || {}).length === 0) {
+        const schIdentifiers = [
+          sch.id,
+          (sch as any)._id,
+          (sch as any).schoolId,
+          `school-${schIdx + 1}`,
+          String(schIdx + 1),
+          String(schIdx),
+        ].filter(Boolean).map((s) => String(s).trim().toLowerCase());
 
-    effectiveSchools.forEach((sch) => {
-      fallbackKeys.forEach((rawItemKey: string) => {
-        const legacy = legacyItems[rawItemKey] || {};
-        const itemKey = normalizeHwKey(rawItemKey);
-        const defObj =
-          catalogHardware.find((d) => d.key === itemKey || d.key === rawItemKey);
+        const schNameKey = (sch.name || (sch as any).schoolName || '').toLowerCase().trim();
 
-        initialMap[sch.id][itemKey] = {
-          itemKey,
-          itemName: legacy.itemName || defObj?.label || itemKey,
-          quantity: Number(legacy.quantity) || (itemKey === 'TABLET' ? 10 : 1),
-          specNotes: legacy.specNotes || legacy.specifications || defObj?.desc || '',
-          serialNotes: legacy.serialNotes || '',
-          solutionKey: legacy.solutionKey || '',
-          solutionName: legacy.solutionName || '',
-        };
-      });
+        let schSolData: Record<string, any> | null = null;
+        for (const solMap of allCandidateSolutionMaps) {
+          if (!solMap || typeof solMap !== 'object') continue;
+          const matchKey = Object.keys(solMap).find((k) => {
+            const kLower = k.toLowerCase().trim();
+            return schIdentifiers.includes(kLower) || (schNameKey && kLower === schNameKey);
+          });
+          if (matchKey && solMap[matchKey]) {
+            schSolData = solMap[matchKey];
+            break;
+          }
+          const mapKeys = Object.keys(solMap);
+          if (mapKeys[schIdx] && solMap[mapKeys[schIdx]]) {
+            schSolData = solMap[mapKeys[schIdx]];
+            break;
+          }
+        }
+
+        if (schSolData && typeof schSolData === 'object') {
+          Object.entries(schSolData).forEach(([solKey, item]: [string, any]) => {
+            if (!item || item === false) return;
+            const solQty = Number(item.quantity) || 1;
+            const solName = item.solutionName || solKey;
+            const recKeys = getRecommendedHardwareKeys(solKey);
+
+            recKeys.forEach((recKey) => {
+              const defObj = catalogHardware.find(
+                (h) => h.key === recKey || normalizeHwKey(h.key) === normalizeHwKey(recKey)
+              );
+              const itemKey = defObj?.key || recKey;
+              if (!initialMap[sch.id][itemKey]) {
+                const isTabOrLaptop =
+                  itemKey.toUpperCase().includes('TABLET') || itemKey.toUpperCase().includes('LAPTOP');
+                initialMap[sch.id][itemKey] = {
+                  itemKey,
+                  itemName: defObj?.label || defObj?.name || itemKey,
+                  quantity: isTabOrLaptop ? (solQty > 1 ? solQty : 10) : solQty,
+                  specNotes: defObj?.desc || defObj?.spec || '',
+                  serialNotes: '',
+                  solutionKey: solKey,
+                  solutionName: solName,
+                };
+              }
+            });
+          });
+        }
+      }
     });
 
     return initialMap;
-  }, [value, allFormData, effectiveSchools, catalogHardware, normalizeHwKey]);
+  }, [
+    value,
+    allFormData,
+    effectiveSchools,
+    catalogHardware,
+    normalizeHwKey,
+    allCandidateSolutionMaps,
+    getRecommendedHardwareKeys
+  ]);
 
   // Synchronize state with parent
   const emitUpdate = useCallback(
@@ -807,19 +1009,6 @@ export function HardwareRequirementsInput({
     [currentSchool.id]
   );
 
-  // Helper to get recommended hardware keys for a solution
-  const getRecommendedHardwareKeys = useCallback(
-    (solKey: string): string[] => {
-      const mappedFromCatalog = catalogHardware
-        .filter((item) => (item.solutions || []).includes(solKey))
-        .map((item) => item.key);
-
-      if (mappedFromCatalog.length > 0) return mappedFromCatalog;
-
-      return DEFAULT_SOLUTION_HARDWARE_MAP[solKey] || ['IFP', 'TABLET', 'UPS'];
-    },
-    [catalogHardware]
-  );
 
   // Total summary across all schools
   const totalUnitsAcrossSchools = useMemo(() => {

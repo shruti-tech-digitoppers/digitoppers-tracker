@@ -380,13 +380,12 @@ class RequestService {
             $or: [
               { projectId: finalCoreProjectId.toLowerCase() },
               { projectId: finalCoreProjectId.toUpperCase() },
-              { project: finalCoreMongoId }
+              { projectId: finalCoreProjectId }
             ],
             employee: request.projectManager
           },
           {
             projectId: finalCoreProjectId.toLowerCase(),
-            project: finalCoreMongoId,
             employee: request.projectManager,
             designation: DESIGNATIONS.PROJECT_MANAGER,
             assignedBy: approverEmployeeId,
@@ -401,7 +400,6 @@ class RequestService {
         await Notification.create([{
           recipient: request.projectManager,
           projectId: finalCoreProjectId,
-          project: finalCoreMongoId,
           title: 'Assigned as Project Manager',
           message: `You have been assigned as the Project Manager for confirmed project ${finalCoreProjectId} (${coreProject.projectName || request.title}), approved by ${approver.name}.`,
           type: 'ASSIGNMENT',
@@ -419,7 +417,6 @@ class RequestService {
         await Notification.create([{
           recipient: request.requestedBy,
           projectId: finalCoreProjectId,
-          project: finalCoreMongoId,
           title: 'Project Request Approved & Initialized',
           message: `Your project request ${request.requestId} (${request.title}) has been confirmed by ${approver.name} and linked to Core Backend Project ${finalCoreProjectId}.`,
           type: 'PROJECT_REQUEST_APPROVED',
@@ -436,7 +433,6 @@ class RequestService {
       // ── Activity Log ──
       await Activity.create([{
         projectId: finalCoreProjectId,
-        project: finalCoreMongoId,
         actor: approverEmployeeId,
         action: 'PROJECT_REQUEST_APPROVED',
         resourceType: 'Project',

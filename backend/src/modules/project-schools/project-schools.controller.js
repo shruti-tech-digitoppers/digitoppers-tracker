@@ -1,5 +1,4 @@
 const ProjectSchools = require('./project-schools.model');
-const School = require('../schools/school.model');
 const { AppError } = require('../../core/errors');
 const mongoose = require('mongoose');
 const coreApi = require('../../services/core-api.service');
@@ -36,9 +35,9 @@ exports.getProjectSchoolsByProject = async (req, res, next) => {
       return next(new AppError('Project not found', 404, 'NOT_FOUND'));
     }
 
-    const pCode = (project.projectId || '').toLowerCase();
+    const pCode = project.projectId || String(projectId);
     const doc = await ProjectSchools.findOne({
-      $or: [{ project: project._id }, { projectId: pCode }, { projectId: pCode.toUpperCase() }, { projectId: project.projectId }].filter(Boolean)
+      $or: [{ projectId: pCode }, { projectId: pCode.toLowerCase() }, { projectId: pCode.toUpperCase() }]
     })
       .populate('project', 'projectId projectName title status numberOfSchools')
       .populate('schools.school', 'name address district state contactPerson')
@@ -86,9 +85,9 @@ exports.updateSchoolDeployment = async (req, res, next) => {
       return next(new AppError('Project not found', 404, 'NOT_FOUND'));
     }
 
-    const pCode = (project.projectId || '').toLowerCase();
+    const pCode = project.projectId || String(projectId);
     const doc = await ProjectSchools.findOne({
-      $or: [{ project: project._id }, { projectId: pCode }, { projectId: pCode.toUpperCase() }, { projectId: project.projectId }].filter(Boolean)
+      $or: [{ projectId: pCode }, { projectId: pCode.toLowerCase() }, { projectId: pCode.toUpperCase() }]
     });
 
     if (!doc) {
@@ -133,9 +132,9 @@ exports.getProjectSchoolsSummary = async (req, res, next) => {
       return next(new AppError('Project not found', 404, 'NOT_FOUND'));
     }
 
-    const pCode = (project.projectId || '').toLowerCase();
+    const pCode = project.projectId || String(projectId);
     const doc = await ProjectSchools.findOne({
-      $or: [{ project: project._id }, { projectId: pCode }, { projectId: pCode.toUpperCase() }, { projectId: project.projectId }].filter(Boolean)
+      $or: [{ projectId: pCode }, { projectId: pCode.toLowerCase() }, { projectId: pCode.toUpperCase() }]
     }).lean();
 
     const schools = (doc && doc.schools) || [];

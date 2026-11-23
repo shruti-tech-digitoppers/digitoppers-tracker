@@ -133,6 +133,7 @@ import {
   IGrade,
   isGradeSelected
 } from '@/types/grade';
+import { useGradesCatalog } from '@/lib/hooks/useGradesCatalog';
 
 // Exact LMS Backend Grade Schema Definition (mirrors MongoDB grades collection)
 export type ILmsGrade = IGrade;
@@ -225,6 +226,9 @@ export function MultiSchoolSection({
   onChange,
   disabled = false,
 }: MultiSchoolSectionProps) {
+  const { classOptions, loading: isGradesLoading } = useGradesCatalog();
+  const activeClassOptions = classOptions;
+
   // Normalize incoming value into an array of schools
   const schoolsList: ISchoolSurveyData[] = useMemo(() => {
     if (value && Array.isArray(value.schools) && value.schools.length > 0) {
@@ -715,7 +719,7 @@ export function MultiSchoolSection({
                     <div className="flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => handleUpdateCurrentSchool({ classes: LMS_CLASS_OPTIONS.map(opt => opt.name) })}
+                        onClick={() => handleUpdateCurrentSchool({ classes: activeClassOptions.map(opt => opt.name) })}
                         className="text-[11px] font-bold text-[#3a7d84] bg-[#f0f8f9] hover:bg-[#e0f3f5] border border-[#b6e0e4] px-2.5 py-0.5 rounded-lg transition cursor-pointer"
                       >
                         Select All
@@ -756,7 +760,7 @@ export function MultiSchoolSection({
                         </span>
                       ) : (
                         toArray(currentSchool.classes).map((cls) => {
-                          const matchingOpt = LMS_CLASS_OPTIONS.find(
+                          const matchingOpt = activeClassOptions.find(
                             opt => opt.name.toLowerCase() === String(cls).toLowerCase() || opt.label.toLowerCase() === String(cls).toLowerCase()
                           );
                           return (
@@ -824,9 +828,14 @@ export function MultiSchoolSection({
 
                       {/* Scrollable Class Options List */}
                       <div className="max-h-64 overflow-y-auto pr-1 space-y-2">
-                        {classSearchQuery.trim() ? (
+                        {isGradesLoading && activeClassOptions.length === 0 ? (
+                          <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                            <span className="w-3.5 h-3.5 border-2 border-[#51a8b1] border-t-transparent rounded-full animate-spin" />
+                            <span>Loading classes from Core Backend LMS...</span>
+                          </div>
+                        ) : classSearchQuery.trim() ? (
                           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                            {LMS_CLASS_OPTIONS.filter(opt => 
+                            {activeClassOptions.filter(opt => 
                               opt.label.toLowerCase().includes(classSearchQuery.toLowerCase()) || 
                               opt.name.toLowerCase().includes(classSearchQuery.toLowerCase())
                             ).map((opt) => {
@@ -863,7 +872,7 @@ export function MultiSchoolSection({
                           <>
                             {/* Regular Nursery to Class 10 */}
                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-                              {LMS_CLASS_OPTIONS.filter(opt => !opt.id.startsWith('c11') && !opt.id.startsWith('c12')).map((opt) => {
+                              {activeClassOptions.filter(opt => !opt.id.startsWith('c11') && !opt.id.startsWith('c12') && opt.grade !== '11' && opt.grade !== '12').map((opt) => {
                                 const isSelected = isClassOptionSelected(currentSchool.classes, opt);
                                 return (
                                   <button
@@ -902,7 +911,7 @@ export function MultiSchoolSection({
                                 </span>
                               </div>
                               <div className="grid grid-cols-3 gap-1.5">
-                                {LMS_CLASS_OPTIONS.filter(opt => opt.id.startsWith('c11')).map((opt) => {
+                                {activeClassOptions.filter(opt => opt.grade === '11' || opt.id.startsWith('c11')).map((opt) => {
                                   const isSelected = isClassOptionSelected(currentSchool.classes, opt);
                                   return (
                                     <button
@@ -942,7 +951,7 @@ export function MultiSchoolSection({
                                 </span>
                               </div>
                               <div className="grid grid-cols-3 gap-1.5">
-                                {LMS_CLASS_OPTIONS.filter(opt => opt.id.startsWith('c12')).map((opt) => {
+                                {activeClassOptions.filter(opt => opt.grade === '12' || opt.id.startsWith('c12')).map((opt) => {
                                   const isSelected = isClassOptionSelected(currentSchool.classes, opt);
                                   return (
                                     <button

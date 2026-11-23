@@ -14,6 +14,7 @@ import {
 } from '../utils/formHelpers';
 import { isGradeSelected } from '@/types/grade';
 import { useSolutionsAndHardware, MasterSolution } from '@/lib/hooks/useSolutionsAndHardware';
+import { useGradesCatalog } from '@/lib/hooks/useGradesCatalog';
 import { InstitutionalSchoolSelector } from '../common/InstitutionalSchoolSelector';
 import { StepSectionHeader } from '../common/StepSectionHeader';
 import {
@@ -104,6 +105,16 @@ function ClassesMultiSelectDropdown({
     };
   }, [isOpen]);
 
+  const { allClassNames, classSegments, loading: isGradesLoading } = useGradesCatalog();
+
+  const primaryClasses = useMemo(() => classSegments.find((s) => s.id === 'primary')?.classes || [], [classSegments]);
+  const middleClasses = useMemo(() => classSegments.find((s) => s.id === 'middle')?.classes || [], [classSegments]);
+  const secondaryClasses = useMemo(() => classSegments.find((s) => s.id === 'secondary')?.classes || [], [classSegments]);
+  const middleAndSecClasses = useMemo(() => [...middleClasses, ...secondaryClasses], [middleClasses, secondaryClasses]);
+  const c11Classes = useMemo(() => allClassNames.filter((c) => c.startsWith('11 ') || c.includes('11 Science') || c.includes('11 Commerce') || c.includes('11 Arts')), [allClassNames]);
+  const c12Classes = useMemo(() => allClassNames.filter((c) => c.startsWith('12 ') || c.includes('12 Science') || c.includes('12 Commerce') || c.includes('12 Arts')), [allClassNames]);
+  const seniorClasses = useMemo(() => classSegments.find((s) => s.id === 'senior_sec')?.classes || [...c11Classes, ...c12Classes], [classSegments, c11Classes, c12Classes]);
+
   const toggleClass = useCallback((cls: string) => {
     if (isGradeSelected(selectedClasses, cls)) {
       onChange(selectedClasses.filter((c) => !isGradeSelected([c], cls)));
@@ -113,24 +124,45 @@ function ClassesMultiSelectDropdown({
   }, [selectedClasses, onChange]);
 
   const applyPreset = useCallback((presetType: string) => {
-    onChange(getClassPreset(presetType));
-  }, [onChange]);
+    switch (presetType) {
+      case 'PRIMARY':
+        onChange(primaryClasses);
+        break;
+      case 'MIDDLE':
+        onChange(middleClasses);
+        break;
+      case 'SECONDARY':
+        onChange(secondaryClasses);
+        break;
+      case 'SR_SECONDARY':
+        onChange(seniorClasses);
+        break;
+      case 'ALL':
+        onChange(allClassNames);
+        break;
+      case 'CLEAR':
+        onChange([]);
+        break;
+      default:
+        onChange([]);
+    }
+  }, [onChange, primaryClasses, middleClasses, secondaryClasses, seniorClasses, allClassNames]);
 
   const filteredFoundational = useMemo(() =>
-    FOUNDATIONAL_CLASSES.filter((c) => c.toLowerCase().includes(searchQuery.toLowerCase())),
-    [searchQuery]
+    primaryClasses.filter((c) => c.toLowerCase().includes(searchQuery.toLowerCase())),
+    [primaryClasses, searchQuery]
   );
   const filteredMiddle = useMemo(() =>
-    MIDDLE_CLASSES.filter((c) => c.toLowerCase().includes(searchQuery.toLowerCase())),
-    [searchQuery]
+    middleAndSecClasses.filter((c) => c.toLowerCase().includes(searchQuery.toLowerCase())),
+    [middleAndSecClasses, searchQuery]
   );
   const filtered11 = useMemo(() =>
-    CLASS_11_STREAMS.filter((c) => c.toLowerCase().includes(searchQuery.toLowerCase())),
-    [searchQuery]
+    c11Classes.filter((c) => c.toLowerCase().includes(searchQuery.toLowerCase())),
+    [c11Classes, searchQuery]
   );
   const filtered12 = useMemo(() =>
-    CLASS_12_STREAMS.filter((c) => c.toLowerCase().includes(searchQuery.toLowerCase())),
-    [searchQuery]
+    c12Classes.filter((c) => c.toLowerCase().includes(searchQuery.toLowerCase())),
+    [c12Classes, searchQuery]
   );
 
   const totalFilteredCount =
@@ -292,7 +324,12 @@ function ClassesMultiSelectDropdown({
 
           {/* Classes Category Sections */}
           <div className="overflow-y-auto space-y-3 pr-1 flex-1 max-h-[220px]">
-            {totalFilteredCount === 0 ? (
+            {isGradesLoading && allClassNames.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                <span className="w-3.5 h-3.5 border-2 border-[#51a8b1] border-t-transparent rounded-full animate-spin" />
+                <span>Loading classes from Core Backend...</span>
+              </div>
+            ) : totalFilteredCount === 0 ? (
               <div className="py-6 text-center text-xs text-slate-400">
                 No classes match &quot;{searchQuery}&quot;
               </div>

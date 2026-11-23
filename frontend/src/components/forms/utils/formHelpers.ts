@@ -316,7 +316,16 @@ export function extractEffectiveSchools(
     return value.schools.map((s: any, idx: number) => mapSchool(s, idx, value.schools.length));
   }
 
-  // Return empty list if no schools exist in DB/props (no fake random data)
+  // 7. allFormData nested school objects (stage3SchoolData, schoolOnboardingInformation, schoolInformation)
+  const nestedSchools =
+    allFormData?.stage3SchoolData?.schools ||
+    allFormData?.schoolOnboardingInformation?.schools ||
+    allFormData?.schoolInformation?.schools;
+  if (Array.isArray(nestedSchools) && nestedSchools.length > 0) {
+    return nestedSchools.map((s: any, idx: number) => mapSchool(s, idx, nestedSchools.length));
+  }
+
+  // Return empty list if no genuine schools exist in DB/props (Strictly NO fake/synthesized fallbacks)
   return [];
 }
 
@@ -448,6 +457,138 @@ export function extractEffectiveHardwareItems(
       };
     });
     return result;
+  }
+
+  // 3. Fallback: Auto-derive recommended hardware items from selected solutions (Stage 03 Solution Selection)
+  const rawSchoolWiseSol =
+    allFormData?.stage3SchoolWiseSolutions ||
+    allFormData?.stage3SolutionsData?.schoolWiseSolutions ||
+    allFormData?.stage3SolutionsData?.solutions?.schoolWiseSolutions ||
+    allFormData?.solutions?.schoolWiseSolutions ||
+    allFormData?.solutionSelection?.schoolWiseSolutions ||
+    allFormData?.solutionSelection?.solutions?.schoolWiseSolutions ||
+    allFormData?.orderRequirement?.solutionSelection?.schoolWiseSolutions ||
+    allFormData?.orderRequirement?.solutionSelection?.solutions?.schoolWiseSolutions ||
+    project?.orderRequirement?.solutionSelection?.schoolWiseSolutions ||
+    project?.orderRequirement?.solutions?.schoolWiseSolutions ||
+    value?.schoolWiseSolutions;
+
+  const defaultHwSpecs: Record<string, { name: string; specs: string }> = {
+    IFP_75: { name: '75" 4K UHD Interactive Flat Panel', specs: '75" 4K UHD Anti-Glare, 400 nits, Android 13, Dual Stylus' },
+    IFP: { name: '75" 4K UHD Interactive Flat Panel', specs: '75" 4K UHD Anti-Glare, 400 nits, Android 13, Dual Stylus' },
+    OPS_I5: { name: 'OPS Intel Core i5 PC Module', specs: 'OPS Intel Core i5 11th Gen, 8GB DDR4, 256GB NVMe SSD, Win 11 Pro' },
+    OPS: { name: 'OPS Intel Core i5 PC Module', specs: 'OPS Intel Core i5 11th Gen, 8GB DDR4, 256GB NVMe SSD, Win 11 Pro' },
+    WALL_MOUNT: { name: 'Heavy-Duty 75" IFP Fixed Wall Mount', specs: 'Cold-Rolled Steel Heavy-Duty Fixed Wall Mount (VESA 800x400)' },
+    PENDRIVE: { name: '64GB Offline Curriculum USB Key', specs: '64GB USB 3.2 Gen 1 Metal Key, 150MB/s Read, Hardware Encrypted' },
+    PENDRIVE_64: { name: '64GB Offline Curriculum USB Key', specs: '64GB USB 3.2 Gen 1 Metal Key, 150MB/s Read, Hardware Encrypted' },
+    TABLET_10: { name: '10" Touch Student Tablet', specs: '10" FHD Octa-Core, 4GB RAM, 64GB, Rugged Bumper Case' },
+    TABLET: { name: '10" Touch Student Tablet', specs: '10" FHD Octa-Core, 4GB RAM, 64GB, Rugged Bumper Case' },
+    CHARGING_TROLLEY: { name: 'Smart Device Mobile Charging Trolley', specs: 'Mobile Charging Trolley for 30 Devices with Surge Protection' },
+    ROBOTICS_KIT: { name: 'Modular Robotics & AI STEM Kit', specs: 'Modular STEM Kit with Micro-controllers, Sensors & Mechanics' },
+    STEM_KIT: { name: 'Modular Robotics & AI STEM Kit', specs: 'Modular STEM Kit with Micro-controllers, Sensors & Mechanics' },
+    ANDROID_LAPTOP: { name: 'Android Smart Educational Laptop', specs: '11.6" HD display, Octa-Core, 4GB RAM, 64GB eMMC' },
+    COMPUTER_SYSTEM: { name: 'Desktop Computer System', specs: 'Desktop PC Core i5, 8GB RAM, 512GB SSD, 21.5" Monitor' },
+    AR_VR: { name: 'AR/VR Educational Headset Kit', specs: 'Standalone 6DOF VR Headset with Educational Content' },
+    CAMERA: { name: 'Full HD Classroom Conference Camera', specs: '1080p 60fps Wide Angle PTZ Auto-Tracking Camera' },
+    PODIUM: { name: 'Digital Interactive Smart Podium', specs: 'Metallic Smart Podium with Built-in Touch Screen and Audio Amp' },
+    SCHOOL_BELL_PRO: { name: 'Automated Smart School Bell System', specs: 'Programmable Digital School Bell with PA Integration' },
+    WIRELESS_KEYBOARD_MOUSE: { name: 'Wireless Multimedia Keyboard & Mouse Combo', specs: '2.4GHz Wireless USB Dongle with Spill-Resistant Keys' },
+    UPS: { name: 'Line Interactive 1KVA UPS', specs: '1KVA / 600W Line Interactive UPS with 15-20 Min Power Backup' }
+  };
+
+  const solutionHwMap: Record<string, string[]> = {
+    SMART_SHAALA: ['IFP', 'OPS', 'WALL_MOUNT', 'PENDRIVE'],
+    SMART_SHALA: ['IFP', 'OPS', 'WALL_MOUNT', 'PENDRIVE'],
+    EPATHSHALA: ['TABLET', 'CHARGING_TROLLEY', 'PENDRIVE'],
+    EPATHSHALA_LAB: ['TABLET', 'CHARGING_TROLLEY', 'PENDRIVE'],
+    STEM_LAB: ['ROBOTICS_KIT', 'TABLET', 'CHARGING_TROLLEY'],
+    ROBOTICS: ['ROBOTICS_KIT', 'TABLET'],
+    ASTRONOMY: ['AR_VR', 'IFP'],
+    LANGUAGE: ['TABLET', 'CHARGING_TROLLEY'],
+    SCIENCE_LEARNING: ['STEM_KIT', 'IFP']
+  };
+
+  if (rawSchoolWiseSol && typeof rawSchoolWiseSol === 'object') {
+    Object.entries(rawSchoolWiseSol).forEach(([schId, solVal]: [string, any]) => {
+      const schName = schoolNameMap.get(schId) || schId;
+      const activeSolutions: Array<{ key: string; quantity: number }> = [];
+
+      if (Array.isArray(solVal)) {
+        solVal.forEach((item: any) => {
+          if (typeof item === 'string') {
+            activeSolutions.push({ key: item, quantity: 1 });
+          } else if (item && typeof item === 'object') {
+            const sKey = item.solutionKey || item.key || item.name;
+            if (sKey) {
+              activeSolutions.push({ key: sKey, quantity: Number(item.quantity || item.qty) || 1 });
+            }
+          }
+        });
+      } else if (typeof solVal === 'object' && solVal !== null) {
+        Object.entries(solVal).forEach(([sKey, sItem]: [string, any]) => {
+          if (sItem && typeof sItem === 'object') {
+            activeSolutions.push({ key: sKey, quantity: Number(sItem.quantity || sItem.qty) || 1 });
+          } else if (sItem === true || typeof sItem === 'number') {
+            activeSolutions.push({ key: sKey, quantity: typeof sItem === 'number' ? sItem : 1 });
+          }
+        });
+      }
+
+      activeSolutions.forEach(({ key: rawSolKey, quantity: solQty }) => {
+        const normKey = String(rawSolKey).toUpperCase().trim().replace(/[-\s]/g, '_');
+        const hwKeys = solutionHwMap[normKey] || solutionHwMap[normKey.replace(/_LAB|_SUITE|_4K/g, '')] || ['IFP', 'OPS'];
+        hwKeys.forEach((hwKey) => {
+          const specObj = defaultHwSpecs[hwKey] || { name: hwKey.replace(/_/g, ' '), specs: '' };
+          const itemQty = solQty || 1;
+          if (!result[hwKey]) {
+            result[hwKey] = { itemName: specObj.name, quantity: 0, specNotes: specObj.specs, schoolBreakdown: [] };
+          }
+          result[hwKey].quantity += itemQty;
+          result[hwKey].schoolBreakdown?.push({
+            schoolId: schId,
+            schoolName: schName,
+            quantity: itemQty,
+            specs: specObj.specs,
+            serialNotes: '',
+            solutionName: rawSolKey
+          });
+        });
+      });
+    });
+
+    if (Object.keys(result).length > 0) return result;
+  }
+
+  const selectedSolutionsArray =
+    allFormData?.stage3SolutionsData?.selectedSolutions ||
+    allFormData?.solutions?.selectedSolutions ||
+    (Array.isArray(allFormData?.selectedSolutions) ? allFormData.selectedSolutions : null);
+
+  if (Array.isArray(selectedSolutionsArray) && selectedSolutionsArray.length > 0) {
+    const numSchools = Math.max(1, effectiveSchools.length);
+    selectedSolutionsArray.forEach((rawSolKey: string) => {
+      const normKey = String(rawSolKey).toUpperCase().trim().replace(/[-\s]/g, '_');
+      const hwKeys = solutionHwMap[normKey] || solutionHwMap[normKey.replace(/_LAB|_SUITE|_4K/g, '')] || ['IFP', 'OPS'];
+      hwKeys.forEach((hwKey) => {
+        const specObj = defaultHwSpecs[hwKey] || { name: hwKey.replace(/_/g, ' '), specs: '' };
+        if (!result[hwKey]) {
+          result[hwKey] = {
+            itemName: specObj.name,
+            quantity: numSchools,
+            specNotes: specObj.specs,
+            schoolBreakdown: effectiveSchools.map((s) => ({
+              schoolId: s.id,
+              schoolName: s.name,
+              quantity: 1,
+              specs: specObj.specs,
+              serialNotes: '',
+              solutionName: rawSolKey
+            }))
+          };
+        }
+      });
+    });
+    if (Object.keys(result).length > 0) return result;
   }
 
   return {};

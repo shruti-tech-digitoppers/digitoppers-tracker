@@ -20,6 +20,11 @@ const ProjectSchools = require('../modules/project-schools/project-schools.model
 const Requirement = require('../modules/requirements/requirements.model');
 const Timeline = { create: async (doc) => ({ ...doc, _id: doc.project || new mongoose.Types.ObjectId() }), findOne: () => null, deleteMany: () => ({}) };
 const TimelineNode = require('../modules/timeline-data/timeline-data.model');
+const TimelineNodeStatic = require('../modules/timeline-nodes/timeline-node.model');
+const FormSchema = require('../modules/form-schemas/form-schema.model');
+const FormData = require('../modules/timeline-data/form-data.model');
+const { seedTimelineNodes } = require('./seedTimelineNodes');
+const { seedFormSchemas } = require('./seedFormSchemas');
 const Activity = require('../modules/activity/activity.model');
 const Notification = require('../modules/notifications/notifications.model');
 const Grade = require('../modules/content/grade/grade.model');
@@ -781,6 +786,10 @@ async function seedMasterDatabase() {
     await Requirement.deleteMany({});
     await Timeline.deleteMany({});
     await TimelineNode.deleteMany({});
+    await FormData.deleteMany({});
+    console.log('📦 Ensuring normalized static timeline nodes and master form schemas...');
+    await seedTimelineNodes(false);
+    await seedFormSchemas(false);
     await Activity.deleteMany({});
     await Notification.deleteMany({});
     await SchoolHardwareLicense.deleteMany({});
@@ -1596,23 +1605,44 @@ async function seedMasterDatabase() {
 
         for (const stageDef of timelineConfig.stages) {
             const stageTaskStatus = evaluateNodeStatus(stageDef.key, stageDef.order);
+            const stageStatic = await TimelineNodeStatic.findOne({
+                $or: [{ timelineNodeId: stageDef.key }, { id: stageDef.key }]
+            }).lean();
+            const stageSchemaDoc = await FormSchema.findOne({
+                $or: [stageStatic ? { timelineNodeId: stageStatic._id } : null, { nodeId: stageDef.key }].filter(Boolean)
+            }).lean();
 
             const stageNode = await TimelineNode.create({
                 projectId: def.code,
-                timeline: rootTimeline._id,
-                parentNode: null,
-                type: 'STAGE',
+                project: def.code,
+                timelineNodeId: stageStatic?._id || new mongoose.Types.ObjectId(),
+                node: stageStatic?._id || null,
+                nodeId: stageDef.key,
                 key: stageDef.key,
                 name: stageDef.name,
                 order: stageDef.order,
                 status: stageTaskStatus,
                 assignedTo: def.pmEmp._id,
-                formSchema: stageDef.formSchema || null,
-                formData: generateNodeFormData(stageDef.key, def.code, def.title, createdSchools, empMap, isDone),
+                completionDate: stageTaskStatus === 'COMPLETED' ? new Date() : null,
+                remarks: '',
                 dependencies: stageDef.dependencies || [],
                 metadata: stageDef.metadata || {}
             });
             createdNodes.push(stageNode);
+
+            // Decoupled FormData
+            const stageFormData = generateNodeFormData(stageDef.key, def.code, def.title, createdSchools, empMap, isDone);
+            if (stageSchemaDoc?._id) {
+                await FormData.create({
+                    formDataId: `FD_${def.code}_${stageSchemaDoc.formSchemaId || stageDef.key}`,
+                    project: def.code,
+                    timelineData: stageNode._id,
+                    formSchemaId: stageSchemaDoc._id,
+                    status: stageTaskStatus === 'COMPLETED' ? 'SUBMITTED' : 'DRAFT',
+                    submittedBy: def.pmEmp._id,
+                    data: stageFormData
+                });
+            }
 
             if (stageDef.substages) {
                 for (const subDef of stageDef.substages) {
@@ -1623,41 +1653,70 @@ async function seedMasterDatabase() {
                     else if (subDef.key.includes('INSTALLATION') || subDef.key.includes('HARDWARE')) assignedEmp = empMap.empRahul._id;
                     else if (subDef.key.includes('TRAINING')) assignedEmp = empMap.empNeha._id;
 
+                    const subStatic = await TimelineNodeStatic.findOne({
+                        $or: [{ timelineNodeId: subDef.key }, { id: subDef.key }]
+                    }).lean();
+                    const subSchemaDoc = await FormSchema.findOne({
+                        $or: [subStatic ? { timelineNodeId: subStatic._id } : null, { nodeId: subDef.key }].filter(Boolean)
+                    }).lean();
+
                     const subTaskNode = await TimelineNode.create({
                         projectId: def.code,
-                        timeline: rootTimeline._id,
-                        parentNode: stageNode._id,
-                        type: 'TASK',
+                        project: def.code,
+                        timelineNodeId: subStatic?._id || new mongoose.Types.ObjectId(),
+                        node: subStatic?._id || null,
+                        nodeId: subDef.key,
                         key: subDef.key,
                         name: subDef.name,
                         order: subDef.order,
                         status: subTaskStatus,
                         assignedTo: assignedEmp,
-                        formSchema: subDef.formSchema || null,
-                        formData: generateNodeFormData(subDef.key, def.code, def.title, createdSchools, empMap, isDone),
+                        completionDate: subTaskStatus === 'COMPLETED' ? new Date() : null,
+                        remarks: '',
                         metadata: subDef.metadata || {}
                     });
                     createdNodes.push(subTaskNode);
 
+                    // Decoupled FormData
+                    const subFormData = generateNodeFormData(subDef.key, def.code, def.title, createdSchools, empMap, isDone);
+                    if (subSchemaDoc?._id) {
+                        await FormData.create({
+                            formDataId: `FD_${def.code}_${subSchemaDoc.formSchemaId || subDef.key}`,
+                            project: def.code,
+                            timelineData: subTaskNode._id,
+                            formSchemaId: subSchemaDoc._id,
+                            status: subTaskStatus === 'COMPLETED' ? 'SUBMITTED' : 'DRAFT',
+                            submittedBy: assignedEmp,
+                            data: subFormData
+                        });
+                    }
+
                     if (subDef.nested) {
                         for (const nestedDef of subDef.nested) {
                             const nestedStatus = evaluateNodeStatus(nestedDef.key, stageDef.order);
-
                             let nestedEmp = assignedEmp;
                             if (nestedDef.key.includes('QA') || nestedDef.key.includes('TESTING')) nestedEmp = empMap.empShruti._id;
 
+                            const nestedStatic = await TimelineNodeStatic.findOne({
+                                $or: [{ timelineNodeId: nestedDef.key }, { id: nestedDef.key }]
+                            }).lean();
+                            const nestedSchemaDoc = await FormSchema.findOne({
+                                $or: [nestedStatic ? { timelineNodeId: nestedStatic._id } : null, { nodeId: nestedDef.key }].filter(Boolean)
+                            }).lean();
+
                             const nestedNode = await TimelineNode.create({
                                 projectId: def.code,
-                                timeline: rootTimeline._id,
-                                parentNode: subTaskNode._id,
-                                type: 'TASK',
+                                project: def.code,
+                                timelineNodeId: nestedStatic?._id || new mongoose.Types.ObjectId(),
+                                node: nestedStatic?._id || null,
+                                nodeId: nestedDef.key,
                                 key: nestedDef.key,
                                 name: nestedDef.name,
                                 order: nestedDef.order,
                                 status: nestedStatus,
                                 assignedTo: nestedEmp,
-                                formSchema: nestedDef.formSchema || null,
-                                formData: generateNodeFormData(nestedDef.key, def.code, def.title, createdSchools, empMap, isDone),
+                                completionDate: nestedStatus === 'COMPLETED' ? new Date() : null,
+                                remarks: '',
                                 metadata: {
                                     ...(nestedDef.metadata || {}),
                                     supportsConditional: nestedDef.supportsConditional || false,
@@ -1665,6 +1724,20 @@ async function seedMasterDatabase() {
                                 }
                             });
                             createdNodes.push(nestedNode);
+
+                            // Decoupled FormData
+                            const nestedFormData = generateNodeFormData(nestedDef.key, def.code, def.title, createdSchools, empMap, isDone);
+                            if (nestedSchemaDoc?._id) {
+                                await FormData.create({
+                                    formDataId: `FD_${def.code}_${nestedSchemaDoc.formSchemaId || nestedDef.key}`,
+                                    project: def.code,
+                                    timelineData: nestedNode._id,
+                                    formSchemaId: nestedSchemaDoc._id,
+                                    status: nestedStatus === 'COMPLETED' ? 'SUBMITTED' : 'DRAFT',
+                                    submittedBy: nestedEmp,
+                                    data: nestedFormData
+                                });
+                            }
                         }
                     }
                 }

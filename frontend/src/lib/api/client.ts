@@ -13,7 +13,7 @@ export const apiClient = axios.create({
 apiClient.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
     if (typeof window !== 'undefined') {
-      const token = localStorage.getItem('token');
+      const token = localStorage.getItem('token') || localStorage.getItem('accessToken') || localStorage.getItem('digitopper_token');
       if (token && config.headers) {
         config.headers.Authorization = `Bearer ${token}`;
       }
@@ -30,14 +30,11 @@ apiClient.interceptors.response.use(
     if (error.response && error.response.status === 401) {
       if (typeof window !== 'undefined') {
         localStorage.removeItem('token');
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('digitopper_token');
         localStorage.removeItem('user');
-        if (
-          window.location.pathname !== '/login' &&
-          window.location.pathname !== '/dashboard' &&
-          !window.location.pathname.startsWith('/tracker') &&
-          window.location.pathname !== '/'
-        ) {
-          window.location.href = '/login';
+        if (window.location.pathname !== '/login') {
+          window.location.href = '/login?expired=true';
         }
       }
     }

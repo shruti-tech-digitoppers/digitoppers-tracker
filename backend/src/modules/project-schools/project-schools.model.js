@@ -89,7 +89,7 @@ const schoolHardwareDeploymentSchema = new mongoose.Schema(
 // Sub-schema: Complete School Execution Object
 const schoolDeploymentUnitSchema = new mongoose.Schema(
   {
-    school: { type: mongoose.Schema.Types.ObjectId, ref: 'School', required: true },
+    school: { type: mongoose.Schema.Types.Mixed },
     schoolId: { type: String, required: true },
     schoolName: { type: String, required: true },
     deploymentStatus: {
@@ -181,8 +181,7 @@ const schoolDeploymentUnitSchema = new mongoose.Schema(
 
 const projectSchoolsSchema = new mongoose.Schema(
   {
-    projectId: { type: String, required: true, index: true, lowercase: true, trim: true },
-    project: { type: mongoose.Schema.Types.Mixed, index: true },
+    projectId: { type: String, required: true, index: true, unique: true, trim: true },
     projectName: { type: String, required: true },
     // ── STAGE 03: ORDER REQUIREMENT SPECIFICATION (Project Level BOM) ──
     orderRequirement: {
@@ -216,8 +215,13 @@ const projectSchoolsSchema = new mongoose.Schema(
       remarks: { type: String, default: '' }
     }
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
+
+// Virtual compatibility for project
+projectSchoolsSchema.virtual('project')
+  .get(function() { return this.projectId; })
+  .set(function(val) { this.projectId = val; });
 
 // Indexes
 projectSchoolsSchema.index({ 'schools.school': 1 });

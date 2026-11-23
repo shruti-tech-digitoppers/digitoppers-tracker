@@ -52,10 +52,8 @@ exports.getProjectMembersByProject = async (req, res, next) => {
     const members = await ProjectMember.find({
       $or: [
         { projectId: code },
-        { projectId: code.toUpperCase() },
-        { project: rawId },
-        { project: projectId }
-      ].filter(Boolean),
+        { projectId: code.toUpperCase() }
+      ],
       isActive: true
     })
       .populate('employee', 'name email phone designation avatar employeeId department')
@@ -121,17 +119,14 @@ exports.addProjectMember = async (req, res, next) => {
     const existing = await ProjectMember.findOne({
       $or: [
         { projectId: code },
-        { projectId: code.toUpperCase() },
-        { project: pId },
-        { project: projectId }
-      ].filter(Boolean),
+        { projectId: code.toUpperCase() }
+      ],
       employee: employeeId
     });
     if (existing) {
       if (!existing.isActive) {
         existing.isActive = true;
         existing.projectId = code;
-        existing.project = pId || code;
         existing.designation = req.body.designation || employee.designation;
         existing.projectRole = req.body.projectRole || existing.projectRole;
         await existing.save();
@@ -148,7 +143,6 @@ exports.addProjectMember = async (req, res, next) => {
 
     const newMember = await ProjectMember.create({
       projectId: code,
-      project: pId || code,
       employee: employeeId,
       designation: req.body.designation || employee.designation,
       projectRole: req.body.projectRole || '',

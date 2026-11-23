@@ -7,7 +7,7 @@ const bcrypt = require('bcryptjs');
 const { DEFAULT_TEST_PASSWORD } = require('../config/testCredentials');
 const Employee = require('../modules/employees/employee.model');
 
-async function seedRealEmployees(clearExisting = true) {
+async function seedRealEmployees(clearExisting = false) {
   console.log('\n========================================================');
   console.log('👥 SEEDING DIGITOPPERS MASTER EMPLOYEES');
   console.log('========================================================');
@@ -235,10 +235,24 @@ async function seedRealEmployees(clearExisting = true) {
     employeeCode: e.employeeCode || `DIGI${String(idx + 1).padStart(6, '0')}`
   }));
 
-  const inserted = await Employee.insertMany(enrichedEmployees);
-  console.log(`✅ Successfully seeded ${inserted.length} Master Employees into employees collection.`);
+  if (clearExisting) {
+    const inserted = await Employee.insertMany(enrichedEmployees);
+    console.log(`✅ Successfully seeded ${inserted.length} Master Employees into employees collection.`);
+    return inserted.length;
+  }
 
-  return inserted.length;
+  // Preserve existing employee ObjectIds across server restarts so active user logins/JWTs remain valid
+  let count = 0;
+  for (const emp of enrichedEmployees) {
+    await Employee.findOneAndUpdate(
+      { email: emp.email.toLowerCase() },
+      { $set: emp },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    count++;
+  }
+  console.log(`✅ Ensured ${count} Master Employees in employees collection (stable IDs preserved).`);
+  return count;
 }
 
 module.exports = { seedRealEmployees };

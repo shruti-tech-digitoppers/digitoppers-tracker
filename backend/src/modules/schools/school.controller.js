@@ -1,91 +1,35 @@
-const School = require('./school.model');
 const { AppError } = require('../../core/errors');
 const coreApi = require('../../services/core-api.service');
+const mongoose = require('mongoose');
 
-async function resolveProject(paramId) {
-  if (!paramId) return null;
-  return await coreApi.getProjectById(paramId);
-}
+/**
+ * School Controller (Strict Core Backend Gateway)
+ *
+ * NO local database fallbacks: Core Backend is the STRICT and ONLY source of truth.
+ * All school master data operations proxy directly to Core Backend via coreApi service.
+ * Tracker deployment operations (installation, training, vendor PO/PI) use ProjectSchools.
+ */
 
 // GET /api/v1/schools/core or /api/v1/projects/:projectId/core-schools
-// Strictly serves schools from Core Backend API (Single Source of Truth, identical to how projects are fetched)
 exports.getCoreSchools = async (req, res, next) => {
   try {
     const projectId = req.params.projectId || req.query.projectId;
     if (!projectId) {
       return res.status(200).json({
         success: true,
+        source: 'CORE_BACKEND',
         count: 0,
         data: []
       });
     }
 
-    let schools = [];
-    try {
-      schools = await coreApi.getProjectSchools(projectId);
-    } catch (err) {
-      console.warn('[SchoolController] coreApi.getProjectSchools warning:', err.message);
-    }
+    const schools = await coreApi.getProjectSchools(projectId);
 
-    // Fallback to database schools if Core API returns empty or is unreachable
-    if (!Array.isArray(schools) || schools.length === 0) {
-      const mongoose = require('mongoose');
-      const orConds = [{ projectId }];
-      if (mongoose.Types.ObjectId.isValid(projectId)) {
-        orConds.push({ projectId: new mongoose.Types.ObjectId(projectId) });
-      }
-      try {
-        const proj = await resolveProject(projectId);
-        if (proj) {
-          const code = proj.projectId || String(proj._id);
-          orConds.push(
-            { projectId: code },
-            { projectId: code.toLowerCase() },
-            { projectId: code.toUpperCase() },
-            { projectId: proj._id }
-          );
-        }
-      } catch (_) {}
-
-      const localSchs = await School.find({ $or: orConds, isActive: true });
-      if (localSchs && localSchs.length > 0) {
-        schools = localSchs.map((s) => ({
-          _id: s._id,
-          schoolId: s.schoolId || `SCH-${String(s._id).slice(-4).toUpperCase()}`,
-          name: s.name,
-          address: s.address || (s.survey && s.survey.schoolAddress) || 'Delhi NCR',
-          block: s.block || '',
-          city: s.city || 'Greater Noida',
-          state: s.state || 'Uttar Pradesh',
-          phone: s.phone || '',
-          email: s.email || '',
-          numberOfStudents: s.numberOfStudents || 500,
-          numberOfTeachers: s.numberOfTeachers || 25,
-          source: 'DATABASE_BACKED'
-        }));
-      }
-    }
-
-    const formatted = (Array.isArray(schools) ? schools : []).map((s, idx) => ({
-      id: String(s._id || s.schoolId || `core-sch-${idx + 1}`),
-      schoolId: s.schoolId || '',
-      name: s.name || s.schoolName || `School ${idx + 1}`,
-      address: s.address || s.addressContact || '—',
-      block: s.block || '',
-      city: (typeof s.cityId === 'object' && s.cityId && s.cityId.name) ? s.cityId.name : (typeof s.city === 'string' ? s.city : ''),
-      state: (typeof s.stateId === 'object' && s.stateId && s.stateId.name) ? s.stateId.name : (typeof s.state === 'string' ? s.state : ''),
-      country: (typeof s.countryId === 'object' && s.countryId && s.countryId.name) ? s.countryId.name : (typeof s.country === 'string' ? s.country : ''),
-      phone: s.phone || '',
-      email: s.email || '',
-      numberOfStudents: s.numberOfStudents || 0,
-      numberOfTeachers: s.numberOfTeachers || 0,
-      source: 'CORE_BACKEND'
-    }));
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      count: formatted.length,
-      data: formatted
+      source: 'CORE_BACKEND',
+      count: Array.isArray(schools) ? schools.length : 0,
+      data: schools || []
     });
   } catch (error) {
     next(error);
@@ -93,59 +37,41 @@ exports.getCoreSchools = async (req, res, next) => {
 };
 
 // GET /api/v1/projects/:projectId/schools or /api/v1/schools?projectId=...
-// Strictly serves Stage 3 Schools from Project Tracker Database
 exports.getSchools = async (req, res, next) => {
   try {
     const projectId = req.params.projectId || req.query.projectId;
-    const filter = { isActive: true };
+    let schools = [];
 
     if (projectId) {
-      const proj = await resolveProject(projectId);
-      const code = proj ? (proj.projectId || String(proj._id)).toLowerCase() : String(projectId).toLowerCase();
-      const rawId = proj ? proj._id : projectId;
-
-      filter.$or = [
-        { projectId: code },
-        { projectId: code.toUpperCase() },
-        { projectId: String(rawId) },
-        { projectId: rawId }
-      ].filter(Boolean);
-    }
-    if (req.query.district) filter.district = new RegExp(req.query.district, 'i');
-    if (req.query.branch || req.query.schoolBranch) {
-      filter.schoolBranch = new RegExp(req.query.branch || req.query.schoolBranch, 'i');
-    }
-    if (req.query.search) {
-      filter.$or = [
-        { name: new RegExp(req.query.search, 'i') },
-        { schoolBranch: new RegExp(req.query.search, 'i') },
-        { district: new RegExp(req.query.search, 'i') }
-      ];
+      schools = await coreApi.getProjectSchools(projectId);
+    } else {
+      schools = await coreApi.getSchools(req.query);
     }
 
-    const schools = await School.find(filter).sort({ order: 1, name: 1 });
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      count: schools.length,
-      data: schools
+      source: 'CORE_BACKEND',
+      count: Array.isArray(schools) ? schools.length : 0,
+      data: schools || []
     });
   } catch (error) {
     next(error);
   }
 };
 
-// GET /api/v1/schools/:id - Fetch single school from Project Tracker Database
+// GET /api/v1/schools/:id - Fetch single school from Core Backend
 exports.getSchoolById = async (req, res, next) => {
   try {
-    const school = await School.findById(req.params.id);
+    const schoolId = req.params.id || req.params.schoolId;
+    const school = await coreApi.getSchoolById(schoolId);
 
     if (!school) {
-      return next(new AppError('School not found', 404, 'NOT_FOUND'));
+      return next(new AppError(`School '${schoolId}' not found in Core Backend`, 404, 'NOT_FOUND'));
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
+      source: 'CORE_BACKEND',
       data: school
     });
   } catch (error) {
@@ -153,59 +79,75 @@ exports.getSchoolById = async (req, res, next) => {
   }
 };
 
-// POST /api/v1/schools - Stage 3 School Onboarding in Project Tracker
+// POST /api/v1/schools - Create School in Core Backend
 exports.createSchool = async (req, res, next) => {
   try {
-    const school = await School.create(req.body);
+    const created = await coreApi.createSchool(req.body);
 
-    res.status(201).json({
+    return res.status(201).json({
       success: true,
-      message: 'School created successfully',
-      data: school
+      source: 'CORE_BACKEND',
+      message: 'School created successfully in Core Backend',
+      data: created
     });
   } catch (error) {
     next(error);
   }
 };
 
-// POST /api/v1/schools/bulk - Stage 3 Bulk School Creation (e.g. from Excel)
+// POST /api/v1/schools/bulk - Bulk Create Schools in Core Backend
 exports.bulkCreateSchools = async (req, res, next) => {
   try {
     const { projectId, schools } = req.body;
-    if (!projectId || !Array.isArray(schools) || schools.length === 0) {
-      return next(new AppError('projectId and non-empty schools array are required', 400, 'BAD_REQUEST'));
+    if (!Array.isArray(schools) || schools.length === 0) {
+      return next(new AppError('schools array is required', 400, 'BAD_REQUEST'));
     }
 
-    const preparedSchools = schools.map(s => ({ ...s, projectId }));
-    const insertedSchools = await School.insertMany(preparedSchools);
+    const createdList = [];
+    for (const item of schools) {
+      const s = await coreApi.createSchool({ ...item, projectId });
+      createdList.push(s);
+    }
 
     res.status(201).json({
       success: true,
-      message: `Successfully created ${insertedSchools.length} schools`,
-      count: insertedSchools.length,
-      data: insertedSchools
+      source: 'CORE_BACKEND',
+      message: `Successfully created ${createdList.length} schools in Core Backend`,
+      count: createdList.length,
+      data: createdList
     });
   } catch (error) {
     next(error);
   }
 };
 
-// PUT /api/v1/schools/:id
+// PUT /api/v1/schools/:id - Update School in Core Backend
 exports.updateSchool = async (req, res, next) => {
   try {
-    const school = await School.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true
-    });
+    const schoolId = req.params.id || req.params.schoolId;
+    const updated = await coreApi.updateSchool(schoolId, req.body);
 
-    if (!school) {
-      return next(new AppError('School not found', 404, 'NOT_FOUND'));
-    }
-
-    res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'School updated successfully',
-      data: school
+      source: 'CORE_BACKEND',
+      message: 'School updated successfully in Core Backend',
+      data: updated
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/v1/schools/:id - Delete School in Core Backend
+exports.deleteSchool = async (req, res, next) => {
+  try {
+    const schoolId = req.params.id || req.params.schoolId;
+    await coreApi.deleteSchool(schoolId);
+
+    return res.status(200).json({
+      success: true,
+      source: 'CORE_BACKEND',
+      message: 'School deleted successfully in Core Backend'
     });
   } catch (error) {
     next(error);
@@ -215,42 +157,19 @@ exports.updateSchool = async (req, res, next) => {
 // PATCH /api/v1/schools/:id/installation
 exports.updateSchoolInstallation = async (req, res, next) => {
   try {
-    const updates = {};
-    for (const [key, val] of Object.entries(req.body)) {
-      updates[`installation.${key}`] = val;
-    }
+    const { id } = req.params;
+    const ProjectSchools = require('../project-schools/project-schools.model');
 
-    const school = await School.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    ).populate('installation.assignedEngineerId', 'name email phone');
-
-    if (!school) {
-      return next(new AppError('School not found', 404, 'NOT_FOUND'));
-    }
-
-    // Sync to ProjectSchools & Timeline roll-up
-    try {
-      const ProjectSchools = require('../project-schools/project-schools.model');
-      const timelineService = require('../timeline-data/timeline-data.service');
-      if (school.projectId) {
-        await ProjectSchools.updateOne(
-          { project: school.projectId, "schools.school": school._id },
-          { $set: { "schools.$.installation": school.installation } }
-        );
-        if (timelineService.syncSchoolProgressToTimeline) {
-          await timelineService.syncSchoolProgressToTimeline(school.projectId);
-        }
-      }
-    } catch (syncErr) {
-      console.warn('Note on school installation roll-up sync:', syncErr.message);
-    }
+    const updateDoc = await ProjectSchools.findOneAndUpdate(
+      { "schools._id": id },
+      { $set: { "schools.$.installation": req.body } },
+      { new: true }
+    );
 
     res.status(200).json({
       success: true,
       message: 'School installation status updated successfully',
-      data: school.installation
+      data: req.body
     });
   } catch (error) {
     next(error);
@@ -260,62 +179,38 @@ exports.updateSchoolInstallation = async (req, res, next) => {
 // PATCH /api/v1/schools/:id/training
 exports.updateSchoolTraining = async (req, res, next) => {
   try {
-    const updates = {};
-    for (const [key, val] of Object.entries(req.body)) {
-      updates[`training.${key}`] = val;
-    }
+    const { id } = req.params;
+    const ProjectSchools = require('../project-schools/project-schools.model');
 
-    const school = await School.findByIdAndUpdate(
-      req.params.id,
-      { $set: updates },
-      { new: true, runValidators: true }
-    ).populate('training.assignedTrainerId', 'name email phone');
-
-    if (!school) {
-      return next(new AppError('School not found', 404, 'NOT_FOUND'));
-    }
-
-    // Sync to ProjectSchools & Timeline roll-up
-    try {
-      const ProjectSchools = require('../project-schools/project-schools.model');
-      const timelineService = require('../timeline-data/timeline-data.service');
-      if (school.projectId) {
-        await ProjectSchools.updateOne(
-          { project: school.projectId, "schools.school": school._id },
-          { $set: { "schools.$.training": school.training } }
-        );
-        if (timelineService.syncSchoolProgressToTimeline) {
-          await timelineService.syncSchoolProgressToTimeline(school.projectId);
-        }
-      }
-    } catch (syncErr) {
-      console.warn('Note on school training roll-up sync:', syncErr.message);
-    }
+    const updateDoc = await ProjectSchools.findOneAndUpdate(
+      { "schools._id": id },
+      { $set: { "schools.$.training": req.body } },
+      { new: true }
+    );
 
     res.status(200).json({
       success: true,
       message: 'School training status updated successfully',
-      data: school.training
+      data: req.body
     });
   } catch (error) {
     next(error);
   }
 };
 
-// GET /api/v1/projects/:projectId/schools/execution (ProjectSchools aggregator)
+// GET /api/v1/projects/:projectId/schools/execution
 exports.getProjectSchoolsExecution = async (req, res, next) => {
   try {
     const paramId = req.params.projectId || req.query.projectId;
     const ProjectSchools = require('../project-schools/project-schools.model');
 
-    const projectObj = await resolveProject(paramId);
+    const projectObj = await coreApi.getProjectById(paramId);
 
     const queryFilter = projectObj 
       ? { $or: [{ project: projectObj._id }, { projectId: projectObj.projectId }] }
       : { projectId: paramId };
 
     const doc = await ProjectSchools.findOne(queryFilter)
-      .populate('schools.school', 'name address district state contactPerson')
       .populate('schools.installation.assignedEngineer', 'name email phone designation')
       .populate('schools.training.trainer', 'name email phone designation');
 
@@ -331,73 +226,56 @@ exports.getProjectSchoolsExecution = async (req, res, next) => {
 // GET /api/v1/projects/:projectId/schools/summary
 exports.getProjectSchoolProgress = async (req, res, next) => {
   try {
-    const { projectId } = req.params;
-    const mongoose = require('mongoose');
+    const projectId = req.params.projectId || req.query.projectId;
+    const ProjectSchools = require('../project-schools/project-schools.model');
 
-    const proj = await resolveProject(projectId);
-    let pId = proj ? proj._id : (mongoose.Types.ObjectId.isValid(projectId) ? new mongoose.Types.ObjectId(projectId) : null);
+    const project = await coreApi.getProjectById(projectId);
+    const pCode = (project?.projectId || projectId || '').toString().toLowerCase();
+    const rawId = project?._id;
 
-    if (!pId) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          totalSchools: 0,
-          installationCompleted: 0,
-          installationInProgress: 0,
-          installationScheduled: 0,
-          installationPending: 0,
-          trainingCompleted: 0,
-          trainingScheduled: 0,
-          trainingPending: 0,
-          totalTeachersTrained: 0
-        }
-      });
-    }
+    const doc = await ProjectSchools.findOne({
+      $or: [{ project: rawId }, { projectId: pCode }, { projectId: pCode.toUpperCase() }, { projectId: project?.projectId }].filter(Boolean)
+    }).lean();
 
-    const progressStats = await School.aggregate([
-      { $match: { projectId: pId, isActive: true } },
-      {
-        $group: {
-          _id: '$projectId',
-          totalSchools: { $sum: 1 },
-          installationCompleted: {
-            $sum: { $cond: [{ $eq: ['$installation.status', 'COMPLETED'] }, 1, 0] }
-          },
-          installationInProgress: {
-            $sum: { $cond: [{ $eq: ['$installation.status', 'IN_PROGRESS'] }, 1, 0] }
-          },
-          installationScheduled: {
-            $sum: { $cond: [{ $eq: ['$installation.status', 'SCHEDULED'] }, 1, 0] }
-          },
-          installationPending: {
-            $sum: { $cond: [{ $eq: ['$installation.status', 'PENDING'] }, 1, 0] }
-          },
-          trainingCompleted: {
-            $sum: { $cond: [{ $eq: ['$training.status', 'COMPLETED'] }, 1, 0] }
-          },
-          trainingScheduled: {
-            $sum: { $cond: [{ $eq: ['$training.status', 'SCHEDULED'] }, 1, 0] }
-          },
-          trainingPending: {
-            $sum: { $cond: [{ $eq: ['$training.status', 'PENDING'] }, 1, 0] }
-          },
-          totalTeachersTrained: { $sum: '$training.teachersTrainedCount' }
-        }
-      }
-    ]);
+    const schools = (doc && doc.schools) || [];
+    const totalSchools = schools.length;
+
+    let installationCompleted = 0;
+    let installationInProgress = 0;
+    let installationScheduled = 0;
+    let installationPending = 0;
+    let trainingCompleted = 0;
+    let trainingScheduled = 0;
+    let trainingPending = 0;
+    let totalTeachersTrained = 0;
+
+    schools.forEach(s => {
+      const inst = s.installation?.status;
+      if (inst === 'COMPLETED') installationCompleted++;
+      else if (inst === 'IN_PROGRESS') installationInProgress++;
+      else if (inst === 'ON_HOLD' || inst === 'SCHEDULED') installationScheduled++;
+      else installationPending++;
+
+      const tr = s.training?.status;
+      if (tr === 'COMPLETED') trainingCompleted++;
+      else if (tr === 'SCHEDULED') trainingScheduled++;
+      else trainingPending++;
+
+      totalTeachersTrained += (s.training?.teachersAttended || 0);
+    });
 
     res.status(200).json({
       success: true,
-      data: progressStats[0] || {
-        totalSchools: 0,
-        installationCompleted: 0,
-        installationInProgress: 0,
-        installationScheduled: 0,
-        installationPending: 0,
-        trainingCompleted: 0,
-        trainingScheduled: 0,
-        trainingPending: 0,
-        totalTeachersTrained: 0
+      data: {
+        totalSchools,
+        installationCompleted,
+        installationInProgress,
+        installationScheduled,
+        installationPending,
+        trainingCompleted,
+        trainingScheduled,
+        trainingPending,
+        totalTeachersTrained
       }
     });
   } catch (error) {
@@ -405,15 +283,14 @@ exports.getProjectSchoolProgress = async (req, res, next) => {
   }
 };
 
-// POST /api/v1/projects/:projectId/schools/:schoolId/hardware/:hardwareKey/vendor-po (Recipe 4)
+// POST /api/v1/projects/:projectId/schools/:schoolId/hardware/:hardwareKey/vendor-po
 exports.raiseVendorPO = async (req, res, next) => {
   try {
     const { projectId, schoolId, hardwareKey } = req.params;
     const { poNumber, poDate, poDocumentUrl, poAmount, issuingOrganization, remarks } = req.body;
-    const mongoose = require('mongoose');
     const ProjectSchools = require('../project-schools/project-schools.model');
 
-    const project = await resolveProject(projectId);
+    const project = await coreApi.getProjectById(projectId);
     if (!project) return next(new AppError('Project not found', 404, 'PROJECT_NOT_FOUND'));
 
     const poEntry = {
@@ -453,15 +330,14 @@ exports.raiseVendorPO = async (req, res, next) => {
   }
 };
 
-// POST /api/v1/projects/:projectId/schools/:schoolId/hardware/:hardwareKey/vendor-pi (Recipe 5)
+// POST /api/v1/projects/:projectId/schools/:schoolId/hardware/:hardwareKey/vendor-pi
 exports.clearVendorPI = async (req, res, next) => {
   try {
     const { projectId, schoolId, hardwareKey } = req.params;
     const { piNumber, piDate, piDocumentUrl, ewayBillNumber, paymentStatus, paymentReferenceUTR, remarks } = req.body;
-    const mongoose = require('mongoose');
     const ProjectSchools = require('../project-schools/project-schools.model');
 
-    const project = await resolveProject(projectId);
+    const project = await coreApi.getProjectById(projectId);
     if (!project) return next(new AppError('Project not found', 404, 'PROJECT_NOT_FOUND'));
 
     const piEntry = {
@@ -505,17 +381,16 @@ exports.clearVendorPI = async (req, res, next) => {
   }
 };
 
-// GET /api/v1/engineers/:engineerId/schools (Recipe 3)
+// GET /api/v1/engineers/:engineerId/schools
 exports.getFieldEngineerSchools = async (req, res, next) => {
   try {
     const { engineerId } = req.params;
     const { projectId } = req.query;
-    const mongoose = require('mongoose');
     const ProjectSchools = require('../project-schools/project-schools.model');
 
     const matchCriteria = {};
     if (projectId) {
-      const project = await resolveProject(projectId);
+      const project = await coreApi.getProjectById(projectId);
       if (project) matchCriteria.project = project._id;
     }
 

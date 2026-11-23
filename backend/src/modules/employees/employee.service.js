@@ -38,9 +38,10 @@ class EmployeeService {
         
         const project = await coreApi.getProjectById(pr.projectId);
         if (!project) continue;
+        const targetProjId = project.projectId || String(pr.projectId);
 
         await ProjectMember.create({
-          project: pr.projectId,
+          projectId: targetProjId,
           employee: employee._id,
           designation: pr.designation,
           assignedBy: actorId || employee._id,
@@ -51,7 +52,7 @@ class EmployeeService {
         try {
           await Notification.create({
             recipient: employee._id,
-            project: project._id,
+            projectId: targetProjId,
             title: `Assigned as ${pr.designation === DESIGNATIONS.PROJECT_MANAGER ? 'Project Manager' : 'Contributor'}`,
             message: `You have been assigned as ${pr.designation === DESIGNATIONS.PROJECT_MANAGER ? 'Project Manager' : 'Contributor'} for project ${project.projectId || ''} (${project.projectName || project.title || ''}).`,
             type: 'ASSIGNMENT'
@@ -197,14 +198,14 @@ class EmployeeService {
     const project = await coreApi.getProjectById(projectId);
     if (!project) throw new AppError('Project not found.', 404, 'PROJECT_NOT_FOUND');
 
-    const pId = project._id;
+    const targetProjId = project.projectId || String(project._id || projectId);
 
     // If designation is VIEWER, remove any custom membership or set to VIEWER (default access is Viewer)
     if (designation === DESIGNATIONS.VIEWER) {
-      await ProjectMember.findOneAndDelete({ project: pId, employee: employeeId });
+      await ProjectMember.findOneAndDelete({ projectId: targetProjId, employee: employeeId });
 
       await activityService.log({
-        project: pId,
+        projectId: targetProjId,
         actor: actorId,
         action: 'PROJECT_MEMBER_REMOVED',
         description: `${employee.name} reverted to default Viewer for project ${project.projectName || project.projectId}`,
@@ -214,7 +215,7 @@ class EmployeeService {
       });
 
       return {
-        projectId: pId,
+        projectId: targetProjId,
         employeeId,
         designation: DESIGNATIONS.VIEWER,
         isDefault: true,
@@ -222,7 +223,7 @@ class EmployeeService {
       };
     }
 
-    let member = await ProjectMember.findOne({ project: pId, employee: employeeId });
+    let member = await ProjectMember.findOne({ projectId: targetProjId, employee: employeeId });
     if (member) {
       member.designation = designation;
       member.isActive = true;
@@ -230,7 +231,7 @@ class EmployeeService {
       await member.save();
     } else {
       member = await ProjectMember.create({
-        project: pId,
+        projectId: targetProjId,
         employee: employeeId,
         designation,
         assignedBy: actorId,
@@ -239,7 +240,7 @@ class EmployeeService {
     }
 
     await activityService.log({
-      project: projectId,
+      projectId: targetProjId,
       actor: actorId,
       action: 'PROJECT_MEMBER_ASSIGNED',
       description: `${employee.name} assigned as ${designation === DESIGNATIONS.PROJECT_MANAGER ? 'Project Manager' : 'Contributor'} for project ${project.projectName || project.projectId}`,
@@ -253,7 +254,7 @@ class EmployeeService {
       const Notification = require('../notifications/notifications.model');
       await Notification.create({
         recipient: employeeId,
-        project: projectId,
+        projectId: targetProjId,
         title: `Assigned as ${designation === DESIGNATIONS.PROJECT_MANAGER ? 'Project Manager' : 'Contributor'}`,
         message: `You have been assigned as ${designation === DESIGNATIONS.PROJECT_MANAGER ? 'Project Manager' : 'Contributor'} for project ${project.projectId || ''} (${project.projectName || project.title || ''}).`,
         type: 'ASSIGNMENT'

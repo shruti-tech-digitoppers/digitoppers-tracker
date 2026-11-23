@@ -6,9 +6,8 @@ const { protect, optionalProtect } = require('../../core/auth');
 const { verifyProjectPermission } = require('../../core/authorization');
 const { DESIGNATIONS } = require('../../core/constants');
 
-// 1. Timeline Hierarchy & Roadmap
+// 1. Timeline Hierarchy & Roadmap (Read-only GETs accessible with optional auth)
 router.get('/', optionalProtect, (req, res, next) => {
-  // If explicitly queried for raw list via query param, fallback to getByProject
   if (req.query.format === 'raw' || req.query.list === 'true') {
     return controller.getByProject(req, res, next);
   }
@@ -18,27 +17,27 @@ router.get('/', optionalProtect, (req, res, next) => {
 router.get('/roadmap', optionalProtect, (req, res, next) => controller.getRoadmap(req, res, next));
 router.get('/tree', optionalProtect, (req, res, next) => controller.getHierarchyTree(req, res, next));
 
-// 2. Protected routes for node interactions
+// Node detail, children & form schema (Read-only GETs accessible with optional auth)
+router.get('/nodes/:nodeId', optionalProtect, (req, res, next) => controller.getNode(req, res, next));
+router.get('/nodes/:nodeId/children', optionalProtect, (req, res, next) => controller.getChildren(req, res, next));
+router.get('/nodes/:nodeId/form', optionalProtect, (req, res, next) => controller.getForm(req, res, next));
+router.get('/nodes/:nodeId/dependencies', optionalProtect, (req, res, next) => nodeStatusController.checkDependencies(req, res, next));
+router.get('/nodes/:nodeId/status-check', optionalProtect, (req, res, next) => nodeStatusController.checkEligibility(req, res, next));
+
+// 2. Protected routes for node mutations (updates, assigns, form submissions)
 router.use(protect);
 
 // Initialize project timeline
 router.post('/initialize', (req, res, next) => controller.initialize(req, res, next));
 
-// Node detail & children
-router.get('/nodes/:nodeId', (req, res, next) => controller.getNode(req, res, next));
-router.get('/nodes/:nodeId/children', (req, res, next) => controller.getChildren(req, res, next));
-
 // Node assignment (supports both /assignment and /assign)
 router.patch('/nodes/:nodeId/assignment', (req, res, next) => controller.assignNode(req, res, next));
 router.patch('/nodes/:nodeId/assign', (req, res, next) => controller.assignNode(req, res, next));
 
-// Node status update & eligibility check
-router.get('/nodes/:nodeId/dependencies', (req, res, next) => nodeStatusController.checkDependencies(req, res, next));
-router.get('/nodes/:nodeId/status-check', (req, res, next) => nodeStatusController.checkEligibility(req, res, next));
+// Node status update
 router.patch('/nodes/:nodeId/status', (req, res, next) => nodeStatusController.updateStatus(req, res, next));
 
-// Node form & data
-router.get('/nodes/:nodeId/form', (req, res, next) => controller.getForm(req, res, next));
+// Node form submissions & updates
 router.put('/nodes/:nodeId/form', (req, res, next) => controller.updateForm(req, res, next));
 router.patch('/nodes/:nodeId/form-data', (req, res, next) => controller.updateFormData(req, res, next));
 router.patch('/nodes/:nodeId/due-date', (req, res, next) => controller.updateDueDate(req, res, next));

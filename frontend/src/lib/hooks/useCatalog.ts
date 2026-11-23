@@ -131,4 +131,5 @@ export type CatalogSolution = MasterSolution;
 export type CatalogHardware = MasterHardware;
 export type ProductSolution = MasterSolution;
 export type ProductHardware = MasterHardware;
+export * from './useGradesCatalog';
 

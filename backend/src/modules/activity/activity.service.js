@@ -5,13 +5,10 @@ class ActivityService {
   /**
    * Universal helper to record an activity cleanly without throwing errors to break caller workflows.
    */
-  async log({ project, actor, actorName, actorEmail, action, description, resourceType = 'General', resourceId, metadata = {} }) {
+  async log({ project, projectId: passedProjId, actor, actorName, actorEmail, action, description, resourceType = 'General', resourceId, metadata = {} }) {
     try {
-      let projectId = project;
-      if (projectId && !mongoose.Types.ObjectId.isValid(projectId)) {
-        // If passed as string ID, search or ignore
-        projectId = undefined;
-      }
+      const projId = passedProjId || project;
+      const cleanProjectId = projId ? String(projId).trim() : undefined;
 
       let actorId = actor;
       if (actorId && !mongoose.Types.ObjectId.isValid(actorId)) {
@@ -19,7 +16,7 @@ class ActivityService {
       }
 
       return await Activity.create({
-        project: projectId,
+        projectId: cleanProjectId,
         actor: actorId,
         actorName: actorName || 'Team Member',
         actorEmail: actorEmail || '',
@@ -42,17 +39,8 @@ class ActivityService {
     const { limit = 100, page = 1, action, resourceType } = options;
     const filter = {};
 
-    let targetId = null;
-    if (mongoose.Types.ObjectId.isValid(projectId) && String(projectId).length === 24) {
-      targetId = projectId;
-    } else if (projectId) {
-      const coreApi = require('../../services/core-api.service');
-      const proj = await coreApi.getProjectById(projectId);
-      if (proj) targetId = proj._id;
-    }
-
-    if (targetId) {
-      filter.project = targetId;
+    if (projectId) {
+      filter.projectId = String(projectId).trim();
     }
 
     if (action) filter.action = action;
@@ -98,8 +86,8 @@ class ActivityService {
 
     const filter = {};
 
-    if (project && mongoose.Types.ObjectId.isValid(project)) {
-      filter.project = project;
+    if (project) {
+      filter.projectId = String(project).trim();
     }
 
     if (actor && mongoose.Types.ObjectId.isValid(actor)) {

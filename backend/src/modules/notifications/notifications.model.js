@@ -8,8 +8,7 @@ const notificationSchema = new mongoose.Schema({
     ref: 'Employee',
     required: [true, 'Notification must belong to an employee']
   },
-  project: { type: mongoose.Schema.Types.Mixed, index: true },
-  projectId: { type: String, index: true, lowercase: true, trim: true },
+  projectId: { type: String, index: true, trim: true },
   title: {
     type: String,
     required: [true, 'Notification title is required']
@@ -50,8 +49,15 @@ const notificationSchema = new mongoose.Schema({
     default: false
   }
 }, {
-  timestamps: true
+  timestamps: true,
+  toJSON: { virtuals: true },
+  toObject: { virtuals: true }
 });
+
+// Virtual compatibility for project
+notificationSchema.virtual('project')
+  .get(function() { return this.projectId; })
+  .set(function(val) { this.projectId = val; });
 
 notificationSchema.index({ recipient: 1, isRead: 1, createdAt: -1 });
 

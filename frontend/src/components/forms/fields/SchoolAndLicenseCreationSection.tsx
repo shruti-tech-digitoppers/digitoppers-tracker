@@ -20,7 +20,8 @@ import {
   CheckCircle2,
   AlertCircle,
   Copy,
-  RefreshCw
+  RefreshCw,
+  ChevronDown
 } from 'lucide-react';
 import { IProject } from '../../../types/project';
 import { schoolsApi } from '../../../lib/api/schools.api';
@@ -355,7 +356,7 @@ export function SchoolAndLicenseCreationSection({
     effectiveSchools[0] ||
     null;
 
-  // ── Core Backend Schools Verification & Stage Completion ────────────────────
+  // ── Core Backend Schools Verification, Mapping & Stage Completion ──────────
   const [verifiedSchoolKeys, setVerifiedSchoolKeys] = useState<string[]>(() => {
     if (Array.isArray(value?.verifiedCoreSchoolIds) && value.verifiedCoreSchoolIds.length > 0) {
       return value.verifiedCoreSchoolIds;
@@ -366,115 +367,296 @@ export function SchoolAndLicenseCreationSection({
   const [completionSuccess, setCompletionSuccess] = useState<boolean>(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
 
-  // Helper to normalize school names for strict matching
-  const normalizeSchoolName = (name?: string): string => {
+  // Dropdown & Search state for "Verify Schools to Connect"
+  const [openDropdownCoreKey, setOpenDropdownCoreKey] = useState<string | null>(null);
+  const [dropdownSearch, setDropdownSearch] = useState<string>('');
+
+  // Mapping state: Dashboard School Key -> Connected Tracker Onboarding School
+  const [dashboardSchoolsMapping, setDashboardSchoolsMapping] = useState<Record<string, any>>(() => {
+    return value?.dashboardSchoolsId && typeof value.dashboardSchoolsId === 'object'
+      ? value.dashboardSchoolsId
+      : {};
+  });
+
+  // Helper to normalize school names for fuzzy matching
+  const normalizeSchoolName = useCallback((name?: string): string => {
     if (!name) return '';
     return name
       .toLowerCase()
       .replace(/\s*\([a-z0-9_-]+\)$/i, '') // Remove (PRJ-CODE)
       .replace(/[^a-z0-9]/g, '') // Remove spaces and punctuation
       .trim();
-  };
+  }, []);
 
-  // Strictly check if a Core Backend school matches any school in this project's demographic list
+  // Strict matching rule: Check if a Core Backend school and a Tracker Onboarding school actually match by name or address
+  const checkSchoolMatchRule = useCallback(
+    (coreSchool: any, trackerSchool: any): boolean => {
+      if (!coreSchool || !trackerSchool) return false;
+
+      const cNorm = normalizeSchoolName(coreSchool.name);
+      const tNorm = normalizeSchoolName(trackerSchool.name);
+      if (!cNorm || !tNorm) return false;
+
+      // 1. Exact or normalized name match
+      if (cNorm === tNorm) return true;
+
+      // 2. Substring match if name is meaningful (>= 8 chars)
+      if (cNorm.length >= 8 && tNorm.length >= 8 && (cNorm.includes(tNorm) || tNorm.includes(cNorm))) {
+        return true;
+      }
+
+      // 3. Significant unique words matching (ignoring generic common terms)
+      const stopWords = new Set([
+        'school', 'public', 'senior', 'secondary', 'vidyalaya', 'academy',
+        'composite', 'boys', 'girls', 'model', 'govt', 'the', 'and', 'for',
+        'sector', 'road', 'block', 'nagar'
+      ]);
+      const cWords = cNorm.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !stopWords.has(w));
+      const tWords = tNorm.split(/[^a-z0-9]+/).filter((w) => w.length >= 4 && !stopWords.has(w));
+      const matchingWords = cWords.filter((w) => tWords.includes(w));
+      if (matchingWords.length >= 1) {
+        return true;
+      }
+
+      // 4. Address / Area / City match + at least one word overlap
+      const cAddr = String(coreSchool.address || '').toLowerCase();
+      const tAddr = String(trackerSchool.address || '').toLowerCase();
+      const tCity = String(trackerSchool.city || trackerSchool.district || '').toLowerCase();
+      const hasLocationMatch = (tCity && tCity.length >= 4 && cAddr.includes(tCity)) ||
+                               (tAddr && tAddr.length >= 6 && (cAddr.includes(tAddr) || tAddr.includes(cAddr)));
+      if (hasLocationMatch) {
+        const anyWord = cNorm.split(/[^a-z0-9]+/).some((w) => w.length >= 3 && !stopWords.has(w) && tNorm.includes(w));
+        if (anyWord) return true;
+      }
+
+      return false;
+    },
+    [normalizeSchoolName]
+  );
+
+  // Helper to find the best matching Tracker school for a Core Backend school based on strict match rule
+  const findBestTrackerMatch = useCallback(
+    (coreSchool: any) => {
+      if (!coreSchool || effectiveSchools.length === 0) return null;
+      // Strictly match only if checkSchoolMatchRule succeeds
+      return effectiveSchools.find((es) => checkSchoolMatchRule(coreSchool, es)) || null;
+    },
+    [effectiveSchools, checkSchoolMatchRule]
+  );
+
+  // Check if a Core Backend school has any valid match among effectiveSchools
   const isSchoolMatched = useCallback(
     (coreSchool: { name?: string; id?: string }) => {
       if (!coreSchool?.name) return false;
-      const coreNorm = normalizeSchoolName(coreSchool.name);
-      if (!coreNorm) return false;
-
-      return effectiveSchools.some((es) => {
-        if (!es.name) return false;
-        const esNorm = normalizeSchoolName(es.name);
-        if (!esNorm) return false;
-
-        // Exact match
-        if (coreNorm === esNorm) return true;
-
-        // Long substring match (>= 10 chars)
-        if (coreNorm.length >= 10 && esNorm.length >= 10) {
-          if (coreNorm.includes(esNorm) || esNorm.includes(coreNorm)) {
-            return true;
-          }
-        }
-        return false;
-      });
+      return effectiveSchools.some((es) => checkSchoolMatchRule(coreSchool, es));
     },
-    [effectiveSchools]
+    [effectiveSchools, checkSchoolMatchRule]
   );
 
-  // Filter to ONLY core schools that strictly match current project schools!
-  // If a school doesn't match this project, it is NOT shown; if no schools match, shows "not created".
+  // Display all core schools returned for the active project
   const matchedCoreSchools = useMemo(() => {
-    return coreBackendSchools.filter((cs) => isSchoolMatched(cs));
-  }, [coreBackendSchools, isSchoolMatched]);
+    if (Array.isArray(coreBackendSchools) && coreBackendSchools.length > 0) {
+      return coreBackendSchools;
+    }
+    return [];
+  }, [coreBackendSchools]);
 
   const filteredCoreSchools = useMemo(() => {
     if (!coreSearchQuery.trim()) return matchedCoreSchools;
     const q = coreSearchQuery.toLowerCase().trim();
-    return matchedCoreSchools.filter((s) =>
-      (s.name && s.name.toLowerCase().includes(q)) ||
-      (s.address && s.address.toLowerCase().includes(q)) ||
-      (s.schoolId && s.schoolId.toLowerCase().includes(q))
-    );
-  }, [matchedCoreSchools, coreSearchQuery]);
+    return matchedCoreSchools.filter((s) => {
+      const k = s.id || s.schoolId || s.name;
+      const mapped = dashboardSchoolsMapping[k];
+      return (
+        (s.name && s.name.toLowerCase().includes(q)) ||
+        (s.address && s.address.toLowerCase().includes(q)) ||
+        (s.schoolId && s.schoolId.toLowerCase().includes(q)) ||
+        (s.city && s.city.toLowerCase().includes(q)) ||
+        (s.state && s.state.toLowerCase().includes(q)) ||
+        (mapped?.onboardingSchoolName && mapped.onboardingSchoolName.toLowerCase().includes(q)) ||
+        (mapped?.onboardingSchoolAddress && mapped.onboardingSchoolAddress.toLowerCase().includes(q))
+      );
+    });
+  }, [matchedCoreSchools, coreSearchQuery, dashboardSchoolsMapping]);
 
   const matchedCoreKeys = useMemo(() => {
     return matchedCoreSchools.map((s) => s.id || s.schoolId || s.name);
   }, [matchedCoreSchools]);
 
-  // Sync / initialize verified schools:
-  // ONLY schools that ACTUALLY match project demographic schools can ever be verified!
+  // Auto-sync / initialize mapping and verified schools strictly with match validation
   useEffect(() => {
-    if (coreBackendSchools.length > 0) {
-      const validMatched = coreBackendSchools.filter((cs) => isSchoolMatched(cs));
-      const validKeys = validMatched.map((cs) => cs.id || cs.schoolId || cs.name);
-
-      if (Array.isArray(value?.verifiedCoreSchoolIds)) {
-        // Filter out any stale/unmatched IDs
-        const verifiedOnlyMatching = value.verifiedCoreSchoolIds.filter((k: string) => validKeys.includes(k));
-        setVerifiedSchoolKeys(verifiedOnlyMatching);
+    if (coreBackendSchools.length > 0 && effectiveSchools.length > 0) {
+      if (Array.isArray(value?.verifiedCoreSchoolIds) && value.verifiedCoreSchoolIds.length > 0) {
+        setVerifiedSchoolKeys(value.verifiedCoreSchoolIds);
       } else {
-        // Auto-select only schools that actually match
-        setVerifiedSchoolKeys(validKeys);
+        // STRICT RULE: Only auto-verify schools that ACTUALLY match!
+        const strictlyMatchedKeys = coreBackendSchools
+          .filter((cs) => findBestTrackerMatch(cs) !== null)
+          .map((cs) => cs.id || cs.schoolId || cs.name);
+        setVerifiedSchoolKeys(strictlyMatchedKeys);
       }
-    } else {
-      setVerifiedSchoolKeys([]);
-    }
-  }, [value?.verifiedCoreSchoolIds, coreBackendSchools, isSchoolMatched]);
 
-  // All verified strictly requires matching schools to exist and be verified
+      setDashboardSchoolsMapping((prev) => {
+        const next = { ...(value?.dashboardSchoolsId || {}), ...prev };
+        let changed = false;
+        coreBackendSchools.forEach((cs) => {
+          const k = cs.id || cs.schoolId || cs.name;
+          if (!next[k] || !next[k].onboardingSchoolName) {
+            const best = findBestTrackerMatch(cs);
+            if (best) {
+              const matches = checkSchoolMatchRule(cs, best);
+              next[k] = {
+                dashboardSchoolId: cs.schoolId || cs.id || '',
+                dashboardSchoolName: cs.name || '',
+                dashboardSchoolAddress: cs.address || '',
+                dashboardSchoolCode: cs.schoolId || '',
+                onboardingSchoolId: best.id || best.schoolId || '',
+                onboardingSchoolName: best.name || '',
+                onboardingSchoolAddress: best.address || [best.city, best.state].filter(Boolean).join(', ') || '',
+                isMatched: matches,
+                verified: matches,
+                verifiedAt: matches ? new Date().toISOString() : undefined,
+              };
+              changed = true;
+            }
+          }
+        });
+        return changed ? next : prev;
+      });
+    }
+  }, [coreBackendSchools, effectiveSchools, findBestTrackerMatch, checkSchoolMatchRule, value?.verifiedCoreSchoolIds, value?.dashboardSchoolsId]);
+
+  // Check if all dashboard schools are verified
   const isAllVerified = useMemo(() => {
     return (
       matchedCoreKeys.length > 0 &&
-      matchedCoreKeys.length === effectiveSchools.length &&
       matchedCoreKeys.every((k) => verifiedSchoolKeys.includes(k))
     );
-  }, [matchedCoreKeys, verifiedSchoolKeys, effectiveSchools.length]);
+  }, [matchedCoreKeys, verifiedSchoolKeys]);
 
-  const handleToggleSchool = async (schoolKey: string) => {
-    // Only allow toggling if school actually matches project schools!
-    const targetSchool = coreBackendSchools.find((s) => (s.id || s.schoolId || s.name) === schoolKey);
-    if (!targetSchool || !isSchoolMatched(targetSchool)) {
-      return; // Do NOT verify unmatched school!
+  // Handler: Select a Tracker Onboarding school from dropdown for a Dashboard school
+  const handleSelectTrackerSchool = (coreSchool: any, trackerSchool: any) => {
+    const coreKey = coreSchool.id || coreSchool.schoolId || coreSchool.name;
+    const isMatched = checkSchoolMatchRule(coreSchool, trackerSchool);
+
+    if (!isMatched) {
+      setCompletionError(`Validation Warning: "${trackerSchool?.name}" does not match "${coreSchool?.name}". Matching is required to verify.`);
+    } else {
+      setCompletionError(null);
     }
+
+    const updatedMapping = {
+      ...dashboardSchoolsMapping,
+      [coreKey]: {
+        dashboardSchoolId: coreSchool.schoolId || coreSchool.id || '',
+        dashboardSchoolName: coreSchool.name || '',
+        dashboardSchoolAddress: coreSchool.address || '',
+        dashboardSchoolCode: coreSchool.schoolId || '',
+        onboardingSchoolId: trackerSchool?.id || trackerSchool?.schoolId || '',
+        onboardingSchoolName: trackerSchool?.name || '',
+        onboardingSchoolAddress: trackerSchool?.address || [trackerSchool?.city, trackerSchool?.state].filter(Boolean).join(', ') || '',
+        isMatched,
+        verified: isMatched,
+        verifiedAt: isMatched ? new Date().toISOString() : undefined,
+      },
+    };
+    setDashboardSchoolsMapping(updatedMapping);
+
+    let updatedVerifiedKeys = [...verifiedSchoolKeys];
+    if (isMatched) {
+      if (!updatedVerifiedKeys.includes(coreKey)) {
+        updatedVerifiedKeys.push(coreKey);
+      }
+    } else {
+      updatedVerifiedKeys = updatedVerifiedKeys.filter((k) => k !== coreKey);
+    }
+    setVerifiedSchoolKeys(updatedVerifiedKeys);
+
+    const allVerified =
+      matchedCoreKeys.length > 0 &&
+      matchedCoreKeys.every((k) => updatedVerifiedKeys.includes(k));
+
+    const payload = {
+      ...(value || {}),
+      verifiedCoreSchoolIds: updatedVerifiedKeys,
+      coreSchoolsVerified: allVerified,
+      dashboardSchoolsId: updatedMapping,
+    };
+
+    if (onChange) {
+      onChange(payload);
+    }
+    setOpenDropdownCoreKey(null);
+    setDropdownSearch('');
+  };
+
+  // Handler: Toggle single school verification with strict matching enforcement
+  const handleToggleSchool = async (schoolKey: string) => {
+    const targetSchool = coreBackendSchools.find((s) => (s.id || s.schoolId || s.name) === schoolKey);
+    if (!targetSchool) return;
 
     setCompletionError(null);
     const isChecked = verifiedSchoolKeys.includes(schoolKey);
+
+    // STRICT CHECK: If user is trying to verify, verify that selected school matches!
+    if (!isChecked) {
+      const mapped = dashboardSchoolsMapping[schoolKey];
+      const trackerSchoolToVerify = mapped?.onboardingSchoolName
+        ? effectiveSchools.find((es) => es.name === mapped.onboardingSchoolName || (es.id && es.id === mapped.onboardingSchoolId))
+        : findBestTrackerMatch(targetSchool);
+
+      if (!trackerSchoolToVerify || !checkSchoolMatchRule(targetSchool, trackerSchoolToVerify)) {
+        setCompletionError(`Cannot verify: Selected school does not match dashboard record "${targetSchool.name}". Please select a matching school.`);
+        return; // REJECT VERIFICATION!
+      }
+    }
+
     const updatedKeys = isChecked
       ? verifiedSchoolKeys.filter((k) => k !== schoolKey)
       : [...verifiedSchoolKeys, schoolKey];
 
     setVerifiedSchoolKeys(updatedKeys);
+
+    let updatedMapping = { ...dashboardSchoolsMapping };
+    if (!isChecked) {
+      const mapped = updatedMapping[schoolKey];
+      const trackerSchoolToVerify = mapped?.onboardingSchoolName
+        ? effectiveSchools.find((es) => es.name === mapped.onboardingSchoolName || (es.id && es.id === mapped.onboardingSchoolId))
+        : findBestTrackerMatch(targetSchool);
+
+      if (trackerSchoolToVerify) {
+        updatedMapping[schoolKey] = {
+          dashboardSchoolId: targetSchool.schoolId || targetSchool.id || '',
+          dashboardSchoolName: targetSchool.name || '',
+          dashboardSchoolAddress: targetSchool.address || '',
+          dashboardSchoolCode: targetSchool.schoolId || '',
+          onboardingSchoolId: trackerSchoolToVerify.id || trackerSchoolToVerify.schoolId || '',
+          onboardingSchoolName: trackerSchoolToVerify.name || '',
+          onboardingSchoolAddress: trackerSchoolToVerify.address || [trackerSchoolToVerify.city, trackerSchoolToVerify.state].filter(Boolean).join(', ') || '',
+          isMatched: true,
+          verified: true,
+          verifiedAt: new Date().toISOString(),
+        };
+      }
+    } else {
+      if (updatedMapping[schoolKey]) {
+        updatedMapping[schoolKey] = {
+          ...updatedMapping[schoolKey],
+          verified: false,
+        };
+      }
+    }
+    setDashboardSchoolsMapping(updatedMapping);
+
     const allVerified =
       matchedCoreKeys.length > 0 &&
-      matchedCoreKeys.length === effectiveSchools.length &&
       matchedCoreKeys.every((k) => updatedKeys.includes(k));
 
     const payload = {
       ...(value || {}),
       verifiedCoreSchoolIds: updatedKeys,
       coreSchoolsVerified: allVerified,
+      dashboardSchoolsId: updatedMapping,
     };
 
     if (onChange) {
@@ -499,21 +681,65 @@ export function SchoolAndLicenseCreationSection({
     }
   };
 
+  // Handler: Toggle all schools verification with strict matching enforcement
   const handleToggleAllSchools = async () => {
     if (matchedCoreKeys.length === 0) return;
     setCompletionError(null);
 
-    const updatedKeys = isAllVerified ? [] : [...matchedCoreKeys];
+    // Only schools that actually match can be verified!
+    const strictlyMatchableKeys = coreBackendSchools
+      .filter((cs) => {
+        const k = cs.id || cs.schoolId || cs.name;
+        const mapped = dashboardSchoolsMapping[k];
+        const trackerSchool = mapped?.onboardingSchoolName
+          ? effectiveSchools.find((es) => es.name === mapped.onboardingSchoolName || (es.id && es.id === mapped.onboardingSchoolId))
+          : findBestTrackerMatch(cs);
+        return trackerSchool && checkSchoolMatchRule(cs, trackerSchool);
+      })
+      .map((cs) => cs.id || cs.schoolId || cs.name);
+
+    if (!isAllVerified && strictlyMatchableKeys.length < coreBackendSchools.length) {
+      setCompletionError(`Some schools could not be verified automatically because their names/addresses do not match onboarding records.`);
+    }
+
+    const updatedKeys = isAllVerified ? [] : strictlyMatchableKeys;
     setVerifiedSchoolKeys(updatedKeys);
-    const allVerified =
-      !isAllVerified &&
-      matchedCoreKeys.length > 0 &&
-      matchedCoreKeys.length === effectiveSchools.length;
+    const allVerified = !isAllVerified && updatedKeys.length === coreBackendSchools.length && coreBackendSchools.length > 0;
+
+    let updatedMapping = { ...dashboardSchoolsMapping };
+    if (!isAllVerified) {
+      coreBackendSchools.forEach((cs) => {
+        const k = cs.id || cs.schoolId || cs.name;
+        if (strictlyMatchableKeys.includes(k)) {
+          const best = findBestTrackerMatch(cs);
+          if (best) {
+            updatedMapping[k] = {
+              dashboardSchoolId: cs.schoolId || cs.id || '',
+              dashboardSchoolName: cs.name || '',
+              dashboardSchoolAddress: cs.address || '',
+              dashboardSchoolCode: cs.schoolId || '',
+              onboardingSchoolId: best.id || best.schoolId || '',
+              onboardingSchoolName: best.name || '',
+              onboardingSchoolAddress: best.address || [best.city, best.state].filter(Boolean).join(', ') || '',
+              isMatched: true,
+              verified: true,
+              verifiedAt: new Date().toISOString(),
+            };
+          }
+        }
+      });
+    } else {
+      Object.keys(updatedMapping).forEach((k) => {
+        if (updatedMapping[k]) updatedMapping[k].verified = false;
+      });
+    }
+    setDashboardSchoolsMapping(updatedMapping);
 
     const payload = {
       ...(value || {}),
       verifiedCoreSchoolIds: updatedKeys,
       coreSchoolsVerified: allVerified,
+      dashboardSchoolsId: updatedMapping,
     };
 
     if (onChange) {
@@ -543,7 +769,6 @@ export function SchoolAndLicenseCreationSection({
     setCompletionError(null);
 
     try {
-      // Ensure matching core school keys are verified
       const finalVerifiedKeys = [...matchedCoreKeys];
       setVerifiedSchoolKeys(finalVerifiedKeys);
 
@@ -552,6 +777,7 @@ export function SchoolAndLicenseCreationSection({
         verifiedCoreSchoolIds: finalVerifiedKeys,
         coreSchoolsVerified: true,
         verifiedAt: new Date().toISOString(),
+        dashboardSchoolsId: dashboardSchoolsMapping,
       };
 
       if (onChange) {
@@ -576,16 +802,21 @@ export function SchoolAndLicenseCreationSection({
   const solutionsSource = useMemo(() => {
     const rawSol =
       dbLoadedSolutions ||
+      allFormData?.stage3SolutionsData?.solutions ||
       allFormData?.stage3SolutionsData ||
+      allFormData?.solutionSelection?.solutions ||
       allFormData?.solutionSelection ||
       allFormData?.solutions ||
+      (project as any)?.orderRequirement?.solutionSelection?.solutions ||
       (project as any)?.orderRequirement?.solutionSelection ||
       {};
 
     const schoolWiseMap: Record<string, any> =
       rawSol?.schoolWiseSolutions ||
+      rawSol?.solutions?.schoolWiseSolutions ||
       allFormData?.stage3SchoolWiseSolutions ||
       allFormData?.solutionSelection?.schoolWiseSolutions ||
+      allFormData?.solutions?.schoolWiseSolutions ||
       allFormData?.schoolWiseSolutions ||
       (project as any)?.orderRequirement?.solutionSelection?.schoolWiseSolutions ||
       {};
@@ -1783,7 +2014,7 @@ export function SchoolAndLicenseCreationSection({
                 <thead>
                   {/* Column Group Header */}
                   <tr className="border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                    <th className="p-2.5 bg-slate-100 text-center w-12 border-r border-slate-200">#</th>
+                    <th className="p-2.5 bg-slate-100 text-center w-12 min-w-[48px] max-w-[48px] border-r border-slate-200 sticky left-0 z-20">#</th>
                     <th colSpan={11} className="p-2.5 bg-slate-100/70 border-r border-slate-200 text-slate-700">
                       🏫 School Demographic Information (11 Columns)
                     </th>
@@ -1805,10 +2036,10 @@ export function SchoolAndLicenseCreationSection({
 
                   {/* Individual Column Header */}
                   <tr className="border-b border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700">
-                    <th className="p-2.5 text-center border-r border-slate-200 text-slate-400">#</th>
+                    <th className="p-2.5 text-center border-r border-slate-200 text-slate-400 w-12 min-w-[48px] max-w-[48px] sticky left-0 z-20 bg-slate-50">#</th>
 
-                    {/* 1. name */}
-                    <th className="p-2.5 min-w-[200px]">
+                    {/* 1. name (Frozen Sticky Column) */}
+                    <th className="p-2.5 min-w-[220px] sticky left-12 z-20 bg-slate-50 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]">
                       <div>School Name *</div>
                       <div className="text-[9.5px] font-mono text-slate-400 font-normal">name</div>
                     </th>
@@ -1920,12 +2151,12 @@ export function SchoolAndLicenseCreationSection({
                           className="hover:bg-slate-50/80 transition-colors group"
                         >
                           {/* # Index */}
-                          <td className="p-2 text-center font-mono text-[11px] text-slate-400 border-r border-slate-100 bg-slate-50/40">
+                          <td className="p-2 text-center font-mono text-[11px] text-slate-400 border-r border-slate-100 bg-slate-50 group-hover:bg-slate-100 w-12 min-w-[48px] max-w-[48px] sticky left-0 z-10">
                             {activeIdx + 1}
                           </td>
 
-                          {/* 1. Name */}
-                          <td className="px-3 py-2">
+                          {/* 1. Name (Frozen Sticky Column) */}
+                          <td className="px-3 py-2 sticky left-12 z-10 bg-white group-hover:bg-slate-50 border-r border-slate-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]">
                             <div className="flex flex-col">
                               <span className="font-semibold text-slate-900 text-xs">
                                 {row.name || <span className="text-slate-300 font-normal">—</span>}
@@ -2137,15 +2368,32 @@ export function SchoolAndLicenseCreationSection({
               </div>
             </div>
 
+            {/* Validation Error Banner */}
+            {completionError && (
+              <div className="px-4 py-2 bg-amber-50 border-b border-amber-200 text-amber-800 text-xs flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span className="font-medium">{completionError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCompletionError(null)}
+                  className="text-amber-500 hover:text-amber-700 text-xs font-bold cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
+
             <div className="overflow-x-auto max-w-full">
               <table className="w-full text-left border-collapse text-xs whitespace-nowrap min-w-[700px]">
                 <thead>
                   <tr className="border-b border-slate-200 bg-slate-100 text-[11px] font-extrabold text-slate-800 uppercase tracking-wider">
                     {/* 1. Row # */}
-                    <th className="p-2.5 text-center w-12 border-r border-slate-200 text-slate-500 font-bold">#</th>
+                    <th className="p-2.5 text-center w-12 min-w-[48px] max-w-[48px] border-r border-slate-200 text-slate-500 font-bold sticky left-0 z-20 bg-slate-100">#</th>
 
-                    {/* 2. School Details */}
-                    <th className="p-2.5 min-w-[260px] border-r border-slate-200">
+                    {/* 2. School Details (Frozen Sticky Column) */}
+                    <th className="p-2.5 min-w-[260px] border-r border-slate-200 sticky left-12 z-20 bg-slate-100 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)]">
                       <div className="font-heading text-slate-900 font-bold">School Details</div>
                       <div className="text-[9.5px] font-mono text-slate-500 font-normal normal-case">name & code from core backend</div>
                     </th>
@@ -2162,18 +2410,21 @@ export function SchoolAndLicenseCreationSection({
                       <div className="text-[9.5px] font-mono text-slate-500 font-normal normal-case">phone, email & poc</div>
                     </th>
 
-                    {/* 5. Verify / Stage Completion (Tick ka mark krne wala) */}
-                    <th className="p-2.5 text-center w-28">
-                      <div className="flex items-center justify-center gap-1.5">
+                    {/* 5. Verify Schools to Connect */}
+                    <th className="p-2.5 min-w-[280px]">
+                      <div className="flex items-center gap-2">
                         <input
                           type="checkbox"
                           checked={isAllVerified}
                           onChange={handleToggleAllSchools}
                           disabled={coreBackendSchools.length === 0 || completingStage}
                           className="w-3.5 h-3.5 rounded text-emerald-600 border-slate-300 focus:ring-emerald-500 cursor-pointer"
-                          title="Verify all matching schools"
+                          title="Verify and connect all schools"
                         />
-                        <span className="font-heading font-bold">Verify</span>
+                        <div className="text-left">
+                          <div className="font-heading text-slate-900 font-bold">Verify Schools to Connect</div>
+                          <div className="text-[9.5px] font-mono text-slate-500 font-normal normal-case">select from tracker onboarding</div>
+                        </div>
                       </div>
                     </th>
                   </tr>
@@ -2218,12 +2469,14 @@ export function SchoolAndLicenseCreationSection({
                             }`}
                         >
                           {/* 1. Row # */}
-                          <td className="p-2.5 text-center font-mono text-[11px] text-slate-400 border-r border-slate-100 bg-slate-50/40">
+                          <td className="p-2.5 text-center font-mono text-[11px] text-slate-400 border-r border-slate-100 bg-slate-50 group-hover:bg-slate-100 w-12 min-w-[48px] max-w-[48px] sticky left-0 z-10">
                             {cIdx + 1}
                           </td>
 
-                          {/* 2. School Details */}
-                          <td className="px-3 py-2.5 border-r border-slate-100">
+                          {/* 2. School Details (Frozen Sticky Column) */}
+                          <td className={`px-3 py-2.5 border-r border-slate-200 sticky left-12 z-10 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.08)] ${
+                            isVerified ? 'bg-emerald-50/90 group-hover:bg-emerald-100/80' : 'bg-white group-hover:bg-slate-50'
+                          }`}>
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-2">
                                 <span className={`w-2 h-2 rounded-full shrink-0 ${isVerified ? 'bg-emerald-500' : 'bg-[#51a8b1]'}`}></span>
@@ -2285,24 +2538,180 @@ export function SchoolAndLicenseCreationSection({
                             </div>
                           </td>
 
-                          {/* 5. Verify / Confirm (Tick ka mark krne wala) */}
-                          <td className="px-3 py-2.5 text-center w-28">
-                            <button
-                              type="button"
-                              onClick={() => handleToggleSchool(schoolKey)}
-                              disabled={completingStage}
-                              className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer shadow-2xs ${isVerified
-                                  ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20'
-                                  : 'bg-white border-2 border-slate-300 hover:border-emerald-500 text-slate-400 hover:text-emerald-600'
-                                }`}
-                              title={isVerified ? 'Verified: School created on Core Dashboard' : 'Click to verify school is created on Core Dashboard'}
-                            >
-                              <Check
-                                className={`w-4 h-4 stroke-[2.5] ${isVerified ? 'text-white' : 'text-slate-400 group-hover:text-emerald-600'
-                                  }`}
-                              />
-                              <span>{isVerified ? 'Verified' : 'Verify'}</span>
-                            </button>
+                          {/* 5. Verify Schools to Connect */}
+                          <td className="px-3 py-2.5 min-w-[280px]">
+                            {(() => {
+                              const mappedTracker = dashboardSchoolsMapping[schoolKey];
+                              const selectedTrackerSchool = mappedTracker?.onboardingSchoolName
+                                ? effectiveSchools.find((es) => es.name === mappedTracker.onboardingSchoolName || (es.id && es.id === mappedTracker.onboardingSchoolId))
+                                : null;
+                              const isCurrentMatchValid = selectedTrackerSchool
+                                ? checkSchoolMatchRule(cs, selectedTrackerSchool)
+                                : false;
+
+                              const filteredTrackerOptions = effectiveSchools.filter((es) => {
+                                if (!dropdownSearch.trim()) return true;
+                                const q = dropdownSearch.toLowerCase().trim();
+                                const name = String(es.name || '').toLowerCase();
+                                const addr = String(es.address || '').toLowerCase();
+                                const city = String(es.city || '').toLowerCase();
+                                const state = String(es.state || '').toLowerCase();
+                                return name.includes(q) || addr.includes(q) || city.includes(q) || state.includes(q);
+                              });
+
+                              return (
+                                <div className="space-y-1.5">
+                                  {/* Dropdown Selector */}
+                                  <div className="relative">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setOpenDropdownCoreKey(openDropdownCoreKey === schoolKey ? null : schoolKey);
+                                        setDropdownSearch('');
+                                      }}
+                                      className={`w-full flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl border text-left text-xs transition cursor-pointer shadow-2xs ${
+                                        isVerified
+                                          ? 'bg-emerald-50/60 border-emerald-300 text-emerald-900'
+                                          : mappedTracker?.onboardingSchoolName && !isCurrentMatchValid
+                                          ? 'bg-amber-50/70 border-amber-300 text-amber-900'
+                                          : 'bg-white border-slate-300 hover:border-[#3a7d84] text-slate-800'
+                                      }`}
+                                    >
+                                      <div className="flex items-center gap-1.5 min-w-0">
+                                        <School className={`w-3.5 h-3.5 shrink-0 ${isVerified ? 'text-emerald-600' : isCurrentMatchValid ? 'text-[#3a7d84]' : 'text-amber-600'}`} />
+                                        <div className="min-w-0 truncate">
+                                          {mappedTracker?.onboardingSchoolName ? (
+                                            <span className="font-bold text-xs truncate block">
+                                              {mappedTracker.onboardingSchoolName}
+                                            </span>
+                                          ) : (
+                                            <span className="text-slate-400 italic text-[11px]">Select Tracker Onboarding School...</span>
+                                          )}
+                                        </div>
+                                      </div>
+                                      <ChevronDown className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                                    </button>
+
+                                    {/* Dropdown Popup */}
+                                    {openDropdownCoreKey === schoolKey && (
+                                      <div className="absolute z-50 left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-xl p-2 min-w-[280px] max-w-[340px]">
+                                        {/* Search Input (School name or Address) */}
+                                        <div className="relative mb-2">
+                                          <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2" />
+                                          <input
+                                            type="text"
+                                            autoFocus
+                                            value={dropdownSearch}
+                                            onChange={(e) => setDropdownSearch(e.target.value)}
+                                            placeholder="Search school or address..."
+                                            className="w-full pl-7 pr-6 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white focus:outline-none focus:ring-1 focus:ring-[#3a7d84] text-slate-800"
+                                          />
+                                          {dropdownSearch && (
+                                            <button
+                                              type="button"
+                                              onClick={() => setDropdownSearch('')}
+                                              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs cursor-pointer"
+                                            >
+                                              ✕
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        <div className="text-[10px] font-bold text-slate-400 px-1 pb-1 uppercase tracking-wider flex items-center justify-between">
+                                          <span>Tracker Schools (Form Data)</span>
+                                          <span>{filteredTrackerOptions.length} available</span>
+                                        </div>
+
+                                        {/* School Options */}
+                                        <div className="max-h-48 overflow-y-auto space-y-1">
+                                          {filteredTrackerOptions.length === 0 ? (
+                                            <div className="p-2 text-center text-xs text-slate-400 italic">
+                                              No matching school in onboarding form data
+                                            </div>
+                                          ) : (
+                                            filteredTrackerOptions.map((ts, tIdx) => {
+                                              const isSelected = mappedTracker?.onboardingSchoolName === ts.name ||
+                                                mappedTracker?.onboardingSchoolId === (ts.id || ts.schoolId);
+                                              const matchesThisCore = checkSchoolMatchRule(cs, ts);
+                                              return (
+                                                <button
+                                                  key={ts.id || tIdx}
+                                                  type="button"
+                                                  onClick={() => handleSelectTrackerSchool(cs, ts)}
+                                                  className={`w-full text-left p-2 rounded-lg text-xs transition flex flex-col gap-0.5 cursor-pointer ${
+                                                    isSelected
+                                                      ? 'bg-teal-50 text-teal-900 border border-teal-200 font-bold'
+                                                      : matchesThisCore
+                                                      ? 'hover:bg-emerald-50/60 text-slate-800'
+                                                      : 'hover:bg-slate-50 text-slate-500'
+                                                  }`}
+                                                >
+                                                  <div className="flex items-center justify-between gap-1">
+                                                    <span className="font-semibold truncate">{ts.name}</span>
+                                                    <div className="flex items-center gap-1 shrink-0">
+                                                      {matchesThisCore && (
+                                                        <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                                                          Matches
+                                                        </span>
+                                                      )}
+                                                      {isSelected && <Check className="w-3.5 h-3.5 text-teal-600 shrink-0" />}
+                                                    </div>
+                                                  </div>
+                                                  {(ts.address || ts.city || ts.district) && (
+                                                    <span className="text-[10px] text-slate-500 font-normal truncate">
+                                                      📍 {[ts.address, ts.city || ts.district, ts.state].filter(Boolean).join(', ')}
+                                                    </span>
+                                                  )}
+                                                </button>
+                                              );
+                                            })
+                                          )}
+                                        </div>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Verification Button and Status / Address Hint */}
+                                  <div className="flex items-center justify-between gap-2">
+                                    <div className="flex items-center gap-1.5 truncate max-w-[170px]">
+                                      {mappedTracker?.onboardingSchoolName && !isCurrentMatchValid ? (
+                                        <span className="text-[9.5px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded border border-amber-300 shrink-0">
+                                          ⚠️ No Match
+                                        </span>
+                                      ) : mappedTracker?.onboardingSchoolAddress ? (
+                                        <span className="text-[10px] text-slate-500 truncate" title={mappedTracker.onboardingSchoolAddress}>
+                                          📍 {mappedTracker.onboardingSchoolAddress}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleToggleSchool(schoolKey)}
+                                      disabled={completingStage || (!isVerified && !isCurrentMatchValid)}
+                                      className={`inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shadow-2xs shrink-0 ${
+                                        isVerified
+                                          ? 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-emerald-600/20 cursor-pointer'
+                                          : !isCurrentMatchValid
+                                          ? 'bg-slate-100 border border-slate-200 text-slate-400 cursor-not-allowed opacity-60'
+                                          : 'bg-white border-2 border-slate-300 hover:border-emerald-500 text-slate-600 hover:text-emerald-600 cursor-pointer'
+                                      }`}
+                                      title={
+                                        isVerified
+                                          ? 'Verified: Connected to Core Dashboard'
+                                          : !isCurrentMatchValid
+                                          ? 'Cannot verify: Selected onboarding school does not match this dashboard record'
+                                          : 'Click to verify and connect'
+                                      }
+                                    >
+                                      <Check
+                                        className={`w-3.5 h-3.5 stroke-[2.5] ${isVerified ? 'text-white' : isCurrentMatchValid ? 'text-slate-400' : 'text-slate-300'}`}
+                                      />
+                                      <span>{isVerified ? 'Verified' : isCurrentMatchValid ? 'Verify' : 'No Match'}</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </td>
                         </tr>
                       );

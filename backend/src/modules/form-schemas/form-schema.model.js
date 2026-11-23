@@ -1,131 +1,43 @@
 const mongoose = require('mongoose');
 
 /**
- * Field Definition Sub-Schema
- * Defines individual input elements inside a form schema
- */
-const formFieldSchema = new mongoose.Schema({
-  key: {
-    type: String,
-    required: [true, 'Field key is required'],
-    trim: true
-  },
-  label: {
-    type: String,
-    required: [true, 'Field label is required'],
-    trim: true
-  },
-  type: {
-    type: String,
-    required: [true, 'Field type is required'],
-    trim: true,
-    default: 'text'
-  },
-  required: {
-    type: Boolean,
-    default: false
-  },
-  options: [{
-    type: String,
-    trim: true
-  }],
-  hint: {
-    type: String,
-    default: '',
-    trim: true
-  },
-  placeholder: {
-    type: String,
-    default: '',
-    trim: true
-  },
-  defaultValue: {
-    type: mongoose.Schema.Types.Mixed,
-    default: null
-  },
-  metadata: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
-  }
-}, { _id: false });
-
-/**
- * Form Schema (form_schemas collection)
+ * Normalized Lean FormSchema Model (form_schemas collection)
  *
- * Defines the form fields and input layout for stages, substages, and tasks.
- * Can be either a Master Blueprint (projectId = null or 'DEFAULT')
- * or a project-specific overridden form schema linked to Core Backend project.
- *
- * Fields:
- * - id: Custom identifier (e.g. 'FS_PROJECT_REVIEWER' or 'FS_PRJ-2026-001_PO_UPLOAD')
- * - nodeId: Reference to static timeline node id ('PROJECT_REVIEWER', 'PO_UPLOAD', etc.)
- * - node: Direct ObjectId ref to TimelineNodeStatic
- * - projectId: Core backend project code ('PRJ-2026-001', or 'DEFAULT' for master schema)
- * - project: Core backend MongoDB Project reference (_id)
- * - title: Human friendly form title
- * - description: Form instructions / overview
- * - fields: Array of field definitions (keys map to formData values)
- * - version: Schema version ('v1', 'v2', etc.)
- * - isActive: Boolean flag
+ * Strictly contains only the requested keys:
+ * - _id: MongoDB ObjectId (automatic)
+ * - formSchemaId: String (required, unique, e.g. "1_PROJECT_REVIEWER")
+ * - name: String (required, form schema name)
+ * - fields: Object (key and values object format with field definitions)
+ * - isActive: Boolean (default: true)
+ * - timelineNodeId: MongoDB ObjectId reference to TimelineNodeStatic (_id)
+ * - createdAt & updatedAt: Timestamps (automatic)
  */
 const formSchemaDef = new mongoose.Schema({
-  id: {
+  formSchemaId: {
     type: String,
-    required: [true, 'Custom ID is required'],
+    required: [true, 'Form Schema ID (formSchemaId) is required'],
     unique: true,
     trim: true,
     index: true
   },
-  nodeId: {
-    type: String,
-    required: [true, 'Static Node ID (nodeId) is required'],
-    trim: true,
-    index: true
-  },
-  node: {
+  timelineNodeId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'TimelineNodeStatic',
-    default: null,
+    required: [true, 'TimelineNode ObjectId reference (timelineNodeId) is required'],
     index: true
   },
-  projectId: {
+  name: {
     type: String,
-    default: 'DEFAULT',
-    uppercase: true,
-    trim: true,
-    index: true
-  },
-  project: {
-    type: mongoose.Schema.Types.Mixed,
-    default: null,
-    index: true
-  },
-  title: {
-    type: String,
-    default: '',
-    trim: true
-  },
-  description: {
-    type: String,
-    default: '',
+    required: [true, 'Form Schema Name is required'],
     trim: true
   },
   fields: {
-    type: [formFieldSchema],
-    default: []
-  },
-  version: {
-    type: String,
-    default: 'v1',
-    trim: true
+    type: mongoose.Schema.Types.Mixed,
+    default: {}
   },
   isActive: {
     type: Boolean,
     default: true
-  },
-  metadata: {
-    type: mongoose.Schema.Types.Mixed,
-    default: {}
   }
 }, {
   timestamps: true,
@@ -134,25 +46,62 @@ const formSchemaDef = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Auto-generate custom id before validation
+// Auto-populate name from title if title passed, and convert fields array to key-value object map
 formSchemaDef.pre('validate', function(next) {
-  if (!this.projectId) {
-    this.projectId = 'DEFAULT';
-  } else {
-    this.projectId = String(this.projectId).toUpperCase().trim();
+  if (!this.name && this.title) {
+    this.name = this.title;
+  }
+  if (!this.timelineNodeId && this.node) {
+    this.timelineNodeId = this.node;
   }
 
-  if (!this.id && this.nodeId) {
-    const cleanProj = this.projectId ? this.projectId.replace(/[^a-zA-Z0-9_-]/g, '_') : 'DEFAULT';
-    const cleanNode = this.nodeId.replace(/[^a-zA-Z0-9_-]/g, '_');
-    this.id = `FS_${cleanProj}_${cleanNode}`;
-  } else if (!this.id) {
-    this.id = `FS_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+  if (Array.isArray(this.fields)) {
+    const fieldsMap = {};
+    for (const item of this.fields) {
+      if (!item) continue;
+      const key = item.key || item.name;
+      if (!key) continue;
+      fieldsMap[key] = {
+        label: item.label || key,
+        type: item.type || 'text',
+        required: Boolean(item.required),
+        options: Array.isArray(item.options) ? item.options : [],
+        hint: item.hint || '',
+        placeholder: item.placeholder || '',
+        defaultValue: item.defaultValue !== undefined ? item.defaultValue : null,
+        metadata: item.metadata || {}
+      };
+    }
+    this.fields = fieldsMap;
   }
+
   next();
 });
 
-// Composite index: One schema per (projectId, nodeId)
-formSchemaDef.index({ projectId: 1, nodeId: 1 }, { unique: true });
+// Virtual compatibility getters
+formSchemaDef.virtual('title').get(function() {
+  return this.name;
+});
+
+/**
+ * Instance Method: Return fields as an array for UI forms
+ */
+formSchemaDef.methods.toFieldsArray = function() {
+  if (!this.fields || typeof this.fields !== 'object') return [];
+  if (Array.isArray(this.fields)) return this.fields;
+
+  return Object.entries(this.fields).map(([key, def]) => ({
+    key,
+    name: key,
+    label: def?.label || key,
+    type: def?.type || 'text',
+    required: Boolean(def?.required),
+    options: def?.options || [],
+    hint: def?.hint || '',
+    placeholder: def?.placeholder || '',
+    defaultValue: def?.defaultValue !== undefined ? def?.defaultValue : null,
+    metadata: def?.metadata || {}
+  }));
+};
 
 module.exports = mongoose.models.FormSchema || mongoose.model('FormSchema', formSchemaDef, 'form_schemas');

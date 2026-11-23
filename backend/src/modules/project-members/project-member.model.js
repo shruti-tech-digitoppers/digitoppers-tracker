@@ -6,12 +6,7 @@ const projectMemberSchema = new mongoose.Schema({
     type: String,
     required: true,
     index: true,
-    lowercase: true,
     trim: true
-  },
-  project: {
-    type: mongoose.Schema.Types.Mixed,
-    index: true
   },
   employee: { 
     type: mongoose.Schema.Types.ObjectId, 
@@ -43,10 +38,14 @@ const projectMemberSchema = new mongoose.Schema({
     type: Boolean, 
     default: true 
   }
-}, { timestamps: true });
+}, { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } });
+
+// Virtual compatibility for project
+projectMemberSchema.virtual('project')
+  .get(function() { return this.projectId; })
+  .set(function(val) { this.projectId = val; });
 
 // Ensure unique employee assignment per project
-projectMemberSchema.index({ projectId: 1, employee: 1 });
-projectMemberSchema.index({ project: 1, employee: 1 }, { unique: true });
+projectMemberSchema.index({ projectId: 1, employee: 1 }, { unique: true });
 
 module.exports = mongoose.models.ProjectMember || mongoose.model('ProjectMember', projectMemberSchema, 'project_members');

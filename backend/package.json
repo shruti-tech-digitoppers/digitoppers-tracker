@@ -10,9 +10,8 @@
     "seed:master": "node src/utils/seedMasterDatabase.js",
     "seed:employees": "node src/utils/seedRealEmployees.js",
     "seed:timeline-nodes": "node src/utils/seedTimelineNodes.js",
-    "seed:timeline-data": "node src/utils/seedTimelineData.js",
-    "seed:timeline": "node src/utils/seedTimelineData.js",
-    "seed:requests": "node src/utils/seedProjectRequest.js",
+    "seed:form-schemas": "node src/utils/seedFormSchemas.js",
+    "migrate:timeline": "node src/utils/migrateNormalizedTimeline.js",
     "init:catalogs": "node src/utils/initMasterCatalogs.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

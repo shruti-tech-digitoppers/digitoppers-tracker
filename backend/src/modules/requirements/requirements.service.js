@@ -6,8 +6,8 @@ const coreApi = require('../../services/core-api.service');
 
 // Ensure referenced models are registered
 require('../schools/school.model');
-require('../solutions/solution.model');
-require('../hardware/hardware.model');
+try { require('../solutions/solution.model'); } catch (_) {}
+try { require('../hardware/hardware.model'); } catch (_) {}
 require('../content/content-section/content-section.model');
 require('../content/language/language.model');
 require('../content/grade/grade.model');

@@ -14,9 +14,9 @@ const bcrypt = require('bcryptjs');
 
 const Employee = require('../modules/employees/employee.model');
 // Solutions, Hardware and Specs live purely in Core Backend API
-const Solution = { countDocuments: async () => 1, insertMany: async () => [] };
-const Hardware = { countDocuments: async () => 1, insertMany: async () => [] };
-const HardwareSpec = { countDocuments: async () => 1, insertMany: async () => [] };
+const Solution = { countDocuments: async () => 1, insertMany: async () => [], updateOne: async () => {} };
+const Hardware = { countDocuments: async () => 1, insertMany: async () => [], updateOne: async () => {} };
+const HardwareSpec = { countDocuments: async () => 1, insertMany: async () => [], updateOne: async () => {} };
 
 async function initMasterCatalogs() {
   console.log('\n========================================================================');

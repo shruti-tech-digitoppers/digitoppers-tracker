@@ -36,6 +36,7 @@ import {
 import { formatTimelineDate, formatTimeAgo, formatDateOnly, toDateInputValue } from './utils/timeFormat';
 import { SearchableEmployeeSelect } from './components/SearchableEmployeeSelect';
 import { timelineApi } from '../../lib/api/timeline.api';
+import { schoolsApi } from '../../lib/api/schools.api';
 import { buildNodeStatusMap, buildNodeNameMap, isNodeDependencyLocked } from './utils/timeline-dependency.utils';
 
 interface NodeInspectorDrawerProps {
@@ -68,10 +69,32 @@ interface NodeInspectorDrawerProps {
 
 const findNodeRecursive = (list: ITimelineNode[] | undefined, targetKey: string): ITimelineNode | null => {
   if (!Array.isArray(list)) return null;
+  const target = targetKey.toUpperCase();
+
+  // 1. First pass: exact key match
   for (const item of list) {
-    const k = (item.key || '').toUpperCase();
-    const target = targetKey.toUpperCase();
-    if (k === target || k.includes(target) || (target === 'SCHOOL_ONBOARDING_INFORMATION' && (k.includes('SCHOOL') || (item.name || '').toLowerCase().includes('school')))) {
+    const k = (item.key || (item as any).timelineNodeId || (item as any).nodeId || (item as any).id || '').toUpperCase();
+    if (k === target) return item;
+    if (item.children && item.children.length > 0) {
+      const found = findNodeRecursive(item.children, targetKey);
+      if (found) return found;
+    }
+  }
+
+  // 2. Second pass: specific stage alias / name match
+  for (const item of list) {
+    const k = (item.key || (item as any).timelineNodeId || (item as any).nodeId || (item as any).id || '').toUpperCase();
+    const name = (item.name || '').toLowerCase();
+    if (
+      k.includes(target) ||
+      (target === 'SCHOOL_ONBOARDING_INFORMATION' &&
+        (k === 'SCHOOL_INFORMATION' ||
+          k === 'SCHOOL_ONBOARDING' ||
+          k.includes('SCHOOL_ONBOARDING') ||
+          k.includes('SCHOOL_INFORMATION') ||
+          name === 'school information' ||
+          name === 'school onboarding information'))
+    ) {
       return item;
     }
     if (item.children && item.children.length > 0) {
@@ -437,16 +460,63 @@ const NodeInspectorContent: React.FC<
     const stage4StockNode = useMemo(() => findNodeRecursive(allNodes, 'REQ_AND_STOCK_CHECK'), [allNodes]);
     const stage4TechNode = useMemo(() => findNodeRecursive(allNodes, 'PROJECT_CONFIG_AND_IMPLEMENTATION'), [allNodes]);
 
+    // Live Core Backend schools fetch (Strict Single Source of Truth)
+    const [liveCoreSchools, setLiveCoreSchools] = React.useState<any[]>([]);
+
+    React.useEffect(() => {
+      let isMounted = true;
+      const targetProjId = project?.projectId || (project as any)?._id || (project as any)?.id;
+      if (!targetProjId) return;
+
+      const fetchSchools = async () => {
+        try {
+          const coreSchools = await schoolsApi.getCoreSchools(String(targetProjId));
+          if (isMounted && Array.isArray(coreSchools) && coreSchools.length > 0) {
+            setLiveCoreSchools(coreSchools);
+            return;
+          }
+          const altSchools = await schoolsApi.getSchools({ projectId: String(targetProjId) });
+          if (isMounted && Array.isArray(altSchools) && altSchools.length > 0) {
+            setLiveCoreSchools(altSchools);
+          }
+        } catch (_) {}
+      };
+
+      fetchSchools();
+      return () => { isMounted = false; };
+    }, [project?.projectId, (project as any)?._id, (project as any)?.id]);
+
     const resolvedSchools = useMemo(() => {
-      // 1. Check current node formData.schools
+      // 1. Strictly prioritize live Core Backend schools (Single Source of Truth)
+      if (Array.isArray(liveCoreSchools) && liveCoreSchools.length > 0) {
+        return liveCoreSchools.map((s: any, idx: number) => ({
+          ...s,
+          id: String(s._id || s.schoolId || s.id || `school-${idx + 1}`),
+          schoolId: s.schoolId || String(s._id || s.id || `SCH-${idx + 1}`),
+          name: s.name || s.schoolName || `School ${idx + 1}`,
+          schoolName: s.name || s.schoolName || `School ${idx + 1}`,
+          address: s.address || s.addressContact || '',
+          addressContact: s.address || s.addressContact || '',
+          pocName: s.coordinatorId?.name || s.pocName || s.contactPerson || '',
+          pocContact: s.phone || s.pocContact || '',
+          phone: s.phone || s.pocContact || '',
+          contactPerson: s.coordinatorId?.name || s.pocName || s.contactPerson || '',
+          principalName: s.principalName || '',
+          totalStudents: s.numberOfStudents || s.totalStudents || '',
+          totalTeachers: s.numberOfTeachers || s.totalTeachers || '',
+          platforms: s.platforms || [],
+        }));
+      }
+
+      // 2. Check current node formData.schools
       if (Array.isArray(formData?.schools) && formData.schools.length > 0) {
         return formData.schools;
       }
-      // 2. Check stage3SchoolNode.formData.schools
+      // 3. Check stage3SchoolNode.formData.schools
       if (Array.isArray(stage3SchoolNode?.formData?.schools) && stage3SchoolNode.formData.schools.length > 0) {
         return stage3SchoolNode.formData.schools;
       }
-      // 3. Search allNodes for any node containing DB schools
+      // 4. Search allNodes for any node containing DB schools
       if (Array.isArray(allNodes)) {
         for (const n of allNodes) {
           if (Array.isArray(n.formData?.schools) && n.formData.schools.length > 0) {
@@ -454,7 +524,7 @@ const NodeInspectorContent: React.FC<
           }
         }
       }
-      // 4. Check project schools from database
+      // 5. Check project schools from database
       const projSchools =
         (project as any)?.schools ||
         (project as any)?.orderRequirement?.schoolInformation?.schools ||
@@ -462,20 +532,45 @@ const NodeInspectorContent: React.FC<
       if (Array.isArray(projSchools) && projSchools.length > 0) {
         return projSchools;
       }
+
       return [];
-    }, [stage3SchoolNode, formData, project, allNodes]);
+    }, [liveCoreSchools, stage3SchoolNode, formData, project, allNodes]);
 
     const combinedAllFormData: Record<string, any> = React.useMemo(() => ({
       ...(formData || {}),
       schools: resolvedSchools,
       stage3Schools: resolvedSchools,
       projectSchools: resolvedSchools,
-      stage3SolutionsData: stage3SolNode?.formData || (project as any)?.orderRequirement?.solutionSelection || {},
-      stage3SchoolWiseSolutions: stage3SolNode?.formData?.schoolWiseSolutions || (project as any)?.orderRequirement?.solutionSelection?.schoolWiseSolutions || {},
-      stage3HardwareData: stage3HwNode?.formData || (project as any)?.orderRequirement?.hardwareRequirement || {},
-      stage3HardwareKeys: stage3HwNode?.formData?.activeHardwareKeys || stage3HwNode?.formData?.hardwareRequirements?.activeHardwareKeys || (project as any)?.orderRequirement?.hardwareRequirement?.activeHardwareKeys || [],
-      stage3SchoolWiseHardware: stage3HwNode?.formData?.schoolWiseHardware || stage3HwNode?.formData?.hardwareRequirements?.schoolWiseHardware || (project as any)?.orderRequirement?.hardwareRequirement?.schoolWiseHardware || {},
-      stage3HardwareItems: stage3HwNode?.formData?.hardwareRequirements?.items || stage3HwNode?.formData?.hardware?.items || stage3HwNode?.formData?.items || (project as any)?.orderRequirement?.hardwareRequirement?.items || {},
+      stage3SchoolData: stage3SchoolNode?.formData || (project as any)?.orderRequirement?.schoolInformation || {},
+      schoolInformation: stage3SchoolNode?.formData || (project as any)?.orderRequirement?.schoolInformation || {},
+      schoolOnboardingInformation: stage3SchoolNode?.formData || {},
+      stage3SolutionsData: stage3SolNode?.formData?.solutions || stage3SolNode?.formData || (project as any)?.orderRequirement?.solutionSelection?.solutions || (project as any)?.orderRequirement?.solutionSelection || {},
+      stage3SchoolWiseSolutions:
+        stage3SolNode?.formData?.solutions?.schoolWiseSolutions ||
+        stage3SolNode?.formData?.schoolWiseSolutions ||
+        (project as any)?.orderRequirement?.solutionSelection?.solutions?.schoolWiseSolutions ||
+        (project as any)?.orderRequirement?.solutionSelection?.schoolWiseSolutions ||
+        {},
+      stage3HardwareData: stage3HwNode?.formData?.hardwareRequirements || stage3HwNode?.formData || (project as any)?.orderRequirement?.hardwareRequirement?.hardwareRequirements || (project as any)?.orderRequirement?.hardwareRequirement || {},
+      stage3HardwareKeys:
+        stage3HwNode?.formData?.hardwareRequirements?.activeHardwareKeys ||
+        stage3HwNode?.formData?.activeHardwareKeys ||
+        (project as any)?.orderRequirement?.hardwareRequirement?.hardwareRequirements?.activeHardwareKeys ||
+        (project as any)?.orderRequirement?.hardwareRequirement?.activeHardwareKeys ||
+        [],
+      stage3SchoolWiseHardware:
+        stage3HwNode?.formData?.hardwareRequirements?.schoolWiseHardware ||
+        stage3HwNode?.formData?.schoolWiseHardware ||
+        (project as any)?.orderRequirement?.hardwareRequirement?.hardwareRequirements?.schoolWiseHardware ||
+        (project as any)?.orderRequirement?.hardwareRequirement?.schoolWiseHardware ||
+        {},
+      stage3HardwareItems:
+        stage3HwNode?.formData?.hardwareRequirements?.items ||
+        stage3HwNode?.formData?.hardware?.items ||
+        stage3HwNode?.formData?.items ||
+        (project as any)?.orderRequirement?.hardwareRequirement?.hardwareRequirements?.items ||
+        (project as any)?.orderRequirement?.hardwareRequirement?.items ||
+        {},
       // REQ_AND_STOCK_CHECK saves as: { stockCheck: { items: { IFP_PANEL: { stockDecision, purchaseQty, ... } } } }
       // Resolve all possible paths to get the stock check items
       stage4StockItems: (
@@ -699,9 +794,14 @@ const NodeInspectorContent: React.FC<
                               }
                             } else {
                               // Direct check using schema & formData
-                              const fields: any[] = Array.isArray(formSchema)
+                              const rawFields = Array.isArray(formSchema)
                                 ? formSchema
                                 : (formSchema as any)?.fields || (Array.isArray(node.formSchema) ? node.formSchema : (node.formSchema as any)?.fields) || [];
+                              const fields: any[] = Array.isArray(rawFields)
+                                ? rawFields
+                                : typeof rawFields === 'object' && rawFields !== null
+                                ? Object.entries(rawFields).map(([k, v]: [string, any]) => ({ key: k, name: k, ...(typeof v === 'object' ? v : { label: k }) }))
+                                : [];
                               const currentData = formData || {};
                               for (const f of fields) {
                                 if (f.required) {

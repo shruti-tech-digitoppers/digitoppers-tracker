@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const TimelineData = require('./timeline-data.model');
+const FormData = require('./form-data.model');
 const TimelineNodeStatic = require('../timeline-nodes/timeline-node.model');
 const timelineNodesService = require('../timeline-nodes/timeline-nodes.service');
 const FormSchema = require('../form-schemas/form-schema.model');
@@ -21,7 +22,7 @@ class TimelineDataService {
    */
   _normalizeProjectId(projectId) {
     if (!projectId) return '';
-    return String(projectId).toUpperCase().trim();
+    return String(projectId).trim();
   }
 
   /**
@@ -38,14 +39,16 @@ class TimelineDataService {
       }
     }
 
-    const staticNode = await TimelineNodeStatic.findOne({ id: raw }).lean();
-    if (staticNode) return staticNode.id;
+    const staticNode = await TimelineNodeStatic.findOne({
+      $or: [{ timelineNodeId: raw }, { id: raw }]
+    }).lean();
+    if (staticNode) return staticNode.timelineNodeId || staticNode.id;
 
     if (mongoose.isValidObjectId(raw)) {
       const td = await TimelineData.findById(raw).lean();
       if (td && td.nodeId) return td.nodeId;
       const ts = await TimelineNodeStatic.findById(raw).lean();
-      if (ts && ts.id) return ts.id;
+      if (ts) return ts.timelineNodeId || ts.id;
     }
 
     return raw;
@@ -135,6 +138,19 @@ class TimelineDataService {
       throw new Error('Project ID is required to initialize timeline data.');
     }
 
+    let targetProjectId = projId;
+    if (coreProject && coreProject.projectId) {
+      targetProjectId = this._normalizeProjectId(coreProject.projectId);
+    } else {
+      try {
+        const p = await this._findProject(projectId);
+        if (p && p.projectId) {
+          targetProjectId = this._normalizeProjectId(p.projectId);
+          coreProject = p;
+        }
+      } catch (_) {}
+    }
+
     const staticNodes = await TimelineNodeStatic.find().sort({ order: 1 }).lean();
     if (!staticNodes || staticNodes.length === 0) {
       await timelineNodesService.seedStaticTimelineNodes(false);
@@ -143,24 +159,34 @@ class TimelineDataService {
 
     const results = [];
     for (const node of nodes) {
-      const isFirstStage = node.id === 'PROJECT_REVIEWER' || (node.order === 1 && node.title === 'stage');
+      const nodeKey = node.timelineNodeId || node.id;
+      const isFirstStage = nodeKey === 'PROJECT_REVIEWER' || (node.order === 1 && node.type === 'stage');
       const initialStatus = isFirstStage ? 'IN_PROGRESS' : 'NOT_STARTED';
       const assignedEmployee = (isFirstStage && pmId) ? pmId : null;
 
+      const findQuery = {
+        projectId: targetProjectId,
+        $or: [
+          { timelineNodeId: node._id },
+          { nodeId: nodeKey }
+        ]
+      };
+
       const record = await TimelineData.findOneAndUpdate(
-        { projectId: projId, nodeId: node.id },
+        findQuery,
         {
-          $setOnInsert: {
-            nodeId: node.id,
+          $set: {
+            timelineNodeId: node._id,
             node: node._id,
-            projectId: projId,
-            project: coreProject?._id || coreProject || null,
+            nodeId: nodeKey,
+            projectId: targetProjectId
+          },
+          $setOnInsert: {
             assignedTo: assignedEmployee,
             status: initialStatus,
             completionDate: null,
             dueDate: null,
             remarks: '',
-            formData: {},
           }
         },
         { upsert: true, new: true }
@@ -196,18 +222,70 @@ class TimelineDataService {
    */
   async getProjectHierarchyTree(projectId) {
     const projId = this._normalizeProjectId(projectId);
+    let targetProjectId = projId;
+    try {
+      const coreProj = await coreApi.getProjectById(projectId);
+      if (coreProj && coreProj.projectId) {
+        targetProjectId = this._normalizeProjectId(coreProj.projectId);
+      }
+    } catch (_) {}
 
     // 1. Fetch static hierarchy tree
     const staticTree = await timelineNodesService.getHierarchyTree();
 
+    const candidateProjectIds = Array.from(new Set([
+      targetProjectId,
+      targetProjectId.toLowerCase(),
+      targetProjectId.toUpperCase(),
+      projId,
+      projId.toLowerCase(),
+      projId.toUpperCase(),
+    ])).filter(Boolean);
+
+    const projFilter = {
+      projectId: { $in: candidateProjectIds }
+    };
+
     // 2. Fetch all runtime data for this project
-    const runtimeRecords = await TimelineData.find({ projectId: projId })
+    const runtimeRecords = await TimelineData.find(projFilter)
       .populate('assignedTo', 'name email designation')
       .lean();
 
+    const formDataRecords = await FormData.find(projFilter)
+      .populate('formSchemaId', 'timelineNodeId formSchemaId')
+      .lean();
+
+    const formDataMap = new Map();
+    for (const fd of formDataRecords) {
+      const dataValues = fd.data || fd.formData || {};
+      if (fd.timelineData) {
+        formDataMap.set(String(fd.timelineData), dataValues);
+      }
+      if (fd.nodeKey) {
+        formDataMap.set(fd.nodeKey, dataValues);
+      }
+      if (fd.nodeId) {
+        formDataMap.set(fd.nodeId, dataValues);
+      }
+      if (fd.formSchemaId && fd.formSchemaId.timelineNodeId) {
+        formDataMap.set(String(fd.formSchemaId.timelineNodeId), dataValues);
+      }
+      if (fd.formSchemaId && fd.formSchemaId.formSchemaId) {
+        formDataMap.set(fd.formSchemaId.formSchemaId, dataValues);
+        // Also strip "FS_" prefix (e.g. FS_SCHOOL_ONBOARDING_INFORMATION -> SCHOOL_ONBOARDING_INFORMATION)
+        const strippedKey = String(fd.formSchemaId.formSchemaId).replace(/^FS_/, '');
+        formDataMap.set(strippedKey, dataValues);
+      }
+      if (fd.formSchemaId && typeof fd.formSchemaId === 'object' && fd.formSchemaId._id) {
+        formDataMap.set(String(fd.formSchemaId._id), dataValues);
+      }
+    }
+
     const runtimeMap = new Map();
     for (const r of runtimeRecords) {
-      runtimeMap.set(r.nodeId, r);
+      if (r.nodeId) runtimeMap.set(r.nodeId, r);
+      if (r.timelineNodeId) runtimeMap.set(String(r.timelineNodeId), r);
+      if (r.node) runtimeMap.set(String(r.node), r);
     }
 
     // Auto-initialize if no records found
@@ -218,27 +296,35 @@ class TimelineDataService {
 
     // 3. Helper to attach runtime data to static node
     const attachRuntimeData = (staticNode) => {
-      const runtime = runtimeMap.get(staticNode.id) || {
-        nodeId: staticNode.id,
+      const nodeKey = staticNode.timelineNodeId || staticNode.id;
+      const runtime = runtimeMap.get(String(staticNode._id)) || runtimeMap.get(nodeKey) || {
+        nodeId: nodeKey,
         projectId: projId,
         status: 'NOT_STARTED',
         assignedTo: null,
         completionDate: null,
-            dueDate: null,
-            remarks: '',
-            formData: {}
+        dueDate: null,
+        remarks: '',
+        formData: {}
       };
+
+      const resolvedFormData = (runtime._id && formDataMap.get(String(runtime._id))) ||
+        formDataMap.get(String(staticNode._id)) ||
+        formDataMap.get(nodeKey) ||
+        runtime.formData || {};
 
       return {
         ...staticNode,
-        runtimeId: runtime._id ? String(runtime._id) : staticNode.id,
+        id: nodeKey,
+        timelineNodeId: nodeKey,
+        runtimeId: runtime._id ? String(runtime._id) : String(staticNode._id),
         status: runtime.status || 'NOT_STARTED',
         assignedTo: runtime.assignedTo || null,
         assignedEmployee: runtime.assignedTo || null,
         completionDate: runtime.completionDate || null,
         dueDate: runtime.dueDate || null,
         remarks: runtime.remarks || '',
-        formData: runtime.formData || {},
+        formData: resolvedFormData,
         dependentOn: staticNode.dependentOn || [],
         dependencies: staticNode.dependentOn || staticNode.dependencies || [],
         updatedAt: runtime.updatedAt || null
@@ -291,68 +377,65 @@ class TimelineDataService {
 
     const schemaMap = new Map();
     for (const fs of formSchemas) {
-      if (!schemaMap.has(fs.nodeId) || fs.projectId === targetProjectId) {
+      if (fs.timelineNodeId) {
+        schemaMap.set(String(fs.timelineNodeId), fs.fields);
+      }
+      if (fs.formSchemaId) {
+        schemaMap.set(fs.formSchemaId, fs.fields);
+      }
+      if (fs.nodeId) {
         schemaMap.set(fs.nodeId, fs.fields);
       }
     }
 
-    // 3. Fetch real DB schools for the project to auto-fill school nodes
+    // 3. Fetch real DB schools for the project from Core Backend API
     let canonicalSchools = [];
     try {
-      const dbSchools = await School.find({
-        $or: [
-          project?._id && mongoose.isValidObjectId(project._id) ? { project: project._id } : null,
-          targetProjectId ? { projectId: targetProjectId } : null
-        ].filter(Boolean),
-        isActive: true
-      })
-        .populate('installation.assignedEngineerId', 'name email phone')
-        .populate('training.assignedTrainerId', 'name email phone')
-        .lean();
-
-      canonicalSchools = dbSchools.map((s) => ({
-        id: String(s._id),
-        _id: String(s._id),
-        schoolId: s.schoolId || String(s._id),
-        name: s.name,
-        schoolName: s.name,
-        address: s.address || '',
-        principalName: s.survey?.principalName || s.contactPerson?.name || '',
-        phone: s.contactPerson?.phone || s.survey?.pocContact || '',
-        email: s.contactPerson?.email || s.survey?.email || '',
-        installation: s.installation || {},
-        training: s.training || {},
-        survey: s.survey || {}
-      }));
+      const coreSchools = await coreApi.getProjectSchools(targetProjectId || projId);
+      if (Array.isArray(coreSchools) && coreSchools.length > 0) {
+        canonicalSchools = coreSchools.map((s, idx) => ({
+          id: String(s._id || s.schoolId || `school-${idx + 1}`),
+          _id: String(s._id || s.schoolId || `school-${idx + 1}`),
+          schoolId: s.schoolId || String(s._id),
+          name: s.name || s.schoolName || `School ${idx + 1}`,
+          schoolName: s.name || s.schoolName || `School ${idx + 1}`,
+          address: s.address || s.addressContact || '',
+          principalName: s.principalName || s.survey?.principalName || s.contactPerson?.name || (typeof s.contactPerson === 'string' ? s.contactPerson : '') || '',
+          phone: s.phone || s.contactPerson?.phone || s.survey?.pocContact || '',
+          email: s.email || s.contactPerson?.email || s.survey?.email || '',
+          block: s.block || '',
+          city: (typeof s.cityId === 'object' && s.cityId?.name) || s.city || '',
+          state: (typeof s.stateId === 'object' && s.stateId?.name) || s.state || '',
+          country: (typeof s.countryId === 'object' && s.countryId?.name) || s.country || 'India',
+          numberOfStudents: Number(s.numberOfStudents) || 0,
+          numberOfTeachers: Number(s.numberOfTeachers) || 0,
+          numberOfLicenses: Number(s.numberOfLicenses) || 0,
+          platforms: s.platforms || [],
+          installation: s.installation || {},
+          training: s.training || {},
+          survey: s.survey || {}
+        }));
+      }
     } catch (_) { }
 
     // 4. Format into normalized tree structure
     const formatNode = (node, type, parentKey = null) => {
       let nodeFormData = node.formData || {};
-      if (['SCHOOL_ONBOARDING_INFORMATION', 'SCHOOL_AND_LICENSE_CREATION'].includes(node.id) && canonicalSchools.length > 0) {
+      if (canonicalSchools.length > 0) {
         nodeFormData = {
           ...nodeFormData,
           schools: canonicalSchools,
           schoolName: canonicalSchools[0]?.name || nodeFormData.schoolName
         };
-      } else if (['INSTALLATION_PLANNING', 'INSTALLATION_EXECUTION', 'INSTALLATION_COMPLETED'].includes(node.id) && canonicalSchools.length > 0) {
-        nodeFormData = {
-          schools: canonicalSchools,
-          ...nodeFormData
-        };
-      } else if (['TRAINING_PLANNING', 'TRAINING_EXECUTION', 'TRAINING_COMPLETED'].includes(node.id) && canonicalSchools.length > 0) {
-        nodeFormData = {
-          schools: canonicalSchools,
-          ...nodeFormData
-        };
       }
 
-      const nodeFields = schemaMap.get(node.id) || (node.formSchema?.fields || node.formSchema) || null;
+      const rawFields = schemaMap.get(String(node._id)) || schemaMap.get(node.timelineNodeId || node.id) || (node.formSchema?.fields || node.formSchema) || null;
+      const nodeFieldsArray = formSchemasService._ensureFieldsArray(rawFields?.fields || rawFields);
       let effectiveStatus = node.status || 'NOT_STARTED';
 
       // Validation check: If node is marked COMPLETED, verify all required form fields are filled
-      if (effectiveStatus === 'COMPLETED' && Array.isArray(nodeFields)) {
-        for (const f of nodeFields) {
+      if (effectiveStatus === 'COMPLETED' && Array.isArray(nodeFieldsArray) && nodeFieldsArray.length > 0) {
+        for (const f of nodeFieldsArray) {
           if (f.required) {
             const k = f.key || f.name;
             if (k === 'projectName' || k === 'projectTitle') continue;
@@ -380,7 +463,7 @@ class TimelineDataService {
         dueDate: node.dueDate || null,
         remarks: node.remarks || '',
         formData: nodeFormData,
-        formSchema: nodeFields ? (Array.isArray(nodeFields) ? { fields: nodeFields } : nodeFields) : null,
+        formSchema: nodeFieldsArray.length > 0 ? { fields: nodeFieldsArray } : null,
         parent: parentKey,
         dependentOn: node.dependentOn || [],
         dependencies: node.dependentOn || node.dependencies || [],
@@ -459,14 +542,28 @@ class TimelineDataService {
    * Get single node detail with form schema and runtime values
    */
   async getNodeById(projectId, nodeId) {
+    const projId = this._normalizeProjectId(projectId);
     const project = await this._findProject(projectId);
-    const targetProjectId = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toUpperCase();
+    const targetProjectId = (project?.projectId || projId || (typeof projectId === 'string' ? projectId : '')).trim().toUpperCase();
 
     const cleanKey = await this._resolveNodeKey(nodeId);
-    const staticNode = cleanKey ? await TimelineNodeStatic.findOne({ id: cleanKey }).lean() : null;
+    const staticNode = cleanKey ? await TimelineNodeStatic.findOne({
+      $or: [{ timelineNodeId: cleanKey }, { id: cleanKey }]
+    }).lean() : null;
+
+    const candidateIds = Array.from(new Set([
+      targetProjectId,
+      targetProjectId.toLowerCase(),
+      targetProjectId.toUpperCase(),
+      projId,
+      projId.toLowerCase(),
+      projId.toUpperCase(),
+      project?._id ? String(project._id) : null,
+      project?.projectId ? String(project.projectId) : null,
+    ])).filter(Boolean);
 
     let runtimeRecord = await TimelineData.findOne({
-      projectId: targetProjectId,
+      projectId: { $in: candidateIds },
       $or: [
         cleanKey ? { nodeId: cleanKey } : null,
         { id: nodeId },
@@ -481,7 +578,7 @@ class TimelineDataService {
         status: 'NOT_STARTED'
       });
       runtimeRecord = await TimelineData.findOne({
-        projectId: targetProjectId,
+        projectId: { $in: candidateIds },
         nodeId: cleanKey
       }).populate('assignedTo', 'name email designation').lean();
     }
@@ -489,13 +586,45 @@ class TimelineDataService {
     const dynamicSchema = cleanKey ? await formSchemasService.getSchema(cleanKey, targetProjectId) : null;
     const effectiveKey = cleanKey || runtimeRecord?.nodeId || nodeId;
 
-    const nodeFields = dynamicSchema?.fields || (staticNode?.formSchema?.fields || staticNode?.formSchema);
+    const rawNodeFields = dynamicSchema?.fields || (staticNode?.formSchema?.fields || staticNode?.formSchema);
+    const nodeFieldsArray = formSchemasService._ensureFieldsArray(rawNodeFields?.fields || rawNodeFields);
+
+    // Fetch canonical schools from Core Backend (Single Source of Truth)
+    let canonicalSchools = [];
+    try {
+      const coreSchools = await coreApi.getProjectSchools(targetProjectId || projId);
+      if (Array.isArray(coreSchools) && coreSchools.length > 0) {
+        canonicalSchools = coreSchools.map((s, idx) => ({
+          id: String(s._id || s.schoolId || `school-${idx + 1}`),
+          _id: String(s._id || s.schoolId || `school-${idx + 1}`),
+          schoolId: s.schoolId || String(s._id),
+          name: s.name || s.schoolName || `School ${idx + 1}`,
+          schoolName: s.name || s.schoolName || `School ${idx + 1}`,
+          address: s.address || s.addressContact || '',
+          principalName: s.principalName || s.survey?.principalName || s.contactPerson?.name || (typeof s.contactPerson === 'string' ? s.contactPerson : '') || '',
+          phone: s.phone || s.contactPerson?.phone || s.survey?.pocContact || '',
+          email: s.email || s.contactPerson?.email || s.survey?.email || '',
+          block: s.block || '',
+          city: (typeof s.cityId === 'object' && s.cityId?.name) || s.city || '',
+          state: (typeof s.stateId === 'object' && s.stateId?.name) || s.state || '',
+          country: (typeof s.countryId === 'object' && s.countryId?.name) || s.country || 'India',
+          numberOfStudents: Number(s.numberOfStudents) || 0,
+          numberOfTeachers: Number(s.numberOfTeachers) || 0,
+          numberOfLicenses: Number(s.numberOfLicenses) || 0,
+          platforms: s.platforms || [],
+          installation: s.installation || {},
+          training: s.training || {},
+          survey: s.survey || {}
+        }));
+      }
+    } catch (_) { }
+
     const nodeObj = {
       _id: runtimeRecord?._id ? String(runtimeRecord._id) : effectiveKey,
       id: effectiveKey,
       key: effectiveKey,
       name: staticNode?.name || effectiveKey,
-      type: (staticNode?.title || 'stage').toUpperCase(),
+      type: (staticNode?.type || staticNode?.title || 'stage').toUpperCase(),
       order: staticNode?.order || 1,
       status: runtimeRecord?.status || 'NOT_STARTED',
       assignedTo: runtimeRecord?.assignedTo || null,
@@ -503,38 +632,62 @@ class TimelineDataService {
       completionDate: runtimeRecord?.completionDate || null,
       dueDate: runtimeRecord?.dueDate || null,
       remarks: runtimeRecord?.remarks || '',
-      formData: runtimeRecord?.formData || {},
-      formSchema: nodeFields ? (Array.isArray(nodeFields) ? { fields: nodeFields } : nodeFields) : null,
-      parent: staticNode?.parent_id || null,
-      parentNode: staticNode?.parent_id || null,
-      dependentOn: staticNode?.dependentOn || [],
-      dependencies: staticNode?.dependentOn || staticNode?.dependencies || [],
+      formData: (await (async () => {
+        if (!runtimeRecord) return canonicalSchools.length > 0 ? { schools: canonicalSchools } : {};
+        const formSchema = await formSchemasService.getSchema(effectiveKey);
+        const fd = await FormData.findOne({
+          $or: [
+            runtimeRecord?._id ? { timelineData: runtimeRecord._id } : null,
+            formSchema?._id ? { projectId: { $in: candidateIds }, formSchemaId: formSchema._id } : null
+          ].filter(Boolean)
+        }).lean();
+        const baseData = (fd ? (fd.data || fd.formData) : runtimeRecord?.formData) || {};
+        if (canonicalSchools.length > 0) {
+          return {
+            ...baseData,
+            schools: canonicalSchools,
+            schoolName: canonicalSchools[0]?.name || baseData.schoolName
+          };
+        }
+        return baseData;
+      })()),
+      formSchema: nodeFieldsArray.length > 0 ? { fields: nodeFieldsArray } : null,
+      parent: staticNode?.parentId || null,
+      parentNode: staticNode?.parentId || null,
       children: []
     };
 
-    // Attach children
-    const staticChildren = await TimelineNodeStatic.find({ parent_id: effectiveKey }).sort({ order: 1 }).lean();
+    // Attach children referencing parentId (MongoDB ObjectId)
+    const staticChildren = staticNode?._id
+      ? await TimelineNodeStatic.find({ parentId: staticNode._id }).sort({ order: 1 }).lean()
+      : [];
+
     if (staticChildren.length > 0) {
-      const childKeys = staticChildren.map((c) => c.id);
+      const childKeys = staticChildren.map((c) => c.timelineNodeId || c.id);
       const childRuntimes = await TimelineData.find({
-        projectId: targetProjectId,
-        nodeId: { $in: childKeys }
+        projectId: { $in: candidateIds },
+        $or: [
+          { timelineNodeId: { $in: staticChildren.map(c => c._id) } },
+          { nodeId: { $in: childKeys } }
+        ]
       }).populate('assignedTo', 'name email designation').lean();
 
       const childRuntimeMap = new Map();
       for (const cr of childRuntimes) {
-        childRuntimeMap.set(cr.nodeId, cr);
+        if (cr.timelineNodeId) childRuntimeMap.set(String(cr.timelineNodeId), cr);
+        if (cr.nodeId) childRuntimeMap.set(cr.nodeId, cr);
       }
 
       nodeObj.children = staticChildren.map((sc) => {
-        const cr = childRuntimeMap.get(sc.id);
+        const scKey = sc.timelineNodeId || sc.id;
+        const cr = childRuntimeMap.get(String(sc._id)) || childRuntimeMap.get(scKey);
         return {
-          _id: cr?._id ? String(cr._id) : sc.id,
-          id: sc.id,
-          key: sc.id,
+          _id: cr?._id ? String(cr._id) : String(sc._id),
+          id: scKey,
+          timelineNodeId: scKey,
+          key: scKey,
           name: sc.name,
-          title: sc.title,
-          type: (sc.title || 'tasks').toUpperCase(),
+          type: (sc.type || 'tasks').toUpperCase(),
           order: sc.order || 1,
           status: cr?.status || 'NOT_STARTED',
           assignedTo: cr?.assignedTo || null,
@@ -543,10 +696,7 @@ class TimelineDataService {
           dueDate: cr?.dueDate || null,
           remarks: cr?.remarks || '',
           formData: cr?.formData || {},
-          formSchema: sc.formSchema ? { fields: sc.formSchema.fields || sc.formSchema } : null,
-          parent: sc.parent_id,
-          dependentOn: sc.dependentOn || [],
-          dependencies: sc.dependentOn || sc.dependencies || [],
+          parent: sc.parentId,
           children: []
         };
       });
@@ -559,46 +709,66 @@ class TimelineDataService {
    * Get children of a node
    */
   async getChildren(projectId, nodeId) {
+    const projId = this._normalizeProjectId(projectId);
     const project = await this._findProject(projectId);
-    const targetProjectId = (project?.projectId || (typeof projectId === 'string' ? projectId : '')).trim().toUpperCase();
+    const targetProjectId = (project?.projectId || projId || (typeof projectId === 'string' ? projectId : '')).trim().toUpperCase();
 
     const cleanKey = await this._resolveNodeKey(nodeId);
-    const staticChildren = await TimelineNodeStatic.find({ parent_id: cleanKey }).sort({ order: 1 }).lean();
+    const staticNode = await TimelineNodeStatic.findOne({
+      $or: [{ timelineNodeId: cleanKey }, { id: cleanKey }]
+    }).lean();
+
+    const staticChildren = staticNode?._id
+      ? await TimelineNodeStatic.find({ parentId: staticNode._id }).sort({ order: 1 }).lean()
+      : [];
 
     if (staticChildren.length === 0) return [];
 
-    const childKeys = staticChildren.map((c) => c.id);
+    const candidateIds = Array.from(new Set([
+      targetProjectId,
+      targetProjectId.toLowerCase(),
+      targetProjectId.toUpperCase(),
+      projId,
+      projId.toLowerCase(),
+      projId.toUpperCase(),
+      project?._id ? String(project._id) : null,
+      project?.projectId ? String(project.projectId) : null,
+    ])).filter(Boolean);
+
+    const childKeys = staticChildren.map((c) => c.timelineNodeId || c.id);
     const childRuntimes = await TimelineData.find({
-      projectId: targetProjectId,
-      nodeId: { $in: childKeys }
+      projectId: { $in: candidateIds },
+      $or: [
+        { timelineNodeId: { $in: staticChildren.map(c => c._id) } },
+        { nodeId: { $in: childKeys } }
+      ]
     }).populate('assignedTo', 'name email designation').lean();
 
     const childRuntimeMap = new Map();
     for (const cr of childRuntimes) {
-      childRuntimeMap.set(cr.nodeId, cr);
+      if (cr.timelineNodeId) childRuntimeMap.set(String(cr.timelineNodeId), cr);
+      if (cr.nodeId) childRuntimeMap.set(cr.nodeId, cr);
     }
 
     return staticChildren.map((sc) => {
-      const cr = childRuntimeMap.get(sc.id);
+      const scKey = sc.timelineNodeId || sc.id;
+      const cr = childRuntimeMap.get(String(sc._id)) || childRuntimeMap.get(scKey);
       return {
-        _id: cr?._id ? String(cr._id) : sc.id,
-        id: sc.id,
-        key: sc.id,
+        _id: cr?._id ? String(cr._id) : String(sc._id),
+        id: scKey,
+        timelineNodeId: scKey,
+        key: scKey,
         name: sc.name,
-        title: sc.title,
-        type: (sc.title || 'tasks').toUpperCase(),
+        type: (sc.type || 'tasks').toUpperCase(),
         order: sc.order || 1,
         status: cr?.status || 'NOT_STARTED',
         assignedTo: cr?.assignedTo || null,
         assignedEmployee: cr?.assignedTo || null,
         completionDate: cr?.completionDate || null,
-          dueDate: cr?.dueDate || null,
+        dueDate: cr?.dueDate || null,
         remarks: cr?.remarks || '',
         formData: cr?.formData || {},
-        formSchema: sc.formSchema ? { fields: sc.formSchema.fields || sc.formSchema } : null,
-        parent: sc.parent_id,
-        dependentOn: sc.dependentOn || [],
-        dependencies: sc.dependentOn || sc.dependencies || []
+        parent: sc.parentId
       };
     });
   }
@@ -627,7 +797,17 @@ class TimelineDataService {
     const projId = this._normalizeProjectId(projectId);
     const cleanKey = await this._resolveNodeKey(nodeId);
 
-    const staticNode = await TimelineNodeStatic.findOne({ id: cleanKey }).lean();
+    let targetProjectId = projId;
+    try {
+      const p = await this._findProject(projectId);
+      if (p && p.projectId) {
+        targetProjectId = this._normalizeProjectId(p.projectId);
+      }
+    } catch (_) {}
+
+    const staticNode = await TimelineNodeStatic.findOne({
+      $or: [{ timelineNodeId: cleanKey }, { id: cleanKey }]
+    }).lean();
 
     const updateFields = {};
     if (assignedTo !== undefined) updateFields.assignedTo = assignedTo || null;
@@ -635,15 +815,19 @@ class TimelineDataService {
     if (completionDate !== undefined) updateFields.completionDate = completionDate;
     if (dueDate !== undefined) updateFields.dueDate = dueDate ? new Date(dueDate) : null;
     if (remarks !== undefined) updateFields.remarks = String(remarks || '').trim();
-    if (formData !== undefined) updateFields.formData = formData;
-    if (project !== undefined) updateFields.project = project;
-    if (staticNode) updateFields.node = staticNode._id;
+    if (staticNode) {
+      updateFields.timelineNodeId = staticNode._id;
+      updateFields.node = staticNode._id;
+    }
+    updateFields.projectId = targetProjectId;
+    updateFields.nodeId = cleanKey;
+    delete updateFields.project;
 
     // Enforce required fields check: A subtask/stage CANNOT be COMPLETED if required fields are missing
     if (updateFields.status === 'COMPLETED') {
       const nodeStatusService = require('./node-status.service');
-      const fieldCheck = await nodeStatusService.validateRequiredFields(cleanKey, projId, updateFields.formData);
-      const childCheck = await nodeStatusService.validateChildSubtasks(cleanKey, projId);
+      const fieldCheck = await nodeStatusService.validateRequiredFields(cleanKey, targetProjectId, formData);
+      const childCheck = await nodeStatusService.validateChildSubtasks(cleanKey, targetProjectId);
 
       if (!fieldCheck.valid || !childCheck.valid) {
         updateFields.status = 'IN_PROGRESS';
@@ -657,11 +841,15 @@ class TimelineDataService {
       updateFields.completionDate = null;
     }
 
+    const findQuery = {
+      projectId: targetProjectId,
+      nodeId: cleanKey
+    };
+
     const record = await TimelineData.findOneAndUpdate(
-      { projectId: projId, nodeId: cleanKey },
+      findQuery,
       {
-        $set: updateFields,
-        $setOnInsert: { projectId: projId, nodeId: cleanKey }
+        $set: updateFields
       },
       { upsert: true, new: true, runValidators: true }
     )
@@ -675,6 +863,10 @@ class TimelineDataService {
       } catch (cascadeErr) {
         console.error('[DependencyCascade] Error in cascade handler:', cascadeErr.message);
       }
+    }
+
+    if (formData !== undefined) {
+      await formSchemasService.saveFormData(cleanKey, projId, formData);
     }
 
     return record;
@@ -723,7 +915,7 @@ class TimelineDataService {
 
     // Activity & Notification
     await Activity.create({
-      project: project?._id || targetProjectId,
+      projectId: targetProjectId,
       actor: actorId || null,
       action: 'CONTRIBUTOR_ASSIGNED',
       resourceType: 'TimelineData',
@@ -733,11 +925,13 @@ class TimelineDataService {
 
     if (validEmpId) {
       try {
-        const staticNode = await TimelineNodeStatic.findOne({ id: cleanKey }).lean();
+        const staticNode = await TimelineNodeStatic.findOne({
+      $or: [{ timelineNodeId: cleanKey }, { id: cleanKey }]
+    }).lean();
         const nodeName = staticNode?.name || cleanKey;
         await Notification.create({
           recipient: validEmpId,
-          project: project?._id || targetProjectId,
+          projectId: targetProjectId,
           title: `Task Assigned: ${nodeName}`,
           message: `You have been assigned to "${nodeName}" in project ${targetProjectId}.`,
           type: 'TASK_ASSIGNED',
@@ -841,7 +1035,7 @@ class TimelineDataService {
 
     // Activity log
     await Activity.create({
-      project: project?._id || targetProjectId,
+      projectId: targetProjectId,
       actor: employee?._id || null,
       action: 'FORM_UPDATED',
       resourceType: 'TimelineData',

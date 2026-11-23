@@ -11,7 +11,7 @@ class TimelineDependencyService {
    */
   _normalizeProjectId(projectId) {
     if (!projectId) return '';
-    return String(projectId).toUpperCase().trim();
+    return String(projectId).trim();
   }
 
   /**

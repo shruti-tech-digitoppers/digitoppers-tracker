@@ -98,7 +98,7 @@ async function notifyWithAdminsAndPMs(data = {}) {
 
     const docsToCreate = validRecipients.map((recipientId) => ({
       recipient: recipientId,
-      project: projectId || undefined,
+      projectId: projectId ? String(projectId) : undefined,
       title,
       message,
       type,

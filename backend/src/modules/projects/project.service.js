@@ -77,19 +77,14 @@ class ProjectService {
       .map(id => new mongoose.Types.ObjectId(id));
 
     const allMembers = await ProjectMember.find({
-      $or: [
-        { projectId: { $in: allProjectIds } },
-        { project: { $in: [...allProjectMongoIds, ...allProjectIds] } }
-      ],
+      projectId: { $in: allProjectIds },
       isActive: true
     }).populate('employee', 'name email globalRole designation phone departmentCode').lean().catch(() => []);
 
     const membersMap = new Map();
     allMembers.forEach(m => {
-      const pCode = (m.projectId || String(m.project || '')).toLowerCase();
-      const pId = String(m.project || '');
-
-      const keys = [pCode, pCode.toUpperCase(), pId].filter(Boolean);
+      const pCode = (m.projectId || '').toLowerCase();
+      const keys = [pCode, pCode.toUpperCase(), m.projectId].filter(Boolean);
       for (const k of keys) {
         if (!membersMap.has(k)) membersMap.set(k, []);
         if (m.employee) {
@@ -158,14 +153,11 @@ class ProjectService {
     const project = projectDoc.toObject ? projectDoc.toObject() : { ...projectDoc };
 
     const code = (project.projectId || '').toLowerCase();
-    const rawId = project._id;
-
     const pmMember = await ProjectMember.findOne({
       $or: [
         { projectId: code },
         { projectId: code.toUpperCase() },
-        { project: rawId },
-        { project: project._id }
+        { projectId: project.projectId }
       ].filter(Boolean),
       designation: DESIGNATIONS.PROJECT_MANAGER,
       isActive: true
@@ -191,104 +183,34 @@ class ProjectService {
     project.projectManager = pm || null;
 
     try {
-      const School = require('../schools/school.model');
-      const ProjectSchools = require('../project-schools/project-schools.model');
-      const [dbSchools, psDoc] = await Promise.all([
-        School.find({
-          $or: [
-            { projectId: code },
-            { projectId: code.toUpperCase() },
-            { projectId: String(rawId) },
-            { projectId: rawId }
-          ].filter(Boolean),
-          isActive: true
-        })
-          .populate('installation.assignedEngineerId', 'name email phone')
-          .populate('training.assignedTrainerId', 'name email phone')
-          .lean()
-          .catch(() => []),
-        ProjectSchools.findOne({
-          $or: [
-            { projectId: code },
-            { projectId: code.toUpperCase() },
-            { projectId: String(rawId) },
-            { project: rawId }
-          ].filter(Boolean)
-        }).lean().catch(() => null)
-      ]);
-
+      const coreSchools = await coreApi.getProjectSchools(code || project.projectId || rawId);
       let formattedSchools = [];
-      if (dbSchools && dbSchools.length > 0) {
-        formattedSchools = dbSchools.map((s) => ({
-          id: String(s._id),
-          _id: String(s._id),
+      if (Array.isArray(coreSchools) && coreSchools.length > 0) {
+        formattedSchools = coreSchools.map((s, idx) => ({
+          id: String(s._id || s.schoolId || `school-${idx + 1}`),
+          _id: String(s._id || s.schoolId || `school-${idx + 1}`),
           schoolId: s.schoolId || String(s._id),
-          schoolName: s.name,
-          name: s.name,
+          schoolName: s.name || s.schoolName || `School ${idx + 1}`,
+          name: s.name || s.schoolName || `School ${idx + 1}`,
           schoolCode: s.schoolId || String(s._id),
-          address: s.address || '',
-          addressContact: s.address ? `${s.address}\nContact: ${s.contactPerson?.phone || ''}` : '',
-          principalName: s.survey?.principalName || s.contactPerson?.name || '',
-          principalDetails: s.survey?.principalDetails || `${s.contactPerson?.name || ''} (${s.contactPerson?.phone || ''})`,
-          pocName: s.survey?.pocName || s.contactPerson?.name || s.survey?.principalName || '',
-          pocDesignation: s.survey?.pocDesignation || s.contactPerson?.designation || (s.survey?.principalName ? 'Principal' : ''),
-          pocContact: s.survey?.pocContact || s.contactPerson?.phone || '',
-          phone: s.contactPerson?.phone || s.survey?.pocContact || '',
-          email: s.contactPerson?.email || s.survey?.email || '',
-          classes: s.classes || s.survey?.classes || [],
+          address: s.address || s.addressContact || '',
+          addressContact: s.address || s.addressContact || '',
+          principalName: s.principalName || s.survey?.principalName || s.contactPerson?.name || (typeof s.contactPerson === 'string' ? s.contactPerson : '') || '',
+          principalDetails: s.principalDetails || '',
+          pocName: s.coordinatorId?.name || s.pocName || s.contactPerson || '',
+          pocDesignation: s.pocDesignation || '',
+          pocContact: s.phone || s.pocContact || '',
+          phone: s.phone || s.pocContact || '',
+          email: s.email || s.contactPerson?.email || '',
+          classes: s.classes || [],
+          platforms: s.platforms || [],
           installation: s.installation || {},
           training: s.training || {},
           survey: s.survey || {},
-          school: s._id,
-          ...(s.survey || {})
-        }));
-      } else if (psDoc?.schools && psDoc.schools.length > 0) {
-        formattedSchools = dbSchools.map((s) => ({
-          id: String(s._id),
-          _id: String(s._id),
-          schoolId: s.schoolId || String(s._id),
-          schoolName: s.name,
-          name: s.name,
-          schoolCode: s.schoolId || String(s._id),
-          address: s.address || '',
-          addressContact: s.address ? `${s.address}\nContact: ${s.contactPerson?.phone || ''}` : '',
-          principalName: s.survey?.principalName || s.contactPerson?.name || '',
-          principalDetails: s.survey?.principalDetails || `${s.contactPerson?.name || ''} (${s.contactPerson?.phone || ''})`,
-          pocName: s.survey?.pocName || s.contactPerson?.name || s.survey?.principalName || '',
-          pocDesignation: s.survey?.pocDesignation || s.contactPerson?.designation || (s.survey?.principalName ? 'Principal' : ''),
-          pocContact: s.survey?.pocContact || s.contactPerson?.phone || '',
-          phone: s.contactPerson?.phone || s.survey?.pocContact || '',
-          email: s.contactPerson?.email || s.survey?.email || '',
-          classes: s.classes || s.survey?.classes || [],
-          installation: s.installation || {},
-          training: s.training || {},
-          survey: s.survey || {},
-          school: s._id,
-          ...(s.survey || {})
-        }));
-      } else if (psDoc?.schools && psDoc.schools.length > 0) {
-        formattedSchools = psDoc.schools.map((ps) => ({
-          id: String(ps.school || ps._id),
-          _id: String(ps.school || ps._id),
-          schoolId: ps.schoolId || String(ps.school || ps._id),
-          schoolName: ps.schoolName || ps.name,
-          name: ps.schoolName || ps.name,
-          schoolCode: ps.schoolId || String(ps.school || ps._id),
-          address: ps.address || '',
-          addressContact: ps.address ? `${ps.address}\nContact: ${ps.contactPerson?.phone || ''}` : '',
-          principalName: ps.survey?.principalName || ps.contactPerson?.name || '',
-          principalDetails: ps.survey?.principalDetails || `${ps.contactPerson?.name || ''} (${ps.contactPerson?.phone || ''})`,
-          pocName: ps.survey?.pocName || ps.contactPerson?.name || '',
-          pocDesignation: ps.survey?.pocDesignation || ps.contactPerson?.designation || '',
-          pocContact: ps.survey?.pocContact || ps.contactPerson?.phone || '',
-          phone: ps.contactPerson?.phone || ps.survey?.pocContact || '',
-          email: ps.contactPerson?.email || '',
-          classes: ps.classes || ps.survey?.classes || [],
-          installation: ps.installation || {},
-          training: ps.training || {},
-          survey: ps.survey || {},
-          school: ps.school || ps._id,
-          ...(ps.survey || {})
+          numberOfStudents: Number(s.numberOfStudents) || 0,
+          numberOfTeachers: Number(s.numberOfTeachers) || 0,
+          numberOfLicenses: Number(s.numberOfLicenses) || 0,
+          source: 'CORE_BACKEND'
         }));
       }
 
@@ -296,11 +218,8 @@ class ProjectService {
       if (formattedSchools.length > 0 && (!project.numberOfSchools || project.numberOfSchools === 0)) {
         project.numberOfSchools = formattedSchools.length;
       }
-      if (psDoc) {
-        project.projectSchools = psDoc;
-      }
     } catch (e) {
-      console.warn('Could not populate schools for project in getProjectById:', e.message);
+      console.warn('[ProjectService] getProjectById Core schools fetch warning:', e.message);
     }
 
     return project;
@@ -443,8 +362,7 @@ class ProjectService {
       $or: [
         { projectId: code },
         { projectId: code.toUpperCase() },
-        { project: rawId },
-        { project: projectId }
+        { projectId: project?.projectId || projectId }
       ].filter(Boolean),
       isActive: true
     })
@@ -454,14 +372,12 @@ class ProjectService {
   async getMembersGroupedByDepartment(projectId) {
     const project = await this._findProject(projectId);
     const code = project ? (project.projectId || String(project._id)).toLowerCase() : String(projectId).toLowerCase();
-    const rawId = project ? project._id : projectId;
 
     const members = await ProjectMember.find({
       $or: [
         { projectId: code },
         { projectId: code.toUpperCase() },
-        { project: rawId },
-        { project: projectId }
+        { projectId: project?.projectId || projectId }
       ].filter(Boolean),
       isActive: true
     })
@@ -480,29 +396,25 @@ class ProjectService {
 
   async addOrUpdateMember(projectId, employeeId, designation, actorId) {
     const project = await this._findProject(projectId);
-    const code = project ? (project.projectId || String(project._id)).toLowerCase() : String(projectId).toLowerCase();
-    const rawId = project ? project._id : projectId;
+    const targetProjId = project?.projectId || String(projectId);
 
     let member = await ProjectMember.findOne({
       $or: [
-        { projectId: code },
-        { projectId: code.toUpperCase() },
-        { project: rawId },
-        { project: projectId }
-      ].filter(Boolean),
+        { projectId: targetProjId },
+        { projectId: targetProjId.toLowerCase() },
+        { projectId: targetProjId.toUpperCase() }
+      ],
       employee: employeeId
     });
 
     if (member) {
-      member.projectId = code;
-      member.project = rawId;
+      member.projectId = targetProjId;
       member.designation = designation;
       member.isActive = true;
       await member.save();
     } else {
       member = await ProjectMember.create({
-        projectId: code,
-        project: rawId,
+        projectId: targetProjId,
         employee: employeeId,
         designation,
         assignedBy: actorId
@@ -510,8 +422,7 @@ class ProjectService {
     }
 
     await Activity.create({
-      projectId: code,
-      project: rawId,
+      projectId: targetProjId,
       actor: actorId,
       action: 'CONTRIBUTOR_ASSIGNED',
       resourceType: 'ProjectMember',
@@ -523,10 +434,9 @@ class ProjectService {
       const Notification = require('../notifications/notifications.model');
       await Notification.create({
         recipient: employeeId,
-        projectId: code,
-        project: rawId,
+        projectId: targetProjId,
         title: `Project Assignment: ${designation}`,
-        message: `You have been added to project ${code} (${project ? project.projectName : ''}) as ${designation}.`,
+        message: `You have been added to project ${targetProjId} (${project ? project.projectName : ''}) as ${designation}.`,
         type: 'ASSIGNMENT'
       });
     } catch { }
@@ -536,17 +446,15 @@ class ProjectService {
 
   async removeMember(projectId, employeeId, actorId) {
     const project = await this._findProject(projectId);
-    const code = project ? (project.projectId || String(project._id)).toLowerCase() : String(projectId).toLowerCase();
-    const rawId = project ? project._id : projectId;
+    const targetProjId = project?.projectId || String(projectId);
 
     const member = await ProjectMember.findOneAndUpdate(
       {
         $or: [
-          { projectId: code },
-        { projectId: code.toUpperCase() },
-          { project: rawId },
-          { project: projectId }
-        ].filter(Boolean),
+          { projectId: targetProjId },
+          { projectId: targetProjId.toLowerCase() },
+          { projectId: targetProjId.toUpperCase() }
+        ],
         employee: employeeId
       },
       { isActive: false },
@@ -555,8 +463,7 @@ class ProjectService {
     if (!member) throw new AppError('Project member not found.', 404, 'MEMBER_NOT_FOUND');
 
     await Activity.create({
-      projectId: code,
-      project: rawId,
+      projectId: targetProjId,
       actor: actorId,
       action: 'CONTRIBUTOR_REMOVED',
       resourceType: 'ProjectMember',

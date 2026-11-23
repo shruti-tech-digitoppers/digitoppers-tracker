@@ -121,10 +121,24 @@ export function DynamicFormRenderer({
   const fieldsArray: IFormFieldSchema[] = useMemo(() => {
     if (!schema) return [];
     let list: IFormFieldSchema[] = [];
-    if (Array.isArray(schema)) list = schema;
-    else if (typeof schema === 'object') {
-      if (Array.isArray((schema as any).fields)) list = (schema as any).fields;
-      else list = Object.values(schema);
+    if (Array.isArray(schema)) {
+      list = schema;
+    } else if (typeof schema === 'object' && schema !== null) {
+      if (Array.isArray((schema as any).fields)) {
+        list = (schema as any).fields;
+      } else if ((schema as any).fields && typeof (schema as any).fields === 'object') {
+        list = Object.entries((schema as any).fields).map(([k, v]: [string, any]) => ({
+          key: k,
+          name: k,
+          ...(typeof v === 'object' ? v : { label: k, type: 'text' })
+        }));
+      } else {
+        list = Object.entries(schema).map(([k, v]: [string, any]) => ({
+          key: k,
+          name: k,
+          ...(typeof v === 'object' ? v : { label: k, type: 'text' })
+        }));
+      }
     }
 
     const isSchoolAndLicenseForm =
@@ -878,11 +892,19 @@ export function DynamicFormRenderer({
                         allFormData.stage3Schools ||
                         allFormData.schools ||
                         formData.schools ||
+                        allFormData.stage3SchoolData?.schools ||
+                        allFormData.schoolInformation?.schools ||
                         (project as any)?.orderRequirement?.schoolInformation?.schools ||
                         allFormData.orderRequirement?.schoolInformation?.schools ||
                         []
                       }
-                      allFormData={allFormData}
+                      allFormData={{
+                        ...allFormData,
+                        project,
+                        orderRequirement: (project as any)?.orderRequirement || allFormData.orderRequirement,
+                        stage3SchoolData: allFormData.stage3SchoolData || (project as any)?.orderRequirement?.schoolInformation || {},
+                        schoolInformation: allFormData.schoolInformation || (project as any)?.orderRequirement?.schoolInformation || {},
+                      }}
                     />
                   </div>
                 ) : field.type === 'hardwareRequirementsInput' ? (
@@ -898,6 +920,8 @@ export function DynamicFormRenderer({
                         allFormData.stage3Schools ||
                         allFormData.schools ||
                         formData.schools ||
+                        allFormData.stage3SchoolData?.schools ||
+                        allFormData.schoolInformation?.schools ||
                         (project as any)?.orderRequirement?.schoolInformation?.schools ||
                         allFormData.orderRequirement?.schoolInformation?.schools ||
                         []
@@ -906,6 +930,8 @@ export function DynamicFormRenderer({
                         ...allFormData,
                         project,
                         orderRequirement: (project as any)?.orderRequirement || allFormData.orderRequirement,
+                        stage3SchoolData: allFormData.stage3SchoolData || (project as any)?.orderRequirement?.schoolInformation || {},
+                        schoolInformation: allFormData.schoolInformation || (project as any)?.orderRequirement?.schoolInformation || {},
                         stage3SolutionsData: allFormData.stage3SolutionsData || (project as any)?.orderRequirement?.solutionSelection || {},
                         stage3SchoolWiseSolutions: allFormData.stage3SchoolWiseSolutions || (project as any)?.orderRequirement?.solutionSelection?.schoolWiseSolutions || {}
                       }}

@@ -93,6 +93,7 @@ import {
   SR_SECONDARY_GRADE_NAMES,
   isGradeSelected,
 } from '@/types/grade';
+import { useGradesCatalog } from '@/lib/hooks/useGradesCatalog';
 
 // 4. Granular Class Matrix Segments directly derived from MongoDB Grade model
 export const CLASS_SEGMENTS = [
@@ -367,6 +368,8 @@ interface ClassMultiSelectDropdownProps {
   selectedClasses: string[];
   onChange: (classes: string[]) => void;
   disabled?: boolean;
+  availableClasses?: string[];
+  isLoading?: boolean;
 }
 
 function ClassMultiSelectDropdown({
@@ -374,6 +377,8 @@ function ClassMultiSelectDropdown({
   selectedClasses,
   onChange,
   disabled = false,
+  availableClasses = [],
+  isLoading = false,
 }: ClassMultiSelectDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [search, setSearch] = useState('');
@@ -406,16 +411,16 @@ function ClassMultiSelectDropdown({
   };
 
   const filteredClasses = useMemo(() => {
-    if (!search.trim()) return ALL_AVAILABLE_CLASSES;
+    if (!search.trim()) return availableClasses;
     const s = search.toLowerCase();
-    return ALL_AVAILABLE_CLASSES.filter((cls) => {
+    return availableClasses.filter((cls) => {
       const displayLabel = !isNaN(Number(cls)) ? `Class ${cls}` : cls;
       return (
         displayLabel.toLowerCase().includes(s) ||
         cls.toLowerCase().includes(s)
       );
     });
-  }, [search]);
+  }, [search, availableClasses]);
 
   return (
     <div className="relative w-full" ref={dropdownRef}>
@@ -520,12 +525,12 @@ function ClassMultiSelectDropdown({
             {/* Quick Actions Bar */}
             <div className="flex items-center justify-between text-[11px] px-1 font-bold">
               <span className="text-[#8c96a5]">
-                All Classes ({filteredClasses.length} of {ALL_AVAILABLE_CLASSES.length})
+                All Classes ({filteredClasses.length} of {availableClasses.length})
               </span>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
-                  onClick={() => onChange(ALL_AVAILABLE_CLASSES)}
+                  onClick={() => onChange(availableClasses)}
                   className="text-[#51a8b1] hover:underline cursor-pointer"
                 >
                   Select All
@@ -550,7 +555,12 @@ function ClassMultiSelectDropdown({
               scrollbarColor: '#51a8b1 #f0f8f9'
             }}
           >
-            {filteredClasses.length === 0 ? (
+            {isLoading && availableClasses.length === 0 ? (
+              <div className="py-6 text-center text-xs text-[#8c96a5] flex items-center justify-center gap-2">
+                <span className="w-3.5 h-3.5 border-2 border-[#51a8b1] border-t-transparent rounded-full animate-spin" />
+                <span>Loading classes from Core Backend...</span>
+              </div>
+            ) : filteredClasses.length === 0 ? (
               <div className="p-4 text-center text-xs text-[#8c96a5]">
                 No classes matching &quot;{search}&quot;
               </div>
@@ -592,7 +602,7 @@ function ClassMultiSelectDropdown({
           {/* Footer Done Button */}
           <div className="p-2 bg-[#f8fafb] border-t border-[#b9c0cb]/40 flex items-center justify-between shrink-0">
             <span className="text-[11px] font-bold text-[#333333]">
-              {selectedClasses.length} of {ALL_AVAILABLE_CLASSES.length} active
+              {selectedClasses.length} of {availableClasses.length} active
             </span>
             <button
               type="button"
@@ -616,6 +626,8 @@ export function ContentConfigSection({
   onChange,
   disabled = false,
 }: ContentConfigSectionProps) {
+  const { allClassNames, loading: isGradesLoading } = useGradesCatalog();
+
   // Extract initial Content Domains (multi-select)
   const initialContent = useMemo(() => {
     if (Array.isArray(value?.contents) && value.contents.length > 0) return value.contents;
@@ -1240,7 +1252,7 @@ export function ContentConfigSection({
                           <div className="hidden sm:flex items-center gap-1">
                             <span className="text-[10.5px] font-semibold text-[#8c96a5]">
                               {classList.length > 0
-                                ? `${classList.length} of ${ALL_AVAILABLE_CLASSES.length} active`
+                                ? `${classList.length} of ${allClassNames.length} active`
                                 : 'No classes active'}
                             </span>
                           </div>
@@ -1253,6 +1265,8 @@ export function ContentConfigSection({
                             selectedClasses={classList}
                             onChange={(newClasses) => handleClassesChangeForMedium(med, newClasses)}
                             disabled={disabled}
+                            availableClasses={allClassNames}
+                            isLoading={isGradesLoading}
                           />
 
                           {/* Removable Tag Pills Cloud below dropdown */}

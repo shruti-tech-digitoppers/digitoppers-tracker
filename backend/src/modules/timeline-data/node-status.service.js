@@ -15,7 +15,7 @@ class NodeStatusService {
    */
   _normalizeProjectId(projectId) {
     if (!projectId) return '';
-    return String(projectId).toUpperCase().trim();
+    return String(projectId).trim();
   }
 
   /**
@@ -31,14 +31,16 @@ class NodeStatusService {
       }
     }
 
-    const staticNode = await TimelineNodeStatic.findOne({ id: raw }).lean();
-    if (staticNode) return staticNode.id;
+    const staticNode = await TimelineNodeStatic.findOne({
+      $or: [{ timelineNodeId: raw }, { id: raw }]
+    }).lean();
+    if (staticNode) return staticNode.timelineNodeId || staticNode.id;
 
     if (mongoose.isValidObjectId(raw)) {
       const td = await TimelineData.findById(raw).lean();
       if (td && td.nodeId) return td.nodeId;
       const ts = await TimelineNodeStatic.findById(raw).lean();
-      if (ts && ts.id) return ts.id;
+      if (ts) return ts.timelineNodeId || ts.id;
     }
 
     return raw;
@@ -90,18 +92,39 @@ class NodeStatusService {
    */
   async validateRequiredFields(cleanKey, projectId, formData = null, project = null) {
     const schema = await formSchemasService.getSchema(cleanKey, projectId);
-    if (!schema || !Array.isArray(schema.fields) || schema.fields.length === 0) {
+    const schemaFields = schema?.fieldsArray || (schema?.fields && typeof schema.fields === 'object' && !Array.isArray(schema.fields)
+      ? Object.entries(schema.fields).map(([k, def]) => ({ key: k, ...def }))
+      : (Array.isArray(schema?.fields) ? schema.fields : []));
+
+    if (!schema || schemaFields.length === 0) {
       return { valid: true, missingFields: [] };
     }
 
     let data = formData;
     if (!data) {
-      const doc = await TimelineData.findOne({ projectId, nodeId: cleanKey }).lean();
-      data = doc?.formData || {};
+      const coreApi = require('../../services/core-api.service');
+      let targetProjectId = this._normalizeProjectId(projectId);
+      try {
+        const coreProj = await coreApi.getProjectById(projectId);
+        if (coreProj && coreProj.projectId) {
+          targetProjectId = this._normalizeProjectId(coreProj.projectId);
+        }
+      } catch (_) {}
+
+      if (schema?._id && targetProjectId) {
+        const FormData = require('./form-data.model');
+        const fd = await FormData.findOne({
+          projectId: targetProjectId,
+          formSchemaId: schema._id
+        }).lean();
+        data = fd?.data || fd?.formData || {};
+      } else {
+        data = {};
+      }
     }
 
     const missingFields = [];
-    for (const field of schema.fields) {
+    for (const field of schemaFields) {
       if (field.required) {
         const k = field.key || field.name;
         // Project title / headline virtual check
@@ -133,15 +156,24 @@ class NodeStatusService {
    * If this node is a parent stage or substage, all child tasks must be COMPLETED.
    */
   async validateChildSubtasks(cleanKey, projectId) {
-    const childStaticNodes = await TimelineNodeStatic.find({ parent_id: cleanKey }).lean();
+    const parentNode = await TimelineNodeStatic.findOne({
+      $or: [{ timelineNodeId: cleanKey }, { id: cleanKey }]
+    }).lean();
+
+    const childStaticNodes = parentNode?._id
+      ? await TimelineNodeStatic.find({ parentId: parentNode._id }).lean()
+      : [];
     if (!childStaticNodes || childStaticNodes.length === 0) {
       return { valid: true, incompleteTasks: [] };
     }
 
-    const childKeys = childStaticNodes.map((c) => c.id);
+    const childKeys = childStaticNodes.map((c) => c.timelineNodeId || c.id);
     const childRuntimes = await TimelineData.find({
       projectId,
-      nodeId: { $in: childKeys }
+      $or: [
+        { timelineNodeId: { $in: childStaticNodes.map(c => c._id) } },
+        { nodeId: { $in: childKeys } }
+      ]
     }).lean();
 
     const childRuntimeMap = new Map();
@@ -263,7 +295,7 @@ class NodeStatusService {
 
     // 4. Log Activity
     await Activity.create({
-      project: project?._id || projId,
+      projectId: targetProjectId,
       actor: employee?._id || null,
       action: 'STATUS_CHANGED',
       resourceType: 'TimelineData',
@@ -273,7 +305,9 @@ class NodeStatusService {
 
     // 5. Trigger Notifications
     try {
-      const staticNode = await TimelineNodeStatic.findOne({ id: cleanKey }).lean();
+      const staticNode = await TimelineNodeStatic.findOne({
+        $or: [{ timelineNodeId: cleanKey }, { id: cleanKey }]
+      }).lean();
       const nodeName = staticNode?.name || cleanKey;
       const readableStatus = String(newStatus).replace(/_/g, ' ');
       await notificationService.notifyWithAdminsAndPMs({
