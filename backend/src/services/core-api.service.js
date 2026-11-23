@@ -1,4 +1,5 @@
 const config = require('../config/env');
+const mongoose = require('mongoose');
 
 /**
  * CoreApiService (Single Source of Truth Gateway)
@@ -27,6 +28,18 @@ class CoreApiService {
       .trim().replace(/^["']|["']$/g, '');
     this.serviceName = 'tracker-backend';
     this.defaultTimeout = 25000; // 25s default to accommodate remote cloud spin-ups
+  }
+
+  /**
+   * Access the shared Core Backend database ('digitoppers_db_core') on the same MongoDB Atlas cluster
+   */
+  getCoreDb() {
+    try {
+      if (mongoose.connection && mongoose.connection.readyState === 1) {
+        return mongoose.connection.useDb('digitoppers_db_core');
+      }
+    } catch (_) {}
+    return null;
   }
 
   /**
@@ -120,7 +133,7 @@ class CoreApiService {
   // =========================================================================
 
   /**
-   * Fetch all live projects strictly from Core Backend API
+   * Fetch all live projects strictly from Core Backend API (with direct digitoppers_db_core DB support)
    * GET /api/projects
    */
   async getProjects(query = {}) {
@@ -129,11 +142,26 @@ class CoreApiService {
 
     try {
       const json = await this.request(`/api/projects${queryPart}`);
-      return this._unwrapList(json, 'projects');
+      const list = this._unwrapList(json, 'projects');
+      if (Array.isArray(list) && list.length > 0) return list;
     } catch (err) {
-      console.warn('[CoreApiService] getProjects error:', err.message);
-      return [];
+      console.warn('[CoreApiService] HTTP getProjects error:', err.message);
     }
+
+    // Direct database query fallback from digitoppers_db_core (Same MongoDB cluster)
+    const coreDb = this.getCoreDb();
+    if (coreDb) {
+      try {
+        const filter = { isActive: { $ne: false } };
+        const dbProjects = await coreDb.collection('projects').find(filter).toArray();
+        if (Array.isArray(dbProjects) && dbProjects.length > 0) {
+          return dbProjects;
+        }
+      } catch (dbErr) {
+        console.warn('[CoreApiService] DB getProjects error:', dbErr.message);
+      }
+    }
+    return [];
   }
 
   /**
@@ -147,13 +175,30 @@ class CoreApiService {
 
     try {
       const json = await this.request(`/api/projects/${encodeURIComponent(cleanId)}`);
-      return this._unwrapEntity(json, 'project');
+      const entity = this._unwrapEntity(json, 'project');
+      if (entity) return entity;
     } catch (err) {
       if (err.status !== 404) {
         console.warn(`[CoreApiService] getProjectById(${cleanId}) warning:`, err.message);
       }
-      return null;
     }
+
+    const coreDb = this.getCoreDb();
+    if (coreDb) {
+      try {
+        const query = {
+          $or: [
+            { projectId: cleanId },
+            { projectIdLower: cleanId.toLowerCase() },
+            ...(mongoose.isValidObjectId(cleanId) ? [{ _id: new mongoose.Types.ObjectId(cleanId) }] : [])
+          ]
+        };
+        const proj = await coreDb.collection('projects').findOne(query);
+        if (proj) return proj;
+      } catch (_) {}
+    }
+
+    return null;
   }
 
   /**
@@ -195,7 +240,7 @@ class CoreApiService {
   // =========================================================================
 
   /**
-   * Fetch schools strictly from Core Backend API
+   * Fetch schools strictly from Core Backend API (with direct digitoppers_db_core DB support)
    * GET /api/schools
    */
   async getSchools(query = {}) {
@@ -204,11 +249,24 @@ class CoreApiService {
 
     try {
       const json = await this.request(`/api/schools${queryPart}`);
-      return this._unwrapList(json, 'schools');
+      const list = this._unwrapList(json, 'schools');
+      if (Array.isArray(list) && list.length > 0) return list;
     } catch (err) {
-      console.warn('[CoreApiService] getSchools error:', err.message);
-      return [];
+      console.warn('[CoreApiService] HTTP getSchools error:', err.message);
     }
+
+    const coreDb = this.getCoreDb();
+    if (coreDb) {
+      try {
+        if (query.projectId) {
+          return await this.getProjectSchools(query.projectId);
+        }
+        const schools = await coreDb.collection('schools').find({ isActive: { $ne: false } }).toArray();
+        if (Array.isArray(schools) && schools.length > 0) return schools;
+      } catch (_) {}
+    }
+
+    return [];
   }
 
   /**
@@ -233,6 +291,32 @@ class CoreApiService {
       const list = this._unwrapList(json, 'schools');
       if (Array.isArray(list) && list.length > 0) return list;
     } catch (_) { }
+
+    // 3. Direct database query fallback from digitoppers_db_core
+    const coreDb = this.getCoreDb();
+    if (coreDb) {
+      try {
+        const projQuery = {
+          $or: [
+            { projectId: cleanId },
+            { projectIdLower: cleanId.toLowerCase() },
+            ...(mongoose.isValidObjectId(cleanId) ? [{ _id: new mongoose.Types.ObjectId(cleanId) }] : [])
+          ]
+        };
+        const proj = await coreDb.collection('projects').findOne(projQuery);
+        const matchIds = [cleanId];
+        if (proj) {
+          matchIds.push(proj._id);
+          matchIds.push(String(proj._id));
+          if (proj.projectId) matchIds.push(proj.projectId);
+        }
+        const schools = await coreDb.collection('schools').find({
+          projectId: { $in: matchIds },
+          isActive: { $ne: false }
+        }).toArray();
+        if (Array.isArray(schools) && schools.length > 0) return schools;
+      } catch (_) {}
+    }
 
     return [];
   }

@@ -752,6 +752,8 @@ export function DynamicFormRenderer({
           }}
           disabled={disabled || submitting}
           allFormData={allFormData}
+          project={project}
+          schools={effectiveProjectSchools}
         />
       ) : isTechConfigForm ? (
         <TechProjectConfigSection
@@ -981,6 +983,8 @@ export function DynamicFormRenderer({
                       }}
                       disabled={disabled || submitting}
                       allFormData={allFormData}
+                      project={project}
+                      schools={effectiveProjectSchools}
                     />
                   </div>
                 ) : field.type === 'contentConfigSection' ? (

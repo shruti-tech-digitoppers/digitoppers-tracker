@@ -21,6 +21,8 @@ interface HardwareReadySectionProps {
   onChange: (value: any) => void;
   disabled?: boolean;
   allFormData?: Record<string, any>;
+  schools?: any[];
+  project?: any;
 }
 
 export interface SchoolVerificationItem {
@@ -43,10 +45,12 @@ export function HardwareReadySection({
   onChange,
   disabled = false,
   allFormData = {},
+  schools,
+  project,
 }: HardwareReadySectionProps) {
   // Extract normalized school list using institutional school helper
   const schoolList: EffectiveSchoolItem[] = extractEffectiveSchools(
-    undefined,
+    schools || project?.schools || allFormData?.stage3Schools || allFormData?.schools,
     allFormData,
     value,
     'Main Institution'
