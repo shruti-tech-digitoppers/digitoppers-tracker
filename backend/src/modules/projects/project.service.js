@@ -153,6 +153,7 @@ class ProjectService {
     const project = projectDoc.toObject ? projectDoc.toObject() : { ...projectDoc };
 
     const code = (project.projectId || '').toLowerCase();
+    const rawId = project._id;
     const pmMember = await ProjectMember.findOne({
       $or: [
         { projectId: code },

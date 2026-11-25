@@ -460,10 +460,27 @@ const NodeInspectorContent: React.FC<
     const stage4StockNode = useMemo(() => findNodeRecursive(allNodes, 'REQ_AND_STOCK_CHECK'), [allNodes]);
     const stage4TechNode = useMemo(() => findNodeRecursive(allNodes, 'PROJECT_CONFIG_AND_IMPLEMENTATION'), [allNodes]);
 
-    // Live Core Backend schools fetch (Strict Single Source of Truth)
+    const nodeKeyUpper = (node?.key || (node as any)?.id || '').toUpperCase();
+    const isStage3Node =
+      [
+        'ORDER_REQUIREMENT',
+        'SCHOOL_ONBOARDING_INFORMATION',
+        'SCHOOL_INFORMATION',
+        'SCHOOL_ONBOARDING',
+        'SOLUTION_SELECTION',
+        'HARDWARE_REQUIREMENT',
+        'CONTENT_CONFIGURATION',
+      ].includes(nodeKeyUpper) ||
+      String(node?.parent || '').toUpperCase() === 'ORDER_REQUIREMENT';
+
+    // Live Core Backend schools fetch (strictly for Stage 4+ execution/deployment nodes)
     const [liveCoreSchools, setLiveCoreSchools] = React.useState<any[]>([]);
 
     React.useEffect(() => {
+      if (isStage3Node) {
+        setLiveCoreSchools([]);
+        return;
+      }
       let isMounted = true;
       const targetProjId = project?.projectId || (project as any)?._id || (project as any)?.id;
       if (!targetProjId) return;
@@ -484,28 +501,100 @@ const NodeInspectorContent: React.FC<
 
       fetchSchools();
       return () => { isMounted = false; };
-    }, [project?.projectId, (project as any)?._id, (project as any)?.id]);
+    }, [isStage3Node, project?.projectId, (project as any)?._id, (project as any)?.id]);
+
+    const stage3SavedSchools = useMemo(() => {
+      if (
+        (nodeKeyUpper === 'SCHOOL_ONBOARDING_INFORMATION' ||
+          nodeKeyUpper === 'SCHOOL_INFORMATION' ||
+          nodeKeyUpper === 'SCHOOL_ONBOARDING') &&
+        Array.isArray(formData?.schools)
+      ) {
+        return formData.schools;
+      }
+      if (Array.isArray(stage3SchoolNode?.formData?.schools) && stage3SchoolNode.formData.schools.length > 0) {
+        return stage3SchoolNode.formData.schools;
+      }
+      if (Array.isArray(formData?.schools) && formData.schools.length > 0) {
+        return formData.schools;
+      }
+      const orderReqSchools = (project as any)?.orderRequirement?.schoolInformation?.schools;
+      if (Array.isArray(orderReqSchools) && orderReqSchools.length > 0) {
+        return orderReqSchools;
+      }
+      return [];
+    }, [nodeKeyUpper, formData?.schools, stage3SchoolNode, project]);
 
     const resolvedSchools = useMemo(() => {
-      // 1. Strictly prioritize live Core Backend schools (Single Source of Truth)
+      // Stage 3 Order Requirement relies strictly on manual School Information input (no Core Backend interruption)
+      if (isStage3Node) {
+        return stage3SavedSchools;
+      }
+
+      const savedSchools = stage3SavedSchools;
+
+      // 1. For Stage 4+ nodes, merge live Core Backend schools with saved Stage 3 School Information fields
       if (Array.isArray(liveCoreSchools) && liveCoreSchools.length > 0) {
-        return liveCoreSchools.map((s: any, idx: number) => ({
-          ...s,
-          id: String(s._id || s.schoolId || s.id || `school-${idx + 1}`),
-          schoolId: s.schoolId || String(s._id || s.id || `SCH-${idx + 1}`),
-          name: s.name || s.schoolName || `School ${idx + 1}`,
-          schoolName: s.name || s.schoolName || `School ${idx + 1}`,
-          address: s.address || s.addressContact || '',
-          addressContact: s.address || s.addressContact || '',
-          pocName: s.coordinatorId?.name || s.pocName || s.contactPerson || '',
-          pocContact: s.phone || s.pocContact || '',
-          phone: s.phone || s.pocContact || '',
-          contactPerson: s.coordinatorId?.name || s.pocName || s.contactPerson || '',
-          principalName: s.principalName || '',
-          totalStudents: s.numberOfStudents || s.totalStudents || '',
-          totalTeachers: s.numberOfTeachers || s.totalTeachers || '',
-          platforms: s.platforms || [],
-        }));
+        const usedSaved = new Set<number>();
+        const merged = liveCoreSchools.map((s: any, idx: number) => {
+          const survey = (s && typeof s.survey === 'object' && s.survey !== null) ? s.survey : {};
+          const canonIds = [s._id, s.schoolId, s.id].filter(Boolean).map(String);
+          const canonName = (s.name || s.schoolName || '').trim().toLowerCase();
+
+          let matchIdx = savedSchools.findIndex((sv: any, i: number) => {
+            if (usedSaved.has(i) || !sv) return false;
+            const svIds = [sv._id, sv.id, sv.schoolId].filter(Boolean).map(String);
+            return svIds.some((id) => canonIds.includes(id));
+          });
+          if (matchIdx === -1 && canonName) {
+            matchIdx = savedSchools.findIndex((sv: any, i: number) => {
+              if (usedSaved.has(i) || !sv) return false;
+              const svName = (sv.schoolName || sv.name || '').trim().toLowerCase();
+              return svName && svName === canonName;
+            });
+          }
+          if (matchIdx === -1 && idx < savedSchools.length && !usedSaved.has(idx)) {
+            matchIdx = idx;
+          }
+          const saved = matchIdx !== -1 ? (usedSaved.add(matchIdx), savedSchools[matchIdx]) : null;
+
+          const baseSchool = {
+            ...survey,
+            ...s,
+            id: String(s._id || s.schoolId || s.id || `school-${idx + 1}`),
+            _id: String(s._id || s.schoolId || s.id || `school-${idx + 1}`),
+            schoolId: s.schoolId || String(s._id || s.id || `SCH-${idx + 1}`),
+            name: s.name || s.schoolName || `School ${idx + 1}`,
+            schoolName: s.name || s.schoolName || `School ${idx + 1}`,
+            address: s.address || s.addressContact || survey.addressContact || '',
+            addressContact: s.addressContact || s.address || survey.addressContact || '',
+            pocName: s.coordinatorId?.name || s.pocName || survey.pocName || (typeof s.contactPerson === 'string' ? s.contactPerson : s.contactPerson?.name) || '',
+            pocContact: s.phone || s.pocContact || survey.pocContact || '',
+            phone: s.phone || s.pocContact || survey.pocContact || '',
+            contactPerson: s.coordinatorId?.name || s.pocName || survey.pocName || s.contactPerson || '',
+            principalName: s.principalName || survey.principalName || '',
+            totalStudents: s.numberOfStudents || survey.totalStudents || s.totalStudents || '',
+            totalTeachers: s.numberOfTeachers || survey.totalTeachers || s.totalTeachers || '',
+            classes: (Array.isArray(s.classes) && s.classes.length > 0 ? s.classes : survey.classes) || [],
+            platforms: s.platforms || [],
+          };
+
+          if (!saved) return baseSchool;
+          return {
+            ...baseSchool,
+            ...saved,
+            _id: baseSchool._id,
+            schoolId: baseSchool.schoolId,
+            platforms: baseSchool.platforms,
+            name: saved.schoolName || saved.name || baseSchool.name,
+            schoolName: saved.schoolName || saved.name || baseSchool.schoolName,
+          };
+        });
+
+        savedSchools.forEach((sv: any, idx: number) => {
+          if (!usedSaved.has(idx) && sv) merged.push(sv);
+        });
+        return merged;
       }
 
       // 2. Check current node formData.schools
@@ -534,12 +623,12 @@ const NodeInspectorContent: React.FC<
       }
 
       return [];
-    }, [liveCoreSchools, stage3SchoolNode, formData, project, allNodes]);
+    }, [isStage3Node, stage3SavedSchools, liveCoreSchools, stage3SchoolNode, formData, project, allNodes]);
 
     const combinedAllFormData: Record<string, any> = React.useMemo(() => ({
       ...(formData || {}),
       schools: resolvedSchools,
-      stage3Schools: resolvedSchools,
+      stage3Schools: stage3SavedSchools.length > 0 ? stage3SavedSchools : resolvedSchools,
       projectSchools: resolvedSchools,
       stage3SchoolData: stage3SchoolNode?.formData || (project as any)?.orderRequirement?.schoolInformation || {},
       schoolInformation: stage3SchoolNode?.formData || (project as any)?.orderRequirement?.schoolInformation || {},

@@ -107,10 +107,16 @@ export function DynamicFormRenderer({
   }, [initialData, schema, project]);
 
   const effectiveProjectSchools = useMemo(() => {
+    if (Array.isArray(allFormData?.schools) && allFormData.schools.length > 0) {
+      return allFormData.schools;
+    }
+    if (Array.isArray(allFormData?.stage3Schools) && allFormData.stage3Schools.length > 0) {
+      return allFormData.stage3Schools;
+    }
+    if (Array.isArray(formData?.schools) && formData.schools.length > 0) {
+      return formData.schools;
+    }
     return (
-      allFormData?.stage3Schools ||
-      allFormData?.schools ||
-      formData?.schools ||
       (project as any)?.schools ||
       (project as any)?.orderRequirement?.schoolInformation?.schools ||
       allFormData?.orderRequirement?.schoolInformation?.schools ||
@@ -752,8 +758,6 @@ export function DynamicFormRenderer({
           }}
           disabled={disabled || submitting}
           allFormData={allFormData}
-          project={project}
-          schools={effectiveProjectSchools}
         />
       ) : isTechConfigForm ? (
         <TechProjectConfigSection
@@ -983,8 +987,6 @@ export function DynamicFormRenderer({
                       }}
                       disabled={disabled || submitting}
                       allFormData={allFormData}
-                      project={project}
-                      schools={effectiveProjectSchools}
                     />
                   </div>
                 ) : field.type === 'contentConfigSection' ? (
@@ -1207,10 +1209,10 @@ export function DynamicFormRenderer({
             type="submit"
             disabled={submitting || (!isDirty && !justSaved)}
             className={`inline-flex items-center gap-1.5 px-6 py-2 rounded-xl text-xs font-bold transition-all shadow-xs ml-auto ${justSaved
-                ? 'bg-[#a8cf45] text-white border border-[#a8cf45] shadow-xs cursor-default'
-                : isDirty
-                  ? 'bg-[#51a8b1] hover:bg-[#3a7d84] text-white border border-[#51a8b1] shadow-xs hover:shadow-md cursor-pointer active:scale-95'
-                  : 'bg-slate-100 border border-slate-200 text-slate-400 cursor-default opacity-80'
+              ? 'bg-[#a8cf45] text-white border border-[#a8cf45] shadow-xs cursor-default'
+              : isDirty
+                ? 'bg-[#51a8b1] hover:bg-[#3a7d84] text-white border border-[#51a8b1] shadow-xs hover:shadow-md cursor-pointer active:scale-95'
+                : 'bg-slate-100 border border-slate-200 text-slate-400 cursor-default opacity-80'
               }`}
           >
             {submitting ? (

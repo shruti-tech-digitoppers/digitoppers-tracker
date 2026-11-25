@@ -18,6 +18,147 @@ const { AppError } = require('../../core/errors');
 
 class TimelineDataService {
   /**
+   * Format a Core Backend school record into canonical + survey-compatible shape
+   */
+  _formatCanonicalSchool(s, idx = 0) {
+    const survey = (s && typeof s.survey === 'object' && s.survey !== null) ? s.survey : {};
+    const name = s.name || s.schoolName || `School ${idx + 1}`;
+    const address = s.address || s.addressContact || survey.addressContact || '';
+    const pocName =
+      (typeof s.coordinatorId === 'object' && s.coordinatorId?.name) ||
+      s.pocName ||
+      survey.pocName ||
+      (typeof s.contactPerson === 'object' && s.contactPerson?.name) ||
+      (typeof s.contactPerson === 'string' ? s.contactPerson : '') ||
+      '';
+    const phone =
+      s.phone ||
+      s.pocContact ||
+      survey.pocContact ||
+      (typeof s.contactPerson === 'object' && s.contactPerson?.phone) ||
+      '';
+    const email =
+      s.email ||
+      (typeof s.contactPerson === 'object' && s.contactPerson?.email) ||
+      survey.email ||
+      '';
+    const principalName =
+      s.principalName ||
+      survey.principalName ||
+      (typeof s.contactPerson === 'object' && s.contactPerson?.name) ||
+      '';
+    const classes = Array.isArray(s.classes) && s.classes.length > 0
+      ? s.classes
+      : (Array.isArray(survey.classes) ? survey.classes : []);
+
+    return {
+      ...survey,
+      id: String(s._id || s.schoolId || s.id || `school-${idx + 1}`),
+      _id: String(s._id || s.schoolId || s.id || `school-${idx + 1}`),
+      schoolId: s.schoolId || String(s._id || ''),
+      name,
+      schoolName: name,
+      address,
+      addressContact: s.addressContact || address,
+      principalName,
+      principalDetails: s.principalDetails || survey.principalDetails || '',
+      pocName,
+      pocDesignation: s.pocDesignation || survey.pocDesignation || '',
+      pocContact: s.pocContact || survey.pocContact || phone,
+      phone,
+      email,
+      block: s.block || '',
+      city: (typeof s.cityId === 'object' && s.cityId?.name) || s.city || '',
+      state: (typeof s.stateId === 'object' && s.stateId?.name) || s.state || '',
+      country: (typeof s.countryId === 'object' && s.countryId?.name) || s.country || 'India',
+      classes,
+      numberOfStudents: Number(s.numberOfStudents || survey.totalStudents) || 0,
+      numberOfTeachers: Number(s.numberOfTeachers || survey.totalTeachers) || 0,
+      totalStudents: survey.totalStudents ?? (s.numberOfStudents || ''),
+      totalTeachers: survey.totalTeachers ?? (s.numberOfTeachers || ''),
+      numberOfLicenses: Number(s.numberOfLicenses) || 0,
+      platforms: s.platforms || [],
+      installation: s.installation || {},
+      training: s.training || {},
+      survey
+    };
+  }
+
+  /**
+   * Merge Core Backend canonical schools with saved FormData survey schools
+   * without discarding user-entered School Information fields.
+   */
+  _mergeCanonicalAndFormSchools(canonicalSchools = [], savedSchools = []) {
+    const hasCanonical = Array.isArray(canonicalSchools) && canonicalSchools.length > 0;
+    const hasSaved = Array.isArray(savedSchools) && savedSchools.length > 0;
+
+    if (!hasCanonical) return hasSaved ? savedSchools : [];
+    if (!hasSaved) return canonicalSchools;
+
+    const usedSavedIndices = new Set();
+
+    const findMatchingSaved = (canon, idx) => {
+      const canonIds = [canon._id, canon.id, canon.schoolId].filter(Boolean).map(String);
+      const canonName = (canon.schoolName || canon.name || '').trim().toLowerCase();
+
+      let matchIdx = savedSchools.findIndex((sv, i) => {
+        if (usedSavedIndices.has(i) || !sv) return false;
+        const svIds = [sv._id, sv.id, sv.schoolId].filter(Boolean).map(String);
+        return svIds.some((id) => canonIds.includes(id));
+      });
+
+      if (matchIdx === -1 && canonName) {
+        matchIdx = savedSchools.findIndex((sv, i) => {
+          if (usedSavedIndices.has(i) || !sv) return false;
+          const svName = (sv.schoolName || sv.name || '').trim().toLowerCase();
+          return svName && svName === canonName;
+        });
+      }
+
+      if (matchIdx === -1 && idx < savedSchools.length && !usedSavedIndices.has(idx)) {
+        matchIdx = idx;
+      }
+
+      if (matchIdx !== -1) {
+        usedSavedIndices.add(matchIdx);
+        return savedSchools[matchIdx];
+      }
+      return null;
+    };
+
+    const coreMetaKeys = new Set(['_id', 'schoolId', 'platforms', 'installation', 'training', 'numberOfLicenses', 'survey']);
+
+    const mergedList = canonicalSchools.map((canon, idx) => {
+      const saved = findMatchingSaved(canon, idx);
+      if (!saved) return canon;
+      const merged = { ...canon };
+      for (const [key, val] of Object.entries(saved)) {
+        if (val === undefined || val === null) continue;
+        if (coreMetaKeys.has(key)) continue;
+        if (typeof val === 'string' && val.trim() === '' && canon[key]) {
+          // Keep non-empty Core value only if saved didn't provide one, unless it's a survey-only field
+          if (['name', 'schoolName'].includes(key)) continue;
+        }
+        merged[key] = val;
+      }
+      if (merged.schoolName && (!merged.name || saved.schoolName)) {
+        merged.name = merged.schoolName;
+      } else if (merged.name && !merged.schoolName) {
+        merged.schoolName = merged.name;
+      }
+      return merged;
+    });
+
+    savedSchools.forEach((sv, idx) => {
+      if (!usedSavedIndices.has(idx) && sv) {
+        mergedList.push(sv);
+      }
+    });
+
+    return mergedList;
+  }
+
+  /**
    * Normalize projectId
    */
   _normalizeProjectId(projectId) {
@@ -393,40 +534,36 @@ class TimelineDataService {
     try {
       const coreSchools = await coreApi.getProjectSchools(targetProjectId || projId);
       if (Array.isArray(coreSchools) && coreSchools.length > 0) {
-        canonicalSchools = coreSchools.map((s, idx) => ({
-          id: String(s._id || s.schoolId || `school-${idx + 1}`),
-          _id: String(s._id || s.schoolId || `school-${idx + 1}`),
-          schoolId: s.schoolId || String(s._id),
-          name: s.name || s.schoolName || `School ${idx + 1}`,
-          schoolName: s.name || s.schoolName || `School ${idx + 1}`,
-          address: s.address || s.addressContact || '',
-          principalName: s.principalName || s.survey?.principalName || s.contactPerson?.name || (typeof s.contactPerson === 'string' ? s.contactPerson : '') || '',
-          phone: s.phone || s.contactPerson?.phone || s.survey?.pocContact || '',
-          email: s.email || s.contactPerson?.email || s.survey?.email || '',
-          block: s.block || '',
-          city: (typeof s.cityId === 'object' && s.cityId?.name) || s.city || '',
-          state: (typeof s.stateId === 'object' && s.stateId?.name) || s.state || '',
-          country: (typeof s.countryId === 'object' && s.countryId?.name) || s.country || 'India',
-          numberOfStudents: Number(s.numberOfStudents) || 0,
-          numberOfTeachers: Number(s.numberOfTeachers) || 0,
-          numberOfLicenses: Number(s.numberOfLicenses) || 0,
-          platforms: s.platforms || [],
-          installation: s.installation || {},
-          training: s.training || {},
-          survey: s.survey || {}
-        }));
+        canonicalSchools = coreSchools.map((s, idx) => this._formatCanonicalSchool(s, idx));
       }
     } catch (_) { }
 
-    // 4. Format into normalized tree structure
+    // 4. Format into normalized tree structure (Stage 3 School Information & Order Requirement stay strictly manual FormData without Core Backend interruption)
+    const STAGE3_KEYS = new Set([
+      'ORDER_REQUIREMENT',
+      'SCHOOL_ONBOARDING_INFORMATION',
+      'SCHOOL_INFORMATION',
+      'SCHOOL_ONBOARDING',
+      'SOLUTION_SELECTION',
+      'HARDWARE_REQUIREMENT',
+      'CONTENT_CONFIGURATION'
+    ]);
+
     const formatNode = (node, type, parentKey = null) => {
       let nodeFormData = node.formData || {};
-      if (canonicalSchools.length > 0) {
-        nodeFormData = {
-          ...nodeFormData,
-          schools: canonicalSchools,
-          schoolName: canonicalSchools[0]?.name || nodeFormData.schoolName
-        };
+      const nodeKeyUpper = String(node.id || node.key || '').toUpperCase();
+      const parentKeyUpper = String(parentKey || '').toUpperCase();
+      const isStage3Node = STAGE3_KEYS.has(nodeKeyUpper) || parentKeyUpper === 'ORDER_REQUIREMENT';
+
+      if (!isStage3Node) {
+        const mergedSchools = this._mergeCanonicalAndFormSchools(canonicalSchools, nodeFormData.schools);
+        if (mergedSchools.length > 0) {
+          nodeFormData = {
+            ...nodeFormData,
+            schools: mergedSchools,
+            schoolName: mergedSchools.map((s) => s.schoolName || s.name).filter(Boolean).join('; ') || nodeFormData.schoolName
+          };
+        }
       }
 
       const rawFields = schemaMap.get(String(node._id)) || schemaMap.get(node.timelineNodeId || node.id) || (node.formSchema?.fields || node.formSchema) || null;
@@ -589,35 +726,27 @@ class TimelineDataService {
     const rawNodeFields = dynamicSchema?.fields || (staticNode?.formSchema?.fields || staticNode?.formSchema);
     const nodeFieldsArray = formSchemasService._ensureFieldsArray(rawNodeFields?.fields || rawNodeFields);
 
-    // Fetch canonical schools from Core Backend (Single Source of Truth)
+    const STAGE3_KEYS = new Set([
+      'ORDER_REQUIREMENT',
+      'SCHOOL_ONBOARDING_INFORMATION',
+      'SCHOOL_INFORMATION',
+      'SCHOOL_ONBOARDING',
+      'SOLUTION_SELECTION',
+      'HARDWARE_REQUIREMENT',
+      'CONTENT_CONFIGURATION'
+    ]);
+    const isStage3Node = STAGE3_KEYS.has(String(effectiveKey || '').toUpperCase());
+
+    // Fetch canonical schools from Core Backend ONLY for non-Stage-3 (Execution/Deployment) nodes
     let canonicalSchools = [];
-    try {
-      const coreSchools = await coreApi.getProjectSchools(targetProjectId || projId);
-      if (Array.isArray(coreSchools) && coreSchools.length > 0) {
-        canonicalSchools = coreSchools.map((s, idx) => ({
-          id: String(s._id || s.schoolId || `school-${idx + 1}`),
-          _id: String(s._id || s.schoolId || `school-${idx + 1}`),
-          schoolId: s.schoolId || String(s._id),
-          name: s.name || s.schoolName || `School ${idx + 1}`,
-          schoolName: s.name || s.schoolName || `School ${idx + 1}`,
-          address: s.address || s.addressContact || '',
-          principalName: s.principalName || s.survey?.principalName || s.contactPerson?.name || (typeof s.contactPerson === 'string' ? s.contactPerson : '') || '',
-          phone: s.phone || s.contactPerson?.phone || s.survey?.pocContact || '',
-          email: s.email || s.contactPerson?.email || s.survey?.email || '',
-          block: s.block || '',
-          city: (typeof s.cityId === 'object' && s.cityId?.name) || s.city || '',
-          state: (typeof s.stateId === 'object' && s.stateId?.name) || s.state || '',
-          country: (typeof s.countryId === 'object' && s.countryId?.name) || s.country || 'India',
-          numberOfStudents: Number(s.numberOfStudents) || 0,
-          numberOfTeachers: Number(s.numberOfTeachers) || 0,
-          numberOfLicenses: Number(s.numberOfLicenses) || 0,
-          platforms: s.platforms || [],
-          installation: s.installation || {},
-          training: s.training || {},
-          survey: s.survey || {}
-        }));
-      }
-    } catch (_) { }
+    if (!isStage3Node) {
+      try {
+        const coreSchools = await coreApi.getProjectSchools(targetProjectId || projId);
+        if (Array.isArray(coreSchools) && coreSchools.length > 0) {
+          canonicalSchools = coreSchools.map((s, idx) => this._formatCanonicalSchool(s, idx));
+        }
+      } catch (_) { }
+    }
 
     const nodeObj = {
       _id: runtimeRecord?._id ? String(runtimeRecord._id) : effectiveKey,
@@ -633,7 +762,7 @@ class TimelineDataService {
       dueDate: runtimeRecord?.dueDate || null,
       remarks: runtimeRecord?.remarks || '',
       formData: (await (async () => {
-        if (!runtimeRecord) return canonicalSchools.length > 0 ? { schools: canonicalSchools } : {};
+        if (!runtimeRecord) return (!isStage3Node && canonicalSchools.length > 0) ? { schools: canonicalSchools } : {};
         const formSchema = await formSchemasService.getSchema(effectiveKey);
         const fd = await FormData.findOne({
           $or: [
@@ -642,11 +771,15 @@ class TimelineDataService {
           ].filter(Boolean)
         }).lean();
         const baseData = (fd ? (fd.data || fd.formData) : runtimeRecord?.formData) || {};
-        if (canonicalSchools.length > 0) {
+        if (isStage3Node) {
+          return baseData;
+        }
+        const mergedSchools = this._mergeCanonicalAndFormSchools(canonicalSchools, baseData.schools);
+        if (mergedSchools.length > 0) {
           return {
             ...baseData,
-            schools: canonicalSchools,
-            schoolName: canonicalSchools[0]?.name || baseData.schoolName
+            schools: mergedSchools,
+            schoolName: mergedSchools.map((s) => s.schoolName || s.name).filter(Boolean).join('; ') || baseData.schoolName
           };
         }
         return baseData;
@@ -1014,12 +1147,11 @@ class TimelineDataService {
     const updatedRuntime = await this.saveNodeData({
       projectId: targetProjectId,
       nodeId: cleanKey,
-      formData: mergedFormData,
       status: calculatedStatus,
       remarks: remarksToSave
     });
 
-    // Also update form_schemas collection
+    // Save form values into form_data collection (single write)
     await formSchemasService.saveFormData(cleanKey, targetProjectId, mergedFormData, employee);
 
     // Auto-complete Stage 1 if confirmed and all required fields are filled

@@ -49,7 +49,7 @@ export function useSolutionsAndHardware() {
 
       if (sols.status === 'fulfilled' && Array.isArray(sols.value)) {
         setSolutions(
-          sols.value.map((s: SolutionItem) => ({
+          sols.value.map((s: any) => ({
             _id: s._id,
             key: s.key,
             label: s.label || s.name || s.key,
@@ -57,6 +57,11 @@ export function useSolutionsAndHardware() {
             icon: s.icon || '🔬',
             desc: s.description || s.desc || '',
             description: s.description || s.desc || '',
+            platform: s.platform || undefined,
+            platforms: Array.isArray(s.platforms) ? s.platforms : [],
+            licenseRequired: s.licenseRequired,
+            isLicenseRequired: s.isLicenseRequired,
+            licenseCount: s.licenseCount,
           }))
         );
       } else if (sols.status === 'rejected') {

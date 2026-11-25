@@ -492,6 +492,8 @@ interface SchoolSolutionsDropdownProps {
   selectedKeys: string[];
   schoolName: string;
   solutions?: MasterSolution[];
+  loading?: boolean;
+  onRefresh?: () => void;
   onToggleSolution: (key: string) => void;
   onSelectAll: () => void;
   onClearAll: () => void;
@@ -502,6 +504,8 @@ function SchoolSolutionsMultiSelectDropdown({
   selectedKeys,
   schoolName,
   solutions = [],
+  loading = false,
+  onRefresh,
   onToggleSolution,
   onSelectAll,
   onClearAll,
@@ -650,9 +654,27 @@ function SchoolSolutionsMultiSelectDropdown({
 
           {/* Solutions List */}
           <div className="overflow-y-auto space-y-1.5 pr-1 flex-1 max-h-[220px]">
-            {filteredSolutions.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">
-                No solutions found matching &quot;{searchQuery}&quot;
+            {loading && solutions.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400 flex items-center justify-center gap-2">
+                <span className="w-3.5 h-3.5 border-2 border-[#51a8b1] border-t-transparent rounded-full animate-spin" />
+                <span>Loading solutions from Core Backend...</span>
+              </div>
+            ) : filteredSolutions.length === 0 ? (
+              <div className="py-6 text-center text-xs text-slate-400 space-y-2">
+                <div>
+                  {solutions.length === 0
+                    ? 'No solutions returned from Core Backend API.'
+                    : `No solutions found matching "${searchQuery}"`}
+                </div>
+                {solutions.length === 0 && onRefresh && (
+                  <button
+                    type="button"
+                    onClick={onRefresh}
+                    className="text-[11px] font-bold px-3 py-1 rounded-lg bg-[#f0f8f9] hover:bg-[#e0f3f5] text-[#3a7d84] border border-[#b6e0e4] transition cursor-pointer"
+                  >
+                    Retry Loading Solutions
+                  </button>
+                )}
               </div>
             ) : (
               filteredSolutions.map((sol) => {
@@ -713,7 +735,7 @@ export function SolutionsConfigTable({
   schools = [],
   allFormData = {},
 }: SolutionsConfigTableProps) {
-  const { solutions: masterSolutions } = useSolutionsAndHardware();
+  const { solutions: masterSolutions, loading: catalogLoading, refreshSolutionsAndHardware } = useSolutionsAndHardware();
   const catalogSolutions = masterSolutions;
 
   // 1. Determine effective schools list
@@ -1059,6 +1081,8 @@ export function SolutionsConfigTable({
           selectedKeys={activeSchoolKeys}
           schoolName={currentSchool.name}
           solutions={catalogSolutions}
+          loading={catalogLoading}
+          onRefresh={refreshSolutionsAndHardware}
           onToggleSolution={handleToggleSchoolSolution}
           onSelectAll={handleSelectAllForSchool}
           onClearAll={handleClearAllForSchool}

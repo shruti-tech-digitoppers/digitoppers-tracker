@@ -5,6 +5,7 @@ const coreApi = require('../../services/core-api.service');
  */
 const getSolutions = async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store');
     const coreSolutions = await coreApi.getSolutions(req.query);
     return res.status(200).json({
       success: true,
